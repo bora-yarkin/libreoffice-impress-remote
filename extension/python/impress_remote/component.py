@@ -41,7 +41,10 @@ class ImpressRemoteProtocolHandler(unohelper.Base, XServiceInfo, XDispatchProvid
         return None
 
     def queryDispatches(self, requests):
-        return tuple(self.queryDispatch(item.FeatureURL, item.FrameName, item.SearchFlags) for item in requests)
+        return tuple(
+            self.queryDispatch(item.FeatureURL, item.FrameName, item.SearchFlags)
+            for item in requests
+        )
 
     def dispatch(self, url, args):
         command = getattr(url, "Path", "")
@@ -76,4 +79,8 @@ def create(ctx):
 
 
 g_ImplementationHelper = unohelper.ImplementationHelper()
-g_ImplementationHelper.addImplementation(create, IMPLEMENTATION_NAME, SERVICE_NAMES)
+g_ImplementationHelper.addImplementation(
+    create,
+    IMPLEMENTATION_NAME,
+    SERVICE_NAMES,
+)
