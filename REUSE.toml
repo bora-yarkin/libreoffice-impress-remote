@@ -21,6 +21,7 @@ path = [
   "extension/Addons.xcu",
   "extension/ProtocolHandler.xcu",
   "extension/web/**",
+  "extension/icons/**",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Bora Yarkın"
