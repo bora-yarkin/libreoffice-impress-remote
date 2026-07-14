@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Bora Yarkın
+# SPDX-License-Identifier: GPL-3.0-only
+
+version = 1
+
+[[annotations]]
+path = [
+  "LICENSE",
+  ".editorconfig",
+  ".gitattributes",
+  ".gitignore",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Bora Yarkın"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = [
+  "extension/META-INF/manifest.xml",
+  "extension/description.xml",
+  "extension/Addons.xcu",
+  "extension/ProtocolHandler.xcu",
+  "extension/web/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Bora Yarkın"
+SPDX-License-Identifier = "GPL-3.0-only"

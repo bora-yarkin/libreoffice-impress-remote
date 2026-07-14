@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LibreOffice Impress Remote</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Impress Remote</h1>
+      <p id="status">Connecting...</p>
+    </header>
+    <section class="slide-card">
+      <div id="slide">Slide -- / --</div>
+      <pre id="notes"></pre>
+    </section>
+    <section class="controls">
+      <button data-command="previous_effect">Back</button>
+      <button data-command="next_effect">Next</button>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

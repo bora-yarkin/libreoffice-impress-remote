@@ -1,0 +1,10 @@
+<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+
+# Summary
+
+# Testing
+
+# Security Impact
+
+# Compatibility Impact

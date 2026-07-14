@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: 2026 Bora Yarkın
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Product CI
+
+'on':
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '23 3 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  python:
+    name: Python Lint And Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,security]' -e './server[dev]'
+      - name: Run Ruff
+        run: ruff check extension/python server/src server/tests tests tools
+      - name: Run Tests
+        run: PYTHONPATH=extension/python:server/src pytest tests server/tests
+
+  package:
+    name: Build Extension Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Build OXT
+        run: python tools/build_oxt.py
+      - name: Upload OXT Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: libreoffice-impress-remote-oxt
+          path: dist/libreoffice-impress-remote.oxt
+          if-no-files-found: error
+
+  security:
+    name: Security And Supply Chain Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Install Security Tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,security]' -e './server[dev]'
+      - name: Run Security Checks
+        run: |
+          reuse lint
+          bandit -r extension/python server/src tools -q -lll
+          pip-audit
