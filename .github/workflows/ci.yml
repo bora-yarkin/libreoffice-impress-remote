@@ -86,6 +86,7 @@ jobs:
           python -m pip install -e '.[dev,security]' -e './server[dev]'
       - name: Run Security Checks
         run: |
+          make clean
           reuse lint
           bandit -r extension/python server/src tools -q -lll
           pip-audit
