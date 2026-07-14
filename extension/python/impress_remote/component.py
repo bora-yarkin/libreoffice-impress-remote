@@ -21,7 +21,12 @@ IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ProtocolHandler"
 SERVICE_NAMES = ("com.sun.star.frame.ProtocolHandler",)
 
 
-class ImpressRemoteProtocolHandler(unohelper.Base, XServiceInfo, XDispatchProvider, XDispatch):
+class ImpressRemoteProtocolHandler(
+    unohelper.Base if unohelper is not None else object,
+    XServiceInfo,
+    XDispatchProvider,
+    XDispatch,
+):
     def __init__(self, ctx):
         self.ctx = ctx
         self.server = None
@@ -35,7 +40,7 @@ class ImpressRemoteProtocolHandler(unohelper.Base, XServiceInfo, XDispatchProvid
     def getSupportedServiceNames(self):
         return SERVICE_NAMES
 
-    def queryDispatch(self, url, target_frame_name, search_flags):
+    def queryDispatch(self, url, _target_frame_name, _search_flags):
         if getattr(url, "Protocol", "") == "vnd.org.borayarkin.impressremote:":
             return self
         return None
@@ -46,7 +51,7 @@ class ImpressRemoteProtocolHandler(unohelper.Base, XServiceInfo, XDispatchProvid
             for item in requests
         )
 
-    def dispatch(self, url, args):
+    def dispatch(self, url, _args):
         command = getattr(url, "Path", "")
         try:
             if command == "start":
@@ -56,10 +61,10 @@ class ImpressRemoteProtocolHandler(unohelper.Base, XServiceInfo, XDispatchProvid
         except Exception:
             traceback.print_exc()
 
-    def addStatusListener(self, listener, url):
+    def addStatusListener(self, _listener, _url):
         return None
 
-    def removeStatusListener(self, listener, url):
+    def removeStatusListener(self, _listener, _url):
         return None
 
     def start(self):
@@ -78,9 +83,10 @@ def create(ctx):
     return ImpressRemoteProtocolHandler(ctx)
 
 
-g_ImplementationHelper = unohelper.ImplementationHelper()
-g_ImplementationHelper.addImplementation(
-    create,
-    IMPLEMENTATION_NAME,
-    SERVICE_NAMES,
-)
+if unohelper is not None:
+    g_ImplementationHelper = unohelper.ImplementationHelper()
+    g_ImplementationHelper.addImplementation(
+        create,
+        IMPLEMENTATION_NAME,
+        SERVICE_NAMES,
+    )
