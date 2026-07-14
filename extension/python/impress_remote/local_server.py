@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import json
 import threading
+from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from impress_remote.config import RemoteConfig
 from impress_remote.controller import ImpressController
@@ -34,7 +35,8 @@ class RemoteServer:
         class Handler(RemoteRequestHandler):
             server_ref = parent
 
-        self.httpd = ThreadingHTTPServer((self.config.local_host, self.config.local_port), Handler)
+        address = (self.config.local_host, self.config.local_port)
+        self.httpd = ThreadingHTTPServer(address, Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
 
@@ -48,29 +50,35 @@ class RemoteServer:
 class RemoteRequestHandler(BaseHTTPRequestHandler):
     server_ref: RemoteServer
 
-    def log_message(self, fmt: str, *args) -> None:
+    def log_message(self, _fmt: str, *_args) -> None:
         return
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path in {"/", "/index.html"}:
-            self._send_file(WEB_ROOT / "index.html", "text/html")
+            self._send_file(WEB_ROOT / "index.html", "text/html; charset=utf-8")
         elif parsed.path == "/app.css":
-            self._send_file(WEB_ROOT / "app.css", "text/css")
+            self._send_file(WEB_ROOT / "app.css", "text/css; charset=utf-8")
         elif parsed.path == "/app.js":
-            self._send_file(WEB_ROOT / "app.js", "application/javascript")
+            self._send_file(WEB_ROOT / "app.js", "application/javascript; charset=utf-8")
         elif parsed.path == "/api/state":
             self._json(self._state())
         else:
-            self.send_error(404)
+            self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path != "/api/command":
-            self.send_error(404)
+            self.send_error(HTTPStatus.NOT_FOUND)
             return
-        length = int(self.headers.get("Content-Length", "0"))
-        payload = json.loads(self.rfile.read(length) or b"{}")
+
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            self.send_error(HTTPStatus.BAD_REQUEST)
+            return
+
         self.server_ref.controller.command(payload.get("command", ""), payload.get("index"))
         self._json({"ok": True})
 
@@ -86,16 +94,18 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def _json(self, payload: dict[str, object]) -> None:
         data = json.dumps(payload).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
 
     def _send_file(self, path: Path, content_type: str) -> None:
         data = path.read_bytes()
-        self.send_response(200)
+        self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
