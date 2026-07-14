@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Bora Yarkın
+# SPDX-License-Identifier: GPL-3.0-only
+
 .PHONY: help oxt test lint security clean server-dev
 
 help:
