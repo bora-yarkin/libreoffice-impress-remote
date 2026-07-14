@@ -28,7 +28,11 @@ class RelayState:
 
     def cleanup(self) -> None:
         now = time.time()
-        expired = [key for key, session in self.sessions.items() if session.empty() or now - session.last_seen > self.session_ttl]
+        expired = [
+            key
+            for key, session in self.sessions.items()
+            if session.empty() or now - session.last_seen > self.session_ttl
+        ]
         for key in expired:
             self.sessions.pop(key, None)
 
@@ -49,7 +53,10 @@ async def health(request: web.Request) -> web.Response:
 
 
 async def index(_request: web.Request) -> web.Response:
-    return web.Response(text="LibreOffice Impress Remote relay is running.\n", content_type="text/plain")
+    return web.Response(
+        text="LibreOffice Impress Remote relay is running.\n",
+        content_type="text/plain",
+    )
 
 
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
@@ -89,7 +96,10 @@ async def relay_message(session: RelaySession, role: str, message: Any) -> None:
         targets.extend(phone for phone in session.phones if not phone.closed)
     elif session.plugin is not None and not session.plugin.closed:
         targets.append(session.plugin)
-    await asyncio.gather(*(send_message(target, message) for target in targets), return_exceptions=True)
+    await asyncio.gather(
+        *(send_message(target, message) for target in targets),
+        return_exceptions=True,
+    )
 
 
 async def send_message(target: Any, message: Any) -> None:
