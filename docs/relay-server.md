@@ -7,11 +7,17 @@ The relay server is a lightweight Python process using `aiohttp`.
 
 It should:
 
+- serve `/`, `/app.js`, and `/app.css` for the phone relay UI
 - serve `/health`
 - accept WebSocket clients on `/ws`
 - match clients by session ID
-- relay encrypted frames
+- relay presentation state and command frames
 - expire dead sessions
+
+Current prototype note:
+
+- relay messages are plaintext JSON today
+- encrypted relay frames are still planned before security-sensitive use
 
 It must not:
 

@@ -3,9 +3,9 @@
 
 # LibreOffice Impress Remote
 
-LibreOffice Impress Remote is a FOSS, self-hostable remote-control system for LibreOffice Impress presentations. It is designed to work locally like a Keynote-style presenter remote while also supporting encrypted relay mode for difficult networks such as phone hotspots, CGNAT, locked-down conference Wi-Fi, and direct public IPv6.
+LibreOffice Impress Remote is a FOSS, self-hostable remote-control system for LibreOffice Impress presentations. It is designed to work locally like a Keynote-style presenter remote while also supporting relay and direct IPv6 transports for difficult networks such as phone hotspots, CGNAT, locked-down conference Wi-Fi, and public IPv6.
 
-The project is pre-1.0. The current implementation is an initial developer foundation: packageable LibreOffice extension, local browser remote, Python relay server skeleton, project documentation, compliance metadata, and CI/security automation. Production E2E encryption and final LibreOffice UNO integration are tracked as blocking milestones before security-sensitive use.
+The project is pre-1.0. Version `0.2.0` delivers a usable QR-first local/direct browser remote with full current-slide rendering, live local presenter updates, a LibreOffice-native settings dialog, persisted network settings, and a prototype relay mode with a hosted phone UI and extension-side relay client. Production E2E encryption and deeper LibreOffice-native persistence work are still blocking milestones before security-sensitive use.
 
 ## Product Areas
 
@@ -14,7 +14,7 @@ The project is pre-1.0. The current implementation is an initial developer found
 - Lightweight Python relay server
 - End-to-end encrypted message protocol
 - Direct IPv4, direct IPv6, and relay transports
-- Presenter notes, current slide state, and future slide preview support
+- Presenter notes, current slide state, QR pairing, and future slide preview support
 
 ## Repository Layout
 
@@ -41,6 +41,7 @@ The project is pre-1.0. The current implementation is an initial developer found
 make venv
 make sdk-download
 make oxt
+make install-oxt
 ```
 
 The package is created at:
@@ -53,6 +54,12 @@ Install it with LibreOffice Extension Manager:
 
 ```text
 Tools -> Extensions -> Add
+```
+
+Or install the freshly built package directly with LibreOffice's `unopkg` wrapper:
+
+```bash
+make install-oxt
 ```
 
 To resolve, download, and install the latest SDK compatible with your installed LibreOffice branch:
@@ -71,20 +78,58 @@ make server-dev
 Default relay endpoint:
 
 ```text
-/ws?role=phone|plugin&session=SESSION_ID
+GET /            -> hosted relay phone UI
+GET /health      -> relay health and session metadata
+GET /ws?...      -> relay WebSocket transport
 ```
+
+Prototype relay flow:
+
+1. Run `make server-dev` on the relay host.
+2. Start the LibreOffice remote locally.
+3. Open the LibreOffice settings dialog, enable relay mode, and enter the relay base URL.
+4. Start the remote and scan the QR code for the relay route on the phone.
+
+## Testing the local path
+
+After installation, use LibreOffice's menu:
+
+```text
+Slide Show -> Presentation Remote
+```
+
+- `Start Remote` starts the embedded HTTP listener.
+- `Open Console` starts the listener if needed and opens the currently selected remote route in your browser.
+- `Settings` opens the LibreOffice dialog for local port, IPv6 direct mode, relay enablement, relay URL, route selection, and QR pairing.
+- `Stop Remote` tears the local runtime down cleanly.
+
+The default pairing route is `auto`, which prefers:
+
+1. local network
+2. direct IPv6
+3. relay server
+
+Use the route dropdown in the LibreOffice dialog when you want to force a specific path for testing.
 
 ## Modes
 
 | Mode | Path | Use case |
 | --- | --- | --- |
 | Local | Phone -> laptop local IP | Same Wi-Fi, local router, Android hotspot |
-| Relay | Phone -> Python VPS <- plugin | iPhone hotspot, CGNAT, restricted networks |
+| Relay | Phone -> relay-hosted UI/WS <- LibreOffice extension | iPhone hotspot, CGNAT, restricted networks |
 | Direct IPv6 | Phone -> laptop global IPv6 | IPv4 behind CGNAT but public IPv6 available |
 
 ## Security Model
 
 The relay server is intentionally dumb. It should only join clients into session rooms and forward encrypted frames. It must not parse slide notes, store previews, or know encryption keys.
+
+Current prototype caveat:
+
+```text
+Relay mode currently forwards plaintext JSON state and command frames.
+```
+
+Treat the relay as trusted for now. Do not use it for confidential presenter notes on untrusted networks or third-party relays until E2E encryption lands.
 
 Planned production E2E profile:
 
@@ -99,10 +144,13 @@ Browser-hosted E2E has a limitation: if the web UI is served by a malicious rela
 | Command | Purpose |
 | --- | --- |
 | `make oxt` | Build the `.oxt` extension |
+| `make install-oxt` | Build and install the `.oxt` with `unopkg` |
 | `make test` | Run tests |
 | `make lint` | Run Ruff linting |
 | `make security` | Run REUSE, Bandit, and pip-audit checks |
 | `make clean` | Remove generated files |
+
+If LibreOffice reports `premature end of file:///.../component.py`, it is usually still loading a stale cached extension version. Close LibreOffice and run `make install-oxt`, or remove the extension in Extension Manager and reinstall `dist/libreoffice-impress-remote.oxt`.
 
 ## License
 

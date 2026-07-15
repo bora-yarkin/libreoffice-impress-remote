@@ -4,20 +4,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from impress_remote.notes import extract_notes_for_slide
-from impress_remote.preview import extract_slide_title, render_slide_preview
+from impress_remote.preview import export_slide_png_bytes, extract_slide_title, render_slide_preview
 
 
 @dataclass
 class PresentationState:
     running: bool
+    document_kind: str
+    status_message: str
     current_slide: int
     slide_count: int
     notes: str
     current_title: str
-    next_slide: Optional[int]
+    next_slide: int | None
     next_title: str
     next_preview: str
     can_go_previous: bool
@@ -30,48 +31,123 @@ class ImpressController:
 
     def state(self) -> PresentationState:
         document = self._document()
+        if document is None:
+            return PresentationState(
+                running=False,
+                document_kind="none",
+                status_message="Open an Impress presentation to use the remote.",
+                current_slide=0,
+                slide_count=0,
+                notes="",
+                current_title="",
+                next_slide=None,
+                next_title="",
+                next_preview="",
+                can_go_previous=False,
+                can_go_next=False,
+            )
+        if not self._is_impress_document(document):
+            return PresentationState(
+                running=False,
+                document_kind="other",
+                status_message="The active LibreOffice document is not an Impress presentation.",
+                current_slide=0,
+                slide_count=0,
+                notes="",
+                current_title="",
+                next_slide=None,
+                next_title="",
+                next_preview="",
+                can_go_previous=False,
+                can_go_next=False,
+            )
+
         slide_count = self._slide_count(document)
         slideshow_controller = self._slideshow_controller(document)
         current_index = self._current_slide_index(slideshow_controller, document, slide_count)
         current_slide = self._slide_for_index(document, current_index)
         next_index = current_index + 1 if current_index + 1 < slide_count else None
         next_slide = self._slide_for_index(document, next_index) if next_index is not None else None
+        running = slideshow_controller is not None
+        if running:
+            status_message = "Presentation running"
+        elif slide_count:
+            status_message = "Ready in editing view"
+        else:
+            status_message = "This Impress document does not contain any slides."
 
         return PresentationState(
-            running=slideshow_controller is not None,
+            running=running,
+            document_kind="impress",
+            status_message=status_message,
             current_slide=current_index,
             slide_count=slide_count,
             notes=extract_notes_for_slide(current_slide),
             current_title=extract_slide_title(current_slide),
             next_slide=next_index,
             next_title=extract_slide_title(next_slide),
-            next_preview=render_slide_preview(next_slide, next_index) if next_index is not None else "",
+            next_preview=(
+                render_slide_preview(next_slide, next_index)
+                if next_index is not None
+                else ""
+            ),
             can_go_previous=current_index > 0,
             can_go_next=next_index is not None,
         )
 
-    def command(self, name: str, index: Optional[int] = None) -> None:
+    def command(self, name: str, index: int | None = None) -> None:
         document = self._document()
+        if not self._is_impress_document(document):
+            return
         presentation = self._presentation(document)
         controller = self._slideshow_controller(document)
-        if name == "start_presentation" and presentation is not None and hasattr(presentation, "start"):
+        if (
+            name == "start_presentation"
+            and presentation is not None
+            and hasattr(presentation, "start")
+        ):
             presentation.start()
             return
         if name == "end_presentation" and presentation is not None and hasattr(presentation, "end"):
             presentation.end()
             return
-        if controller is None:
-            return
-        if name == "next_effect":
-            controller.gotoNextEffect()
-        elif name == "previous_effect":
-            controller.gotoPreviousEffect()
-        elif name == "next_slide":
-            controller.gotoNextSlide()
+        if controller is not None:
+            if name == "next_effect":
+                controller.gotoNextEffect()
+                return
+            if name == "previous_effect":
+                controller.gotoPreviousEffect()
+                return
+            if name == "next_slide":
+                controller.gotoNextSlide()
+                return
+            if name == "previous_slide":
+                controller.gotoPreviousSlide()
+                return
+            if name == "goto_slide" and index is not None:
+                controller.gotoSlideIndex(index)
+                return
+
+        if name == "next_slide":
+            self._set_editing_slide(document, self._editing_slide_index(document) + 1)
         elif name == "previous_slide":
-            controller.gotoPreviousSlide()
+            self._set_editing_slide(document, self._editing_slide_index(document) - 1)
         elif name == "goto_slide" and index is not None:
-            controller.gotoSlideIndex(index)
+            self._set_editing_slide(document, index)
+
+    def current_slide_png_bytes(self) -> bytes:
+        document = self._document()
+        if not self._is_impress_document(document):
+            raise RuntimeError("The active LibreOffice document is not an Impress presentation.")
+        slide = self._slide_for_index(
+            document,
+            self._current_slide_index(
+                self._slideshow_controller(document),
+                document,
+                self._slide_count(document),
+            ),
+        )
+        return export_slide_png_bytes(self.ctx, slide)
 
     def _desktop(self):
         service_manager = self.ctx.getServiceManager()
@@ -100,7 +176,14 @@ class ImpressController:
             return 0
         return document.getDrawPages().getCount()
 
-    def _slide_for_index(self, document, index: Optional[int]):
+    def _is_impress_document(self, document) -> bool:
+        return (
+            document is not None
+            and hasattr(document, "getDrawPages")
+            and hasattr(document, "getPresentation")
+        )
+
+    def _slide_for_index(self, document, index: int | None):
         if document is None or index is None or index < 0 or not hasattr(document, "getDrawPages"):
             return None
         draw_pages = document.getDrawPages()
@@ -148,7 +231,26 @@ class ImpressController:
             return None
         return controller.getCurrentPage()
 
-    def _slide_index(self, document, target_slide) -> Optional[int]:
+    def _editing_slide_index(self, document) -> int:
+        slide_count = self._slide_count(document)
+        current_slide = self._editing_current_slide(document)
+        resolved = self._slide_index(document, current_slide)
+        if resolved is None:
+            return 0
+        return max(0, min(resolved, max(slide_count - 1, 0)))
+
+    def _set_editing_slide(self, document, index: int) -> None:
+        if document is None or not hasattr(document, "getCurrentController"):
+            return
+        controller = document.getCurrentController()
+        if controller is None or not hasattr(controller, "setCurrentPage"):
+            return
+        target_slide = self._slide_for_index(document, index)
+        if target_slide is None:
+            return
+        controller.setCurrentPage(target_slide)
+
+    def _slide_index(self, document, target_slide) -> int | None:
         if document is None or target_slide is None or not hasattr(document, "getDrawPages"):
             return None
         draw_pages = document.getDrawPages()

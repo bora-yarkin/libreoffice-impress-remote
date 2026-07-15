@@ -11,6 +11,16 @@
             <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
           </node>
           <node oor:name="m2" oor:op="replace">
+            <prop oor:name="Title" oor:type="xs:string"><value>Open Console</value></prop>
+            <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:open</value></prop>
+            <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          </node>
+          <node oor:name="m3" oor:op="replace">
+            <prop oor:name="Title" oor:type="xs:string"><value>Settings</value></prop>
+            <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:settings</value></prop>
+            <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          </node>
+          <node oor:name="m4" oor:op="replace">
             <prop oor:name="Title" oor:type="xs:string"><value>Stop Remote</value></prop>
             <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:stop</value></prop>
             <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>

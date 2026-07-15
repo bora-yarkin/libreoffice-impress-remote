@@ -1,125 +1,69 @@
-# SPDX-FileCopyrightText: 2026 Bora Yarkın
-# SPDX-License-Identifier: GPL-3.0-only
+<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 
 # TODO
 
-Recovered roadmap based on the current repository state.
+This file tracks the `0.2.0` project snapshot: what already ships today and what is still planned next.
 
-## Current foundation already present
+## Implemented
 
-- LibreOffice `.oxt` packaging, manifest files, and menu registration exist.
-- A UNO protocol handler can start and stop an embedded local HTTP server.
-- A minimal phone web UI exists with polling and two control buttons.
-- A relay server skeleton exists with `/health` and `/ws`.
-- Basic token generation and HKDF utility code exist.
+- Packaging: LibreOffice `.oxt` packaging, manifest files, menu registration, versioned extension builds, and source-only OXT output are in place.
+- Setup tooling: `make venv` creates a `uv`-managed environment with project dependencies installed, and `make sdk-download` resolves, downloads, and installs a compatible LibreOffice SDK.
+- Local mode server: The extension can start and stop embedded HTTP listeners, expose local IPv4 URLs, expose direct IPv6 URLs when available, and fall back to the next available local port when the preferred one is busy.
+- Local mode runtime UX: The phone UI now receives live server-push updates, shows reconnect and offline states, and falls back to polling when `EventSource` is unavailable.
+- Presenter state: The extension reports slide count, current slide index, current slide title, presenter notes, next slide index, next slide title, a text-based next-slide preview, and clearer state when no presentation is open or when the active document is not Impress.
+- Presentation control: The phone UI can start a slideshow, end a slideshow, move by slide, move by effect, and jump to a specific slide.
+- Phone UI: The local browser remote now acts as a lightweight dummy remote with a full current-slide image, presenter notes, live status, and side-by-side previous and next buttons.
+- Slide rendering: The extension can export the current Impress slide to PNG and serve it to the local phone UI.
+- LibreOffice UX: The extension menu now exposes start, stop, open-console, and settings actions, and the LibreOffice dialog now owns route selection, relay configuration, runtime status, and QR-based phone pairing.
+- Pairing flow: The extension now supports `auto`, `local`, `ipv6`, and `relay` pairing modes, with `auto` preferring local first, then direct IPv6, then relay.
+- Relay mode prototype: The extension can persist relay settings, open an outbound relay connection as the plugin, publish a shareable relay link, receive commands from relay-connected phones, and push live presentation state over the relay.
+- Relay server: The relay exposes `/`, `/app.js`, `/app.css`, `/health`, and `/ws`, serves a relay-hosted phone controller UI, forwards plugin and phone WebSocket messages, replaces an existing plugin when a new one joins, and expires empty or stale sessions.
+- Relay safety: Session-id length limits, phone-count limits, and WebSocket message-size limits are implemented.
+- Crypto foundation: Random session token generation and HKDF-SHA256 helpers exist.
+- Config persistence: Transport settings are stored in the extension's own user config file and survive restarts and reinstalls.
+- Editor support: Workspace analysis config, import roots, and UNO stubs are in place to keep Pylance usable in this repo.
+- Tests: Unit and integration coverage exists for bootstrap/import behavior, SDK resolution logic, config and protocol helpers, controller state extraction, network URL helpers, crypto helpers, manifest presence, and relay message forwarding.
 
-## Local mode
+## Planned
 
-- Make the extension expose a usable pairing flow instead of only printing a localhost URL.
-- Show the actual LAN URL in LibreOffice so a phone can connect over Wi-Fi.
-- Add QR-code pairing for the local server URL.
-- Detect the best local IPv4 and IPv6 addresses instead of always advertising `127.0.0.1`.
-- Add a real status surface in LibreOffice that shows whether the local server is running.
-- Add port conflict handling and a way to change the local port.
-- Support HTTPS or clearly document why local HTTP is acceptable for the product model.
-- Replace polling with WebSocket or server-sent push for lower-latency state updates.
-- Add reconnect handling when the phone drops off the network and returns.
-
-## Presentation state and slideshow control
-
-- Read the real current slide index instead of always returning `0`.
-- Detect whether a slideshow is actually running instead of always returning `True`.
-- Return the real slide count for the active presentation in slideshow mode and edit mode.
-- Wire presenter notes extraction into the state response.
-- Add next-slide preview generation instead of the current placeholder-only module.
-- Add direct commands for next slide versus next effect and previous slide versus previous effect in the UI.
-- Add go-to-slide support in the phone UI.
-- Handle cases where no presentation is open or no slideshow controller is available.
-- Start slideshow mode from the extension when needed.
-- Keep state synchronized when slides change outside the phone UI.
-
-## Phone web UI
-
-- Add a connection and pairing screen instead of assuming a working local server.
-- Add a transport selector for local, direct IPv6, and relay modes.
-- Add a settings screen for relay host, port, and session details.
-- Add a presenter layout that shows current slide, next slide, notes, timer, and connection state.
-- Add clearer control affordances for blank screen, jump to slide, and end presentation.
-- Make the UI resilient to failed fetches, timeouts, and stale sessions.
-- Add accessibility improvements for large tap targets, orientation changes, and low-light use.
-- Add installable PWA behavior if offline or homescreen install is part of the intended UX.
-
-## Direct IPv6 mode
-
-- Detect whether the host actually has reachable public IPv6.
-- Advertise the correct global IPv6 address to the phone.
-- Handle bracketed IPv6 URL generation correctly in the UI and pairing flow.
-- Add reachability checks so the user can tell whether direct IPv6 should work before trying it.
-- Document router, firewall, and hotspot caveats for direct IPv6 use.
-- Secure direct IPv6 transport with the same message protocol as other modes.
-
-## Relay mode
-
-- Implement the extension-side relay client instead of the current `NotImplementedError`.
-- Add a LibreOffice configuration page for relay domain, IP, port, and transport settings.
-- Create a pairing/session creation flow for relay mode.
-- Define which side generates session IDs and how they are shared safely with the phone.
-- Connect the phone UI to the relay server over WebSocket.
-- Serve or otherwise distribute the phone UI for relay sessions.
-- Add reconnect and session resume behavior for relay disconnections.
-- Add relay authentication or admission control if public deployment is expected.
-- Add relay deployment docs for VPS, reverse proxy, TLS, and firewall setup.
-
-## End-to-end encryption and protocol
-
-- Implement the planned ECDH P-256 key exchange.
-- Implement AES-GCM encrypted frames instead of plain relayed messages.
-- Define a shared message schema for commands, state updates, previews, and errors.
-- Use the same protocol across local, direct IPv6, and relay modes.
-- Add replay protection, session binding, and key rotation rules.
-- Decide how the phone UI can be trusted when served by a relay-controlled origin.
-- Add protocol versioning so phone and extension updates can fail gracefully.
-
-## LibreOffice integration and configuration UX
-
-- Add a real options or setup dialog inside LibreOffice.
-- Persist configuration in LibreOffice user settings.
-- Let users enable or disable local, IPv6, and relay transports independently.
-- Show the active session, mode, and remote endpoints inside LibreOffice.
-- Surface recoverable errors in LibreOffice UI instead of only printing to stdout or traceback.
-- Add startup/shutdown cleanup so stopping the extension always tears down listeners and sessions.
-
-## Relay server hardening
-
-- Add limits for session count, message size, and idle clients.
-- Add cleanup tasks for abandoned WebSocket connections.
-- Add structured logging and operational metrics.
-- Add graceful shutdown for running relay processes.
-- Add optional TLS guidance or built-in termination assumptions.
-- Add tests for real plugin-phone message relay, duplicate connections, and cleanup behavior.
-- Add abuse protections if the relay will be internet-facing.
-
-## Testing
-
-- Add unit tests for slideshow state extraction, notes extraction, and command dispatch.
-- Add integration tests for the local HTTP server endpoints.
-- Add tests for the phone UI behavior and protocol messages.
-- Add tests for the extension-side relay client once implemented.
-- Add compatibility checks against LibreOffice’s bundled Python runtime.
-- Add end-to-end manual test scripts for local, IPv6, and relay scenarios.
-
-## Documentation
-
-- Restore a feature matrix that clearly marks implemented versus planned behavior.
-- Add a user-facing "how to run" guide for the current local-only prototype.
-- Add an architecture/protocol document for the three transport paths.
-- Add troubleshooting guidance for LibreOffice extension loading and reinstall behavior.
-- Add security notes that distinguish prototype security from production goals.
-
-## Release readiness
-
-- Define a milestone for "local presenter remote works end-to-end".
-- Define a milestone for "direct IPv6 works end-to-end".
-- Define a milestone for "relay mode works end-to-end with encryption".
-- Decide the minimum supported LibreOffice versions and platforms.
-- Add CI coverage for building the `.oxt` and running both extension and relay tests.
+- Local mode: Decide whether to support HTTPS locally or explicitly document the chosen trust model.
+- Presentation state: Keep state synchronized when slides change outside the phone UI.
+- Presentation state: Improve current-slide detection across more LibreOffice controller states and edge cases.
+- Presentation state: Replace text-only next-slide previews with real rendered thumbnails.
+- Presentation state: Add blank-screen, presenter-timer, and end-of-deck presenter helpers if they remain part of the product goal.
+- Phone UI: Add stronger error presentation, retry flows, and accessibility polish for mobile use.
+- Phone UI: Add installable PWA behavior if offline launch or homescreen install is desired.
+- Localization: Move LibreOffice dialog strings, menu labels, status text, errors, and phone UI copy into a translation-friendly workflow that can scale to LibreOffice's language coverage.
+- Direct IPv6 mode: Detect whether the host has a globally reachable IPv6 address, not just any non-link-local IPv6.
+- Direct IPv6 mode: Add reachability checks and user-facing guidance for router, firewall, and hotspot caveats.
+- Direct IPv6 mode: Secure direct IPv6 transport with the same protocol used in other modes.
+- Bluetooth support: Design and implement a Bluetooth-based pairing and control path for environments where local network, IPv6, and relay are poor fits.
+- Relay mode: Add session creation, pairing, resume, and reconnect behavior for relay transport.
+- Relay mode: Add relay deployment docs for VPS, reverse proxy, TLS, and firewall setup.
+- Relay mode: Add authentication or admission control if public relay deployment is expected.
+- Security and protocol: Implement the planned ECDH P-256 key exchange.
+- Security and protocol: Implement AES-GCM encrypted frames instead of plaintext relayed messages.
+- Security and protocol: Define a shared protocol for commands, state updates, previews, errors, and version negotiation.
+- Security and protocol: Add replay protection, session binding, and key rotation rules.
+- Security and protocol: Decide how to trust or pin the phone UI when it is served through a relay-controlled origin.
+- LibreOffice UX: Move persisted transport settings into true LibreOffice user settings instead of the current extension-owned config file.
+- LibreOffice UX: Let users disable the local listener completely if they want a relay-only or direct-IPv6-only workflow.
+- LibreOffice UX: Add live QR refresh when the route dropdown changes without requiring a save or start action.
+- LibreOffice UX: Surface recoverable runtime errors in LibreOffice UI instead of only printing tracebacks.
+- LibreOffice UX: Add startup and shutdown cleanup that always tears down listeners and sessions cleanly.
+- Relay hardening: Add structured logs and operational metrics.
+- Relay hardening: Add abuse protections if the relay will be internet-facing.
+- Relay hardening: Add more cleanup and backpressure behavior for noisy or abandoned clients.
+- Testing: Add local HTTP endpoint tests for the embedded extension server.
+- Testing: Add end-to-end manual or automated scenarios for local, IPv6, and relay workflows.
+- Testing: Add coverage for the future relay client and encrypted protocol once implemented.
+- Testing: Add broader LibreOffice runtime compatibility checks across supported versions.
+- Documentation: Keep a user-facing feature matrix that clearly marks implemented versus planned behavior.
+- Documentation: Expand the run/install troubleshooting guide for LibreOffice extension loading failures.
+- Documentation: Add a clearer architecture and protocol document for the three transport paths.
+- Documentation: Keep security docs aligned with the gap between prototype behavior and production goals.
+- LibreOffice integration: Align architecture, UX, packaging, and contribution requirements with the long-term goal of making this part of LibreOffice itself.
+- Release readiness: Define milestones for local mode, direct IPv6 mode, and relay mode reaching true end-to-end usability.
+- Release readiness: Decide the minimum supported LibreOffice versions and supported desktop platforms.
+- Release readiness: Expand CI coverage for packaged extension verification and broader test execution.

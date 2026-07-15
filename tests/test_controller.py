@@ -102,9 +102,14 @@ class FakePresentation:
 class FakeCurrentController:
     def __init__(self, slide):
         self.slide = slide
+        self.selected_pages = []
 
     def getCurrentPage(self):
         return self.slide
+
+    def setCurrentPage(self, slide) -> None:
+        self.slide = slide
+        self.selected_pages.append(slide)
 
 
 class FakeDocument:
@@ -121,6 +126,10 @@ class FakeDocument:
 
     def getCurrentController(self):
         return self.current_controller
+
+
+class FakeNonImpressDocument:
+    pass
 
 
 class FakeDesktop:
@@ -163,6 +172,8 @@ class ControllerTests(unittest.TestCase):
         state = controller.state()
 
         self.assertTrue(state.running)
+        self.assertEqual(state.document_kind, "impress")
+        self.assertEqual(state.status_message, "Presentation running")
         self.assertEqual(state.current_slide, 1)
         self.assertEqual(state.slide_count, 3)
         self.assertEqual(state.current_title, "Metrics")
@@ -180,10 +191,22 @@ class ControllerTests(unittest.TestCase):
         state = controller.state()
 
         self.assertFalse(state.running)
+        self.assertEqual(state.document_kind, "impress")
+        self.assertEqual(state.status_message, "Ready in editing view")
         self.assertEqual(state.current_slide, 2)
         self.assertEqual(state.current_title, "Wrap Up")
         self.assertEqual(state.next_slide, None)
         self.assertFalse(state.can_go_next)
+
+    def test_state_reports_non_impress_documents(self) -> None:
+        controller = ImpressController(FakeContext(FakeNonImpressDocument()))
+
+        state = controller.state()
+
+        self.assertFalse(state.running)
+        self.assertEqual(state.document_kind, "other")
+        self.assertIn("not an Impress presentation", state.status_message)
+        self.assertEqual(state.slide_count, 0)
 
     def test_commands_dispatch_to_presentation_and_slideshow(self) -> None:
         slideshow = FakeSlideShowController(current_index=0, slides=self.slides)
@@ -199,3 +222,15 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(presentation.started)
         self.assertTrue(presentation.ended)
         self.assertEqual(slideshow.commands, [("next_slide", None), ("goto_slide", 2)])
+
+    def test_slide_navigation_falls_back_to_editing_view(self) -> None:
+        document = FakeDocument(self.slides, FakePresentation(None), self.slides[1])
+        controller = ImpressController(FakeContext(document))
+
+        controller.command("previous_slide")
+        controller.command("goto_slide", 2)
+
+        self.assertEqual(
+            document.current_controller.selected_pages,
+            [self.slides[0], self.slides[2]],
+        )

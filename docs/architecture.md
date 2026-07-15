@@ -10,15 +10,17 @@ Local mode:
 Phone browser -> laptop local IP -> LibreOffice extension
 
 Relay mode:
-Phone browser -> Python relay <- LibreOffice extension
+Phone browser -> Python relay UI/WS <- LibreOffice extension relay client
 
 Direct IPv6 mode:
 Phone browser -> laptop global IPv6 -> LibreOffice extension
 ```
 
-The extension owns slideshow control, notes extraction, state generation, local HTTP/WebSocket service, pairing, and relay-client behavior.
+The extension owns slideshow control, notes extraction, state generation, local HTTP service, transport configuration, pairing, and relay-client behavior.
 
-The relay server owns only WebSocket session matching and encrypted frame forwarding.
+The relay server owns session matching, hosted relay phone UI, and frame forwarding.
+
+Today, relay forwarding is a plaintext prototype. End-to-end encryption is still a planned protocol milestone.
 
 ## Non-goals
 

@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
-.PHONY: help sdk-download oxt test lint security clean server-dev
+.PHONY: help sdk-download oxt install-oxt test lint security clean server-dev
 
 UV ?= uv
 VENV_DIR ?= .venv
 SDK_DIR ?= third_party/libreoffice-sdk
+LO_UNOPKG ?= $(or $(wildcard /Applications/LibreOffice.app/Contents/MacOS/unopkg),$(shell command -v unopkg 2>/dev/null))
 VENV_PYTHON := $(VENV_DIR)/bin/python
 VENV_PYTEST := $(VENV_DIR)/bin/pytest
 VENV_RUFF := $(VENV_DIR)/bin/ruff
@@ -16,12 +17,12 @@ VENV_RELAY := $(VENV_DIR)/bin/impress-remote-relay
 SETUP_STAMP := $(VENV_DIR)/.setup-complete
 
 help:
-	@echo "Targets: venv sdk-download oxt test lint security clean server-dev"
+	@echo "Targets: venv sdk-download oxt install-oxt test lint security clean server-dev"
 
 venv: $(SETUP_STAMP)
 
 $(SETUP_STAMP): pyproject.toml server/pyproject.toml
-	$(UV) venv $(VENV_DIR)
+	@if [ ! -x "$(VENV_PYTHON)" ]; then $(UV) venv $(VENV_DIR); fi
 	$(UV) pip install --python $(VENV_PYTHON) -e '.[dev,security]' -e './server[dev]'
 	@touch $(SETUP_STAMP)
 	@echo "Environment ready at $(VENV_DIR)"
@@ -31,6 +32,11 @@ sdk-download: $(SETUP_STAMP)
 
 oxt: $(SETUP_STAMP)
 	$(VENV_PYTHON) tools/build_oxt.py
+
+install-oxt: oxt
+	@if [ -z "$(LO_UNOPKG)" ]; then echo "LibreOffice unopkg not found. Set LO_UNOPKG=/path/to/unopkg."; exit 1; fi
+	@echo "Installing dist/libreoffice-impress-remote.oxt with $(LO_UNOPKG)"
+	"$(LO_UNOPKG)" add -f dist/libreoffice-impress-remote.oxt
 
 test: $(SETUP_STAMP)
 	PYTHONPATH=extension/python:server/src $(VENV_PYTEST) tests server/tests

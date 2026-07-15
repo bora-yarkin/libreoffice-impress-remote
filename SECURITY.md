@@ -20,4 +20,5 @@ Report vulnerabilities privately to the project maintainer. Do not disclose slid
 - Pairing tokens must be random and session-scoped.
 - Local mode must bind only to configured interfaces.
 - Relay mode must assume the server is honest-but-curious at minimum.
+- The current relay prototype still sends plaintext JSON state and command frames, so it must not be treated as confidential on untrusted relays or networks.
 - Browser-hosted E2E must document the malicious-JavaScript limitation.

@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from typing import List
+from pathlib import Path
+import tempfile
 
 
 def extract_slide_title(slide) -> str:
@@ -11,11 +12,11 @@ def extract_slide_title(slide) -> str:
     return snippets[0] if snippets else ""
 
 
-def extract_slide_snippets(slide, limit: int = 3) -> List[str]:
+def extract_slide_snippets(slide, limit: int = 3) -> list[str]:
     if slide is None or not hasattr(slide, "getCount"):
         return []
 
-    snippets: List[str] = []
+    snippets: list[str] = []
     for index in range(slide.getCount()):
         shape = slide.getByIndex(index)
         if not hasattr(shape, "getString"):
@@ -36,3 +37,45 @@ def render_slide_preview(slide, index: int) -> str:
     if len(snippets) == 1:
         return snippets[0]
     return " | ".join(snippets)
+
+
+def export_slide_png_bytes(ctx, slide) -> bytes:
+    if slide is None:
+        raise RuntimeError("No slide is available to export.")
+
+    try:
+        import uno  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError("LibreOffice UNO runtime is unavailable.") from exc
+
+    service_manager = ctx.getServiceManager()
+    export_filter = service_manager.createInstanceWithContext(
+        "com.sun.star.drawing.GraphicExportFilter",
+        ctx,
+    )
+    if export_filter is None:
+        raise RuntimeError("LibreOffice could not create GraphicExportFilter.")
+
+    temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    temp_file.close()
+    output_path = Path(temp_file.name)
+
+    try:
+        media_type = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+        media_type.Name = "MediaType"
+        media_type.Value = "image/png"
+
+        target_url = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+        target_url.Name = "URL"
+        target_url.Value = output_path.resolve().as_uri()
+
+        export_filter.setSourceDocument(slide)
+        exported = export_filter.filter((media_type, target_url))
+        if exported is False or not output_path.exists():
+            raise RuntimeError("LibreOffice did not export the slide preview.")
+        return output_path.read_bytes()
+    finally:
+        try:
+            output_path.unlink(missing_ok=True)
+        except OSError:
+            pass

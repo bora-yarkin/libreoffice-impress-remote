@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import ipaddress
 import socket
-from typing import Iterable, List
 
 
 def format_http_url(host: str, port: int, session_id: str) -> str:
@@ -15,30 +15,30 @@ def format_http_url(host: str, port: int, session_id: str) -> str:
     return f"http://{literal}:{port}/#s={session_id}"
 
 
-def discover_local_urls(port: int, session_id: str) -> List[str]:
+def discover_local_urls(port: int, session_id: str) -> list[str]:
     addresses = _discover_ipv4_addresses()
     if not addresses:
         addresses = ["127.0.0.1"]
     return [format_http_url(address, port, session_id) for address in addresses]
 
 
-def discover_direct_ipv6_urls(port: int, session_id: str) -> List[str]:
+def discover_direct_ipv6_urls(port: int, session_id: str) -> list[str]:
     return [format_http_url(address, port, session_id) for address in _discover_ipv6_addresses()]
 
 
-def _discover_ipv4_addresses() -> List[str]:
+def _discover_ipv4_addresses() -> list[str]:
     discovered = _preferred_source_addresses(socket.AF_INET, ("192.0.2.1", 80))
     discovered.extend(_hostname_addresses(socket.AF_INET))
     return _filter_unique_ipv4(discovered)
 
 
-def _discover_ipv6_addresses() -> List[str]:
+def _discover_ipv6_addresses() -> list[str]:
     discovered = _preferred_source_addresses(socket.AF_INET6, ("2001:db8::1", 80, 0, 0))
     discovered.extend(_hostname_addresses(socket.AF_INET6))
     return _filter_unique_ipv6(discovered)
 
 
-def _preferred_source_addresses(family: int, remote) -> List[str]:
+def _preferred_source_addresses(family: int, remote) -> list[str]:
     try:
         with socket.socket(family, socket.SOCK_DGRAM) as sock:
             sock.connect(remote)
@@ -48,9 +48,9 @@ def _preferred_source_addresses(family: int, remote) -> List[str]:
         return []
 
 
-def _hostname_addresses(family: int) -> List[str]:
+def _hostname_addresses(family: int) -> list[str]:
     names = [socket.gethostname(), socket.getfqdn(), "localhost"]
-    addresses: List[str] = []
+    addresses: list[str] = []
     for name in names:
         try:
             infos = socket.getaddrinfo(name, None, family, socket.SOCK_STREAM)
@@ -69,8 +69,8 @@ def _normalize_ipv6(address: str) -> str:
     return address.split("%", 1)[0]
 
 
-def _filter_unique_ipv4(addresses: Iterable[str]) -> List[str]:
-    filtered: List[str] = []
+def _filter_unique_ipv4(addresses: Iterable[str]) -> list[str]:
+    filtered: list[str] = []
     seen = set()
     for address in addresses:
         try:
@@ -92,8 +92,8 @@ def _filter_unique_ipv4(addresses: Iterable[str]) -> List[str]:
     return filtered
 
 
-def _filter_unique_ipv6(addresses: Iterable[str]) -> List[str]:
-    filtered: List[str] = []
+def _filter_unique_ipv6(addresses: Iterable[str]) -> list[str]:
+    filtered: list[str] = []
     seen = set()
     for address in addresses:
         normalized = _normalize_ipv6(address)

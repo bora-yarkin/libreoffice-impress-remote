@@ -17,3 +17,8 @@ def test_extension_manifest_files_exist() -> None:
     ]
     missing = [path for path in required if not (ROOT / path).exists()]
     assert not missing
+
+
+def test_python_component_manifest_entry_uses_python_component_media_type() -> None:
+    manifest = (ROOT / "extension/META-INF/manifest.xml").read_text(encoding="utf-8")
+    assert 'application/vnd.sun.star.uno-component;type=Python' in manifest

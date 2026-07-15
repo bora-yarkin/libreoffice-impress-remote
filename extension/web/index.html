@@ -10,56 +10,29 @@
 </head>
 <body>
   <main>
-    <header class="hero">
-      <div>
-        <p class="eyebrow">LibreOffice Impress Remote</p>
-        <h1>Presenter Console</h1>
-      </div>
+    <header class="topbar">
       <p class="status" id="status">Connecting...</p>
     </header>
-    <section class="connection-card">
-      <div>
-        <h2>Session</h2>
-        <p class="session" id="session">----------</p>
-      </div>
-      <div>
-        <h2>Local URLs</h2>
-        <ul class="url-list" id="local-urls"></ul>
-      </div>
-      <div>
-        <h2>Direct IPv6</h2>
-        <ul class="url-list" id="direct-urls"></ul>
+    <section class="stage-card">
+      <div class="slide-frame">
+        <img id="slide-image" alt="Current slide preview" hidden>
+        <div class="slide-placeholder" id="slide-placeholder">
+          <p class="placeholder-title" id="current-title">Waiting for slide preview...</p>
+          <p class="placeholder-copy slide-label">Slide -- / --</p>
+        </div>
       </div>
     </section>
-    <section class="slide-grid">
-      <section class="slide-card">
-        <p class="card-label">Current Slide</p>
-        <div id="slide">Slide -- / --</div>
-        <p class="slide-title" id="current-title">Waiting for presentation data...</p>
-        <pre id="notes"></pre>
-      </section>
-      <section class="slide-card next-card">
-        <p class="card-label">Next Slide</p>
-        <div id="next-slide">Slide --</div>
-        <p class="slide-title" id="next-title">No next slide</p>
-        <p class="preview" id="next-preview"></p>
-      </section>
-    </section>
-    <section class="controls">
-      <button data-command="start_presentation">Start Show</button>
-      <button data-command="end_presentation">End Show</button>
-      <button data-command="previous_slide">Prev Slide</button>
-      <button data-command="next_slide">Next Slide</button>
-      <button data-command="previous_effect">Prev Effect</button>
-      <button data-command="next_effect">Next Effect</button>
-    </section>
-    <form class="goto-form" id="goto-form">
-      <label for="goto-slide">Jump to slide</label>
-      <div class="goto-row">
-        <input id="goto-slide" min="1" step="1" inputmode="numeric" type="number" placeholder="1">
-        <button type="submit">Go</button>
+    <section class="notes-card">
+      <div class="notes-header">
+        <p class="notes-label">Presenter Notes</p>
+        <p class="slide-chip slide-label">Slide -- / --</p>
       </div>
-    </form>
+      <pre id="notes">No presenter notes detected.</pre>
+    </section>
+    <nav class="primary-controls">
+      <button class="nav-button" id="prev-button" data-command="previous_slide" type="button">Previous</button>
+      <button class="nav-button nav-button-primary" id="next-button" data-command="next_slide" type="button">Next</button>
+    </nav>
   </main>
   <script src="/app.js"></script>
 </body>

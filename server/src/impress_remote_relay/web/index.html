@@ -1,0 +1,76 @@
+<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LibreOffice Impress Remote Relay</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">LibreOffice Impress Remote</p>
+        <h1>Relay Presenter</h1>
+      </div>
+      <p class="status" id="status">Enter a session code to connect.</p>
+    </header>
+    <form class="connection-card session-form" id="session-form">
+      <div>
+        <h2>Session Code</h2>
+        <p class="helper">Use the relay link or session code shown by the LibreOffice extension.</p>
+      </div>
+      <div class="session-row">
+        <input id="session-input" placeholder="Session code" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="submit">Connect</button>
+      </div>
+    </form>
+    <section class="connection-card">
+      <div>
+        <h2>Connected Session</h2>
+        <p class="session" id="session-display">----------</p>
+      </div>
+      <div>
+        <h2>Relay</h2>
+        <p class="detail" id="relay-origin"></p>
+      </div>
+      <div>
+        <h2>Socket State</h2>
+        <p class="detail" id="socket-state">Idle</p>
+      </div>
+    </section>
+    <section class="slide-grid">
+      <section class="slide-card">
+        <p class="card-label">Current Slide</p>
+        <div id="slide">Slide -- / --</div>
+        <p class="slide-title" id="current-title">Waiting for presentation data...</p>
+        <pre id="notes"></pre>
+      </section>
+      <section class="slide-card next-card">
+        <p class="card-label">Next Slide</p>
+        <div id="next-slide">Slide --</div>
+        <p class="slide-title" id="next-title">No next slide</p>
+        <p class="preview" id="next-preview"></p>
+      </section>
+    </section>
+    <section class="controls">
+      <button data-command="start_presentation">Start Show</button>
+      <button data-command="end_presentation">End Show</button>
+      <button data-command="previous_slide">Prev Slide</button>
+      <button data-command="next_slide">Next Slide</button>
+      <button data-command="previous_effect">Prev Effect</button>
+      <button data-command="next_effect">Next Effect</button>
+    </section>
+    <form class="goto-form" id="goto-form">
+      <label for="goto-slide">Jump to slide</label>
+      <div class="goto-row">
+        <input id="goto-slide" min="1" step="1" inputmode="numeric" type="number" placeholder="1">
+        <button type="submit">Go</button>
+      </div>
+    </form>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

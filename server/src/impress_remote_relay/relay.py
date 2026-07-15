@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from importlib import resources
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -54,6 +55,9 @@ def create_app(state: RelayState | None = None) -> web.Application:
     app[RELAY_STATE_KEY] = state or RelayState()
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
+    app.router.add_get("/index.html", index)
+    app.router.add_get("/app.js", app_js)
+    app.router.add_get("/app.css", app_css)
     app.router.add_get("/ws", websocket_handler)
     return app
 
@@ -78,8 +82,22 @@ async def health(request: web.Request) -> web.Response:
 
 async def index(_request: web.Request) -> web.Response:
     return web.Response(
-        text="LibreOffice Impress Remote relay is running.\n",
-        content_type="text/plain",
+        text=_read_web_asset("index.html"),
+        content_type="text/html",
+    )
+
+
+async def app_js(_request: web.Request) -> web.Response:
+    return web.Response(
+        text=_read_web_asset("app.js"),
+        content_type="application/javascript",
+    )
+
+
+async def app_css(_request: web.Request) -> web.Response:
+    return web.Response(
+        text=_read_web_asset("app.css"),
+        content_type="text/css",
     )
 
 
@@ -135,3 +153,7 @@ async def send_message(target: Any, message: Any) -> None:
         await target.send_str(message.data)
     elif message.type == WSMsgType.BINARY:
         await target.send_bytes(message.data)
+
+
+def _read_web_asset(name: str) -> str:
+    return resources.files("impress_remote_relay.web").joinpath(name).read_text(encoding="utf-8")

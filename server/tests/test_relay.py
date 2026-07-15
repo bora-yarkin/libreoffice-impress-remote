@@ -43,6 +43,24 @@ async def test_relay_forwards_plugin_message_to_phone() -> None:
 
 
 @pytest.mark.asyncio
+async def test_relay_forwards_phone_message_to_plugin() -> None:
+    server = TestServer(create_app(RelayState()))
+    client = TestClient(server)
+    await client.start_server()
+    try:
+        plugin = await client.ws_connect("/ws?role=plugin&session=demo")
+        phone = await client.ws_connect("/ws?role=phone&session=demo")
+        await phone.send_str('{"type":"command","command":"next_slide"}')
+        message = await plugin.receive(timeout=1)
+        assert message.type == WSMsgType.TEXT
+        assert "next_slide" in message.data
+        await plugin.close()
+        await phone.close()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_second_plugin_replaces_first_one() -> None:
     server = TestServer(create_app(RelayState()))
     client = TestClient(server)
@@ -53,5 +71,19 @@ async def test_second_plugin_replaces_first_one() -> None:
         replaced = await first.receive(timeout=1)
         assert replaced.type == WSMsgType.CLOSE
         await second.close()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_root_serves_relay_ui() -> None:
+    server = TestServer(create_app(RelayState()))
+    client = TestClient(server)
+    await client.start_server()
+    try:
+        response = await client.get("/")
+        assert response.status == 200
+        body = await response.text()
+        assert "Relay Presenter" in body
     finally:
         await client.close()

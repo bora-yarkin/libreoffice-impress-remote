@@ -26,3 +26,11 @@ path = [
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Bora Yarkın"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = [
+  "extension/python/qrcode/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2011 Lincoln Loop"
+SPDX-License-Identifier = "BSD-3-Clause"
