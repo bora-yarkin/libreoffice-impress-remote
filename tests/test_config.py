@@ -13,6 +13,51 @@ from impress_remote.config import (
 )
 
 
+class FakeOfficeConfigAccess:
+    def __init__(self, values: dict[str, object]) -> None:
+        self.values = values
+        self.committed = False
+
+    def getPropertyValue(self, name: str) -> object:
+        if name not in self.values:
+            raise KeyError(name)
+        return self.values[name]
+
+    def setPropertyValue(self, name: str, value: object) -> None:
+        self.values[name] = value
+
+    def commitChanges(self) -> None:
+        self.committed = True
+
+
+class FakeOfficeConfigProvider:
+    def __init__(self) -> None:
+        self.values: dict[str, object] = {}
+        self.last_access: FakeOfficeConfigAccess | None = None
+        self.last_update_access: FakeOfficeConfigAccess | None = None
+
+    def createInstanceWithArguments(self, service_name: str, _arguments) -> FakeOfficeConfigAccess:
+        self.last_access = FakeOfficeConfigAccess(self.values)
+        if service_name == "com.sun.star.configuration.ConfigurationUpdateAccess":
+            self.last_update_access = self.last_access
+        return self.last_access
+
+
+class FakeServiceManager:
+    def __init__(self) -> None:
+        self.provider = FakeOfficeConfigProvider()
+
+    def createInstanceWithContext(self, service_name: str, _ctx):
+        if service_name == "com.sun.star.configuration.ConfigurationProvider":
+            return self.provider
+        raise AssertionError(f"Unexpected service request: {service_name}")
+
+
+class FakeComponentContext:
+    def __init__(self) -> None:
+        self.ServiceManager = FakeServiceManager()
+
+
 class ConfigTests(unittest.TestCase):
     def test_normalize_relay_url_defaults_to_https_for_public_hosts(self) -> None:
         self.assertEqual(
@@ -44,6 +89,7 @@ class ConfigTests(unittest.TestCase):
             relay_url="https://relay.example.com",
             enable_relay=True,
             enable_ipv6_direct=False,
+            enable_local_listener=False,
             preferred_route="relay",
         )
 
@@ -53,6 +99,26 @@ class ConfigTests(unittest.TestCase):
             loaded = RemoteConfig.load(base_dir=base_dir)
 
         self.assertEqual(config, loaded)
+
+    def test_remote_config_round_trips_to_libreoffice_configuration(self) -> None:
+        ctx = FakeComponentContext()
+        config = RemoteConfig(
+            local_port=19001,
+            relay_url="https://relay.example.com",
+            enable_relay=True,
+            enable_ipv6_direct=False,
+            enable_local_listener=False,
+            preferred_route="relay",
+        )
+
+        config.save(ctx=ctx)
+        loaded = RemoteConfig.load(ctx=ctx)
+
+        self.assertEqual(config, loaded)
+        access = ctx.ServiceManager.provider.last_update_access
+        self.assertIsNotNone(access)
+        assert access is not None
+        self.assertTrue(access.committed)
 
     def test_remote_config_defaults_unknown_route_to_auto(self) -> None:
         config = RemoteConfig.from_dict({"preferredRoute": "surprise"})

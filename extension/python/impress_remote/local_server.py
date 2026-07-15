@@ -49,7 +49,7 @@ class IPv6ThreadingHTTPServer(ThreadingHTTPServer):
 class RemoteServer:
     def __init__(self, ctx, config: RemoteConfig | None = None):
         self.ctx = ctx
-        self.config = config or RemoteConfig.load()
+        self.config = config or RemoteConfig.load(ctx=ctx)
         self.session_id = random_token(12)
         self.controller = ImpressController(ctx)
         self.http_servers: list[ThreadingHTTPServer] = []
@@ -61,13 +61,19 @@ class RemoteServer:
         self.bound_port = self.config.local_port
         self._active_network_settings = (
             self.config.local_port,
+            self.config.enable_local_listener,
             self.config.enable_ipv6_direct,
         )
         self.pending_restart = False
         self.relay_client: RelayClient | None = None
+        self._runtime_requested = False
+
+    def is_running(self) -> bool:
+        relay_running = self.relay_client is not None and self.relay_client.is_running()
+        return bool(self.http_servers) or relay_running
 
     def start(self) -> None:
-        if self.http_servers:
+        if self.is_running():
             return
         parent = self
 
@@ -75,25 +81,34 @@ class RemoteServer:
             server_ref = parent
 
         self.listener_warnings = []
-        started_servers = self._start_http_servers(Handler)
-        self.http_servers = started_servers
-        self.bound_port = self.http_servers[0].server_address[1]
-        self._active_network_settings = (
-            self.config.local_port,
-            self.config.enable_ipv6_direct,
-        )
-        self.pending_restart = False
-
+        self.http_servers = []
         self.threads = []
-        for server in self.http_servers:
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            self.threads.append(thread)
+        self._runtime_requested = True
+        try:
+            self.http_servers = self._start_http_servers(Handler)
+            self.bound_port = (
+                self.http_servers[0].server_address[1]
+                if self.http_servers
+                else self.config.local_port
+            )
+            self._active_network_settings = self._network_settings(self.config)
+            self.pending_restart = False
 
-        self._refresh_urls()
-        self._sync_relay_client()
+            for server in self.http_servers:
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                self.threads.append(thread)
+
+            self._sync_relay_client()
+            self._refresh_urls()
+            if not self.is_running():
+                raise RuntimeError("Enable at least one pairing route before starting the remote.")
+        except Exception:
+            self.stop()
+            raise
 
     def stop(self) -> None:
+        self._runtime_requested = False
         self._stop_relay_client()
         for server in self.http_servers:
             server.shutdown()
@@ -105,11 +120,16 @@ class RemoteServer:
         self.local_urls = []
         self.direct_urls = []
         self.url = ""
+        self.pending_restart = False
+        self.bound_port = self.config.local_port
 
     def state_payload(self) -> dict[str, object]:
         state = self.controller.state()
         payload = {
             "running": state.running,
+            "presentationActive": state.active,
+            "presentationPaused": state.paused,
+            "presentationBlanked": state.blanked,
             "documentKind": state.document_kind,
             "statusMessage": state.status_message,
             "currentSlide": state.current_slide,
@@ -121,7 +141,11 @@ class RemoteServer:
             "nextPreview": state.next_preview,
             "canGoPrevious": state.can_go_previous,
             "canGoNext": state.can_go_next,
+            "remainingSlides": state.remaining_slides,
+            "atEndOfDeck": state.at_end_of_deck,
+            "elapsedSeconds": state.elapsed_seconds,
             "currentSlideImageUrl": self.current_slide_image_url(state),
+            "nextSlideImageUrl": self.next_slide_image_url(state),
         }
         payload.update(self.connection_info())
         return payload
@@ -129,18 +153,20 @@ class RemoteServer:
     def current_slide_image_url(self, state=None) -> str:
         if state is None:
             state = self.controller.state()
-        if state.document_kind != "impress" or state.slide_count <= 0:
+        if (
+            state.document_kind != "impress"
+            or state.slide_count <= 0
+            or not state.current_render_token
+        ):
             return ""
-        revision = "-".join(
-            (
-                str(state.current_slide),
-                str(state.slide_count),
-                str(int(state.running)),
-                str(len(state.current_title)),
-                str(len(state.notes)),
-            )
-        )
-        return f"/api/slide/current?rev={revision}"
+        return f"/api/slide/current?rev={state.current_render_token}"
+
+    def next_slide_image_url(self, state=None) -> str:
+        if state is None:
+            state = self.controller.state()
+        if state.next_slide is None or not state.next_render_token:
+            return ""
+        return f"/api/slide/next?rev={state.next_render_token}"
 
     def console_url(self) -> str:
         preferred = self.pairing_target(self.config.preferred_route)
@@ -166,8 +192,10 @@ class RemoteServer:
         join_url = route_urls["relay"]
         return {
             "session": self.session_id,
+            "running": self.is_running(),
             "localPort": self.bound_port,
             "requestedLocalPort": self.config.local_port,
+            "enableLocalListener": self.config.enable_local_listener,
             "enableIpv6Direct": self.config.enable_ipv6_direct,
             "localUrls": list(self.local_urls),
             "directUrls": list(self.direct_urls),
@@ -199,7 +227,7 @@ class RemoteServer:
 
     def apply_config(self, payload: dict[str, object]) -> dict[str, object]:
         updated = self.config.merge(payload)
-        updated.save()
+        updated.save(ctx=self.ctx)
         self.update_config(updated, restart_runtime=False)
         return {
             "ok": True,
@@ -208,20 +236,39 @@ class RemoteServer:
         }
 
     def route_urls(self) -> dict[str, str]:
-        if not self.http_servers:
+        return self.preview_route_urls(self.config)
+
+    def preview_route_urls(self, config: RemoteConfig) -> dict[str, str]:
+        if not self.is_running():
             return {"local": "", "ipv6": "", "relay": ""}
+        listeners_match = self._network_settings(config) == self._active_network_settings
         relay_url = ""
-        if self.config.enable_relay and self.config.relay_url:
-            relay_url = relay_join_url(self.config.relay_url, self.session_id)
+        if config.enable_relay and config.relay_url:
+            relay_url = relay_join_url(config.relay_url, self.session_id)
         return {
-            "local": self.local_urls[0] if self.local_urls else "",
-            "ipv6": self.direct_urls[0] if self.direct_urls else "",
+            "local": (
+                self.local_urls[0]
+                if listeners_match and config.enable_local_listener and self.local_urls
+                else ""
+            ),
+            "ipv6": (
+                self.direct_urls[0]
+                if listeners_match and config.enable_ipv6_direct and self.direct_urls
+                else ""
+            ),
             "relay": relay_url,
         }
 
     def pairing_target(self, route_mode: str | None = None) -> dict[str, str]:
-        requested = normalize_preferred_route(route_mode or self.config.preferred_route)
-        route_urls = self.route_urls()
+        return self.preview_pairing_target(self.config, route_mode)
+
+    def preview_pairing_target(
+        self,
+        config: RemoteConfig,
+        route_mode: str | None = None,
+    ) -> dict[str, str]:
+        requested = normalize_preferred_route(route_mode or config.preferred_route)
+        route_urls = self.preview_route_urls(config)
         selected = requested
         if requested == "auto":
             selected = ""
@@ -235,24 +282,29 @@ class RemoteServer:
             "selectedRoute": selected,
             "selectedLabel": route_label(selected) if selected else "",
             "selectedUrl": selected_url,
-            "hint": self._pairing_hint(requested, selected, route_urls),
+            "hint": self._pairing_hint(requested, selected, route_urls, config),
         }
 
     def update_config(self, updated: RemoteConfig, restart_runtime: bool) -> None:
-        network_changed = (
-            updated.local_port,
-            updated.enable_ipv6_direct,
-        ) != self._active_network_settings
+        network_changed = self._network_settings(updated) != self._active_network_settings
         self.config = updated
 
-        if restart_runtime and self.http_servers and network_changed:
+        if restart_runtime and self.is_running() and network_changed:
             self.stop()
             self.start()
             self.pending_restart = False
             return
 
-        self.pending_restart = bool(self.http_servers) and network_changed
+        self.pending_restart = self.is_running() and network_changed
         self._sync_relay_client()
+        self._refresh_urls()
+
+    def _network_settings(self, config: RemoteConfig) -> tuple[int, bool, bool]:
+        return (
+            config.local_port,
+            config.enable_local_listener,
+            config.enable_ipv6_direct,
+        )
 
     def _refresh_urls(self) -> None:
         self.local_urls = (
@@ -265,40 +317,62 @@ class RemoteServer:
             if any(server.address_family == socket.AF_INET6 for server in self.http_servers)
             else []
         )
-        if self.local_urls:
-            self.url = self.local_urls[0]
-        elif self.direct_urls:
-            self.url = self.direct_urls[0]
-        else:
+        route_urls = self.route_urls()
+        if route_urls["local"]:
+            self.url = route_urls["local"]
+        elif route_urls["ipv6"]:
+            self.url = route_urls["ipv6"]
+        elif route_urls["relay"]:
+            self.url = route_urls["relay"]
+        elif self.http_servers:
             self.url = f"http://127.0.0.1:{self.bound_port}/#s={self.session_id}"
+        else:
+            self.url = ""
 
     def _pairing_hint(
         self,
         requested_route: str,
         selected_route: str,
         route_urls: dict[str, str],
+        config: RemoteConfig,
     ) -> str:
-        if not self.http_servers:
+        if not self.is_running():
             return "Start the remote from LibreOffice to generate a QR code."
         if selected_route and route_urls.get(selected_route):
             if requested_route == "auto" and selected_route != "local":
                 return f"Auto selected {route_label(selected_route).lower()}."
             return f"Scan the QR code to pair over {route_label(selected_route).lower()}."
+        if self._network_settings(config) != self._active_network_settings:
+            return "Save and restart the remote to apply the new listener settings."
         if requested_route == "relay":
-            return "Enable relay mode and set a relay server address to pair over the relay."
+            if not config.enable_relay:
+                return "Relay pairing is disabled in LibreOffice settings."
+            return "Set a relay server address to pair over the relay."
         if requested_route == "ipv6":
+            if not config.enable_ipv6_direct:
+                return "Direct IPv6 pairing is disabled in LibreOffice settings."
             return "Direct IPv6 is unavailable on this network right now."
         if requested_route == "local":
+            if not config.enable_local_listener:
+                return "Local network pairing is disabled in LibreOffice settings."
             return "A local network address is not available right now."
         return "No pairing route is currently available."
 
     def _start_http_servers(self, handler_cls) -> list[ThreadingHTTPServer]:
-        ipv4_server = self._bind_ipv4_server(handler_cls)
-        started_servers = [ipv4_server]
-        if self.config.enable_ipv6_direct:
+        started_servers: list[ThreadingHTTPServer] = []
+        if self.config.enable_local_listener:
+            ipv4_server = self._bind_ipv4_server(handler_cls)
+            started_servers.append(ipv4_server)
+        elif self.config.enable_ipv6_direct:
+            started_servers.append(self._bind_ipv6_server(handler_cls))
+
+        if self.config.enable_local_listener and self.config.enable_ipv6_direct and started_servers:
             try:
                 started_servers.append(
-                    IPv6ThreadingHTTPServer(("::", ipv4_server.server_address[1]), handler_cls)
+                    IPv6ThreadingHTTPServer(
+                        ("::", started_servers[0].server_address[1]),
+                        handler_cls,
+                    )
                 )
             except OSError as exc:
                 self.listener_warnings.append(f"Direct IPv6 listener is unavailable: {exc}")
@@ -320,7 +394,26 @@ class RemoteServer:
             f"{self.config.local_port + 9}"
         )
 
+    def _bind_ipv6_server(self, handler_cls) -> ThreadingHTTPServer:
+        for candidate_port in range(self.config.local_port, self.config.local_port + 10):
+            try:
+                server = IPv6ThreadingHTTPServer(("::", candidate_port), handler_cls)
+            except OSError:
+                continue
+            if candidate_port != self.config.local_port:
+                self.listener_warnings.append(
+                    f"Port {self.config.local_port} was busy. Using {candidate_port} instead."
+                )
+            return server
+        raise RuntimeError(
+            f"Could not start the remote server on ports {self.config.local_port}-"
+            f"{self.config.local_port + 9}"
+        )
+
     def _sync_relay_client(self) -> None:
+        if not self._runtime_requested:
+            self._stop_relay_client()
+            return
         relay_is_enabled = self.config.enable_relay and bool(self.config.relay_url)
         if not relay_is_enabled:
             self._stop_relay_client()
@@ -368,6 +461,8 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._event_stream()
         elif parsed.path == "/api/slide/current":
             self._current_slide_image()
+        elif parsed.path == "/api/slide/next":
+            self._next_slide_image()
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -467,6 +562,23 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
     def _current_slide_image(self) -> None:
         try:
             data = self.server_ref.controller.current_slide_png_bytes()
+        except RuntimeError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        except Exception as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _next_slide_image(self) -> None:
+        try:
+            data = self.server_ref.controller.next_slide_png_bytes()
         except RuntimeError as exc:
             self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
             return

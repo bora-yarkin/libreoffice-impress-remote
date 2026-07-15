@@ -11,6 +11,7 @@
     "build",
     "dist",
     "third_party",
+    "extension/python/qrcode",
     "**/__pycache__"
   ],
   "extraPaths": [

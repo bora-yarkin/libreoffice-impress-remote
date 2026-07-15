@@ -80,6 +80,7 @@ def _install_uno_stubs() -> None:
     frame_module = types.ModuleType("com.sun.star.frame")
     cast(Any, frame_module).XDispatch = type("XDispatch", (), {})
     cast(Any, frame_module).XDispatchProvider = type("XDispatchProvider", (), {})
+    cast(Any, frame_module).XTerminateListener = type("XTerminateListener", (), {})
 
     lang_module = types.ModuleType("com.sun.star.lang")
     cast(Any, lang_module).XServiceInfo = type("XServiceInfo", (), {})
@@ -110,7 +111,7 @@ class FakeMergedConfig:
         self.payload = payload
         self.saved = False
 
-    def save(self) -> None:
+    def save(self, ctx=None) -> None:
         self.saved = True
 
 
@@ -130,10 +131,29 @@ class FakeServer:
         self.http_servers = [object()] if running else []
         self.config = FakeConfig()
         self.updated = None
+        self.controller = types.SimpleNamespace(
+            state=lambda: types.SimpleNamespace(
+                running=False,
+                active=False,
+                paused=False,
+                blanked=False,
+                document_kind="none",
+                status_message="Open an Impress presentation to use the remote.",
+                current_slide=0,
+                slide_count=0,
+                current_title="",
+                next_slide=None,
+                next_title="",
+                remaining_slides=0,
+                at_end_of_deck=False,
+                elapsed_seconds=0,
+            )
+        )
 
     def config_payload(self):
         return {
             "localPort": 17865,
+            "enableLocalListener": True,
             "enableIpv6Direct": True,
             "enableRelay": False,
             "relayUrl": "",
@@ -145,8 +165,10 @@ class FakeServer:
     def connection_info(self):
         return {
             "session": "demo123",
+            "running": bool(self.http_servers),
             "localPort": 17865,
             "requestedLocalPort": 17865,
+            "enableLocalListener": True,
             "enableIpv6Direct": True,
             "localUrls": ["http://127.0.0.1:17865/#s=demo123"],
             "directUrls": [],
@@ -181,6 +203,12 @@ class FakeServer:
             "selectedUrl": "http://127.0.0.1:17865/#s=demo123",
             "hint": "Scan the QR code to pair over local network.",
         }
+
+    def preview_pairing_target(self, _config, route_mode=None):
+        return self.pairing_target(route_mode)
+
+    def is_running(self) -> bool:
+        return bool(self.http_servers)
 
 
 class ComponentRuntimeTests(unittest.TestCase):
@@ -230,9 +258,18 @@ class ComponentRuntimeTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot["statusLine"], "Settings saved.")
-        self.assertEqual(handler.server.config.merged_payload["localPort"], 19001)
-        self.assertTrue(handler.server.updated[0].saved)
-        self.assertTrue(handler.server.updated[1])
+        server = handler.server
+        self.assertIsNotNone(server)
+        assert server is not None
+        merged_payload = server.config.merged_payload
+        self.assertIsNotNone(merged_payload)
+        assert merged_payload is not None
+        self.assertEqual(merged_payload["localPort"], 19001)
+        updated = server.updated
+        self.assertIsNotNone(updated)
+        assert updated is not None
+        self.assertTrue(updated[0].saved)
+        self.assertTrue(updated[1])
 
 
 if __name__ == "__main__":

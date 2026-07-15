@@ -28,7 +28,7 @@ Slide Show -> Presentation Remote
 ```
 
 1. Choose `Settings` to open the LibreOffice control panel.
-2. Set the relay server if you want relay mode, and keep the route on `Auto (Local -> IPv6 -> Relay)` unless you are forcing a specific path.
+2. Set the relay server if you want relay mode, keep the route on `Auto (Local -> IPv6 -> Relay)` unless you are forcing a specific path, and disable `Enable local` when you want a relay-only or direct-IPv6-only test.
 3. Choose `Start` inside the dialog to bring up the embedded local server.
 4. Scan the QR code shown by LibreOffice with your phone.
 5. Choose `Open Console` if you also want to preview the current route in a desktop browser.

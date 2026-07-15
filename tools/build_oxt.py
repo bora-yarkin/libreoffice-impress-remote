@@ -8,7 +8,17 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "extension"
 DIST = ROOT / "dist"
 OUT = DIST / "libreoffice-impress-remote.oxt"
-INCLUDE = ["META-INF", "description.xml", "Addons.xcu", "ProtocolHandler.xcu", "python", "web", "icons"]
+INCLUDE = [
+    "META-INF",
+    "description.xml",
+    "Addons.xcu",
+    "ProtocolHandler.xcu",
+    "Settings.xcs",
+    "Settings.xcu",
+    "python",
+    "web",
+    "icons",
+]
 
 
 def should_include(path: Path) -> bool:

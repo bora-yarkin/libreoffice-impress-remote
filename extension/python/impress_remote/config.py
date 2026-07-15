@@ -7,11 +7,13 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 APP_NAME = "libreoffice-impress-remote"
+CONFIG_NODE_PATH = "org.borayarkin.libreoffice.impressremote.Settings"
 DEFAULT_LOCAL_HOST = "0.0.0.0"
 DEFAULT_LOCAL_PORT = 17865
 DEFAULT_PREFERRED_ROUTE = "auto"
@@ -20,6 +22,15 @@ ROUTE_LABELS = {
     "local": "Local network",
     "ipv6": "Direct IPv6",
     "relay": "Relay server",
+}
+OFFICE_CONFIG_PROPERTIES = {
+    "LocalHost": "local_host",
+    "LocalPort": "local_port",
+    "RelayUrl": "relay_url",
+    "EnableRelay": "enable_relay",
+    "EnableIpv6Direct": "enable_ipv6_direct",
+    "EnableLocalListener": "enable_local_listener",
+    "PreferredRoute": "preferred_route",
 }
 
 
@@ -36,6 +47,60 @@ def default_config_dir() -> Path:
 
 def config_path(base_dir: Path | None = None) -> Path:
     return (base_dir or default_config_dir()) / "config.json"
+
+
+def _service_manager(ctx):
+    if hasattr(ctx, "ServiceManager"):
+        return ctx.ServiceManager
+    return ctx.getServiceManager()
+
+
+def _property_value(name: str, value: object):
+    try:
+        import uno  # pyright: ignore[reportMissingImports]
+
+        argument = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+    except Exception:
+        argument = SimpleNamespace()
+    argument.Name = name
+    argument.Value = value
+    return argument
+
+
+def _open_office_config(ctx, update: bool):
+    provider = _service_manager(ctx).createInstanceWithContext(
+        "com.sun.star.configuration.ConfigurationProvider",
+        ctx,
+    )
+    service_name = (
+        "com.sun.star.configuration.ConfigurationUpdateAccess"
+        if update
+        else "com.sun.star.configuration.ConfigurationAccess"
+    )
+    return provider.createInstanceWithArguments(
+        service_name,
+        (_property_value("nodepath", CONFIG_NODE_PATH),),
+    )
+
+
+def _read_office_property(access, name: str, default: object) -> object:
+    try:
+        getter = getattr(access, "getPropertyValue", None)
+        if getter is not None:
+            value = getter(name)
+        else:
+            value = getattr(access, name)
+    except Exception:
+        return default
+    return default if value is None else value
+
+
+def _write_office_property(access, name: str, value: object) -> None:
+    setter = getattr(access, "setPropertyValue", None)
+    if setter is not None:
+        setter(name, value)
+        return
+    setattr(access, name, value)
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
@@ -131,6 +196,7 @@ class RemoteConfig:
     relay_url: str = ""
     enable_relay: bool = False
     enable_ipv6_direct: bool = True
+    enable_local_listener: bool = True
     preferred_route: str = DEFAULT_PREFERRED_ROUTE
 
     @classmethod
@@ -149,13 +215,32 @@ class RemoteConfig:
                 payload.get("enable_ipv6_direct", payload.get("enableIpv6Direct")),
                 True,
             ),
+            enable_local_listener=_coerce_bool(
+                payload.get("enable_local_listener", payload.get("enableLocalListener")),
+                True,
+            ),
             preferred_route=normalize_preferred_route(
                 payload.get("preferred_route", payload.get("preferredRoute")),
             ),
         )
 
     @classmethod
-    def load(cls, base_dir: Path | None = None) -> RemoteConfig:
+    def load(cls, base_dir: Path | None = None, ctx=None) -> RemoteConfig:
+        if ctx is not None:
+            config = cls._load_office(ctx)
+            if config is not None:
+                migrated = cls._load_file(base_dir)
+                if config == cls() and migrated != cls():
+                    try:
+                        migrated.save(ctx=ctx)
+                    except Exception:
+                        pass
+                    return migrated
+                return config
+        return cls._load_file(base_dir)
+
+    @classmethod
+    def _load_file(cls, base_dir: Path | None = None) -> RemoteConfig:
         path = config_path(base_dir)
         if not path.exists():
             return cls()
@@ -165,6 +250,18 @@ class RemoteConfig:
             return cls()
         return cls.from_dict(payload)
 
+    @classmethod
+    def _load_office(cls, ctx) -> RemoteConfig | None:
+        try:
+            access = _open_office_config(ctx, update=False)
+        except Exception:
+            return None
+        payload = {
+            field_name: _read_office_property(access, office_name, getattr(cls(), field_name))
+            for office_name, field_name in OFFICE_CONFIG_PROPERTIES.items()
+        }
+        return cls.from_dict(payload)
+
     def to_dict(self) -> dict[str, object]:
         return {
             "localHost": self.local_host,
@@ -172,10 +269,22 @@ class RemoteConfig:
             "relayUrl": self.relay_url,
             "enableRelay": self.enable_relay,
             "enableIpv6Direct": self.enable_ipv6_direct,
+            "enableLocalListener": self.enable_local_listener,
             "preferredRoute": self.preferred_route,
         }
 
-    def save(self, base_dir: Path | None = None) -> Path:
+    def save(self, base_dir: Path | None = None, ctx=None) -> Path | None:
+        if ctx is not None:
+            try:
+                access = _open_office_config(ctx, update=True)
+                for office_name, field_name in OFFICE_CONFIG_PROPERTIES.items():
+                    _write_office_property(access, office_name, getattr(self, field_name))
+                commit = getattr(access, "commitChanges", None)
+                if commit is not None:
+                    commit()
+                return None
+            except Exception:
+                pass
         path = config_path(base_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True), encoding="utf-8")

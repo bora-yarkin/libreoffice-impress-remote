@@ -166,9 +166,16 @@ def install_macos_sdk(archive_path: Path, output_dir: Path) -> Path:
     )
     mount_point = _mounted_volume_from_plist(attach.stdout)
     try:
-        sdk_dirs = [path for path in mount_point.iterdir() if path.is_dir() and path.name.endswith("_SDK")]
+        sdk_dirs = [
+            path
+            for path in mount_point.iterdir()
+            if path.is_dir() and path.name.endswith("_SDK")
+        ]
         if len(sdk_dirs) != 1:
-            raise ValueError(f"Expected exactly one SDK directory in {mount_point}, found {len(sdk_dirs)}")
+            raise ValueError(
+                f"Expected exactly one SDK directory in {mount_point}, "
+                f"found {len(sdk_dirs)}"
+            )
         source_dir = sdk_dirs[0]
         destination = output_dir / source_dir.name
         if destination.exists():
@@ -187,7 +194,12 @@ def install_sdk(archive_path: Path, artifact: SdkArtifact, output_dir: Path) -> 
     raise ValueError(f"Unsupported SDK install platform: {artifact.platform_name}")
 
 
-def write_metadata(output_dir: Path, installed_path: Path, url: str, installed_version: str) -> None:
+def write_metadata(
+    output_dir: Path,
+    installed_path: Path,
+    url: str,
+    installed_version: str,
+) -> None:
     metadata_path = output_dir / "SDK_INFO.txt"
     metadata_path.write_text(
         "\n".join(

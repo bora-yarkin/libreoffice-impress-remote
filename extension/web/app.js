@@ -4,6 +4,8 @@ let hasEverConnected = false
 let eventSource = null
 let pollTimer = null
 let lastImageUrl = ''
+let lastNextImageUrl = ''
+const nextImagePreload = new Image()
 
 function setConnectionPhase(nextPhase){
   connectionPhase = nextPhase
@@ -63,6 +65,18 @@ function updateSlideImage(state){
   placeholder.hidden = true
 }
 
+function preloadNextSlide(state){
+  const nextUrl = state.nextSlideImageUrl || ''
+  if(!nextUrl){
+    lastNextImageUrl = ''
+    return
+  }
+  if(nextUrl !== lastNextImageUrl){
+    nextImagePreload.src = nextUrl
+    lastNextImageUrl = nextUrl
+  }
+}
+
 function renderState(state){
   lastState = state
   const slideText = slideLabel(state.currentSlide, state.slideCount)
@@ -72,6 +86,7 @@ function renderState(state){
   document.getElementById('current-title').textContent = state.currentTitle || 'Untitled slide'
   document.getElementById('notes').textContent = state.notes || 'No presenter notes detected.'
   updateSlideImage(state)
+  preloadNextSlide(state)
   document.getElementById('prev-button').disabled = connectionPhase !== 'live' || !state.canGoPrevious
   document.getElementById('next-button').disabled = connectionPhase !== 'live' || !state.canGoNext
   renderBanner()

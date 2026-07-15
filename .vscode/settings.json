@@ -1,6 +1,7 @@
 {
   "python.analysis.exclude": [
     "third_party/libreoffice-sdk/**",
+    "extension/python/qrcode/**",
     ".venv/**",
     "build/**",
     "dist/**"

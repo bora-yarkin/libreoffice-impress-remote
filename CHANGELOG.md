@@ -9,7 +9,25 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
-- No unreleased changes yet.
+### Added
+
+- Added a LibreOffice-native configuration schema so transport settings persist in LibreOffice user settings instead of only in the extension fallback file.
+- Added a LibreOffice dialog toggle for disabling the local listener during relay-only or direct-IPv6-only testing.
+- Added richer presenter-state API fields for pause, blank-screen, timer, remaining-slides, and end-of-deck status.
+- Added rendered next-slide thumbnail export and preload URLs for the embedded phone remote.
+- Added a concrete project roadmap that separates local/direct upstream goals from the optional self-hosted relay companion path.
+
+### Changed
+
+- Improved the LibreOffice settings dialog with draft-aware pairing previews, clearer issue reporting, and live QR/manual-link updates while route settings change.
+- Improved runtime lifecycle handling so LibreOffice shutdown tears down local listeners and relay sessions cleanly.
+- Improved slide-state tracking so controller fallbacks and render revisions stay synchronized when the presenter changes slides outside the phone UI.
+- Improved the LibreOffice runtime status line to surface slide position and presenter timer details while the remote is running.
+
+### Fixed
+
+- Fixed stopped runtimes from accidentally starting the relay client while only saving settings.
+- Fixed LibreOffice-side route previews to handle incomplete relay URLs without breaking the settings dialog.
 
 ## [0.2.0] - 2026-07-15
 

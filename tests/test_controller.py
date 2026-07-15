@@ -56,16 +56,63 @@ class FakeDrawPages:
 
 
 class FakeSlideShowController:
-    def __init__(self, current_index: int, slides: list[FakeSlide]):
+    def __init__(
+        self,
+        current_index: int,
+        slides: list[FakeSlide],
+        *,
+        running: bool = True,
+        active: bool | None = None,
+        paused: bool = False,
+        endless: bool = False,
+        next_index: int | None = None,
+        current_slide_override=None,
+        fail_current_slide_index: bool = False,
+    ):
         self.current_index = current_index
         self.slides = slides
+        self.running = running
+        self.active = running if active is None else active
+        self.paused = paused
+        self.endless = endless
+        self.next_index = next_index
+        self.current_slide_override = current_slide_override
+        self.fail_current_slide_index = fail_current_slide_index
         self.commands: list[tuple[str, int | None]] = []
 
     def getCurrentSlideIndex(self) -> int:
+        if self.fail_current_slide_index:
+            raise TypeError("Current slide index is unavailable")
         return self.current_index
 
     def getCurrentSlide(self):
+        if self.current_slide_override is not None:
+            return self.current_slide_override
         return self.slides[self.current_index]
+
+    def getCurrentPage(self):
+        return self.getCurrentSlide()
+
+    def getNextSlideIndex(self) -> int:
+        if self.next_index is not None:
+            return self.next_index
+        if self.endless and self.slides:
+            return (self.current_index + 1) % len(self.slides)
+        if self.current_index + 1 < len(self.slides):
+            return self.current_index + 1
+        return -1
+
+    def isRunning(self) -> bool:
+        return self.running
+
+    def isActive(self) -> bool:
+        return self.active
+
+    def isPaused(self) -> bool:
+        return self.paused
+
+    def isEndless(self) -> bool:
+        return self.endless
 
     def gotoNextEffect(self) -> None:
         self.commands.append(("next_effect", None))
@@ -82,6 +129,20 @@ class FakeSlideShowController:
     def gotoSlideIndex(self, index: int) -> None:
         self.commands.append(("goto_slide", index))
 
+    def pause(self) -> None:
+        self.paused = True
+        self.commands.append(("pause", None))
+
+    def resume(self) -> None:
+        self.paused = False
+        self.commands.append(("resume", None))
+
+    def blankScreen(self, color: int) -> None:
+        self.commands.append(("blank_screen", color))
+
+    def gotoLastSlide(self) -> None:
+        self.commands.append(("goto_last_slide", None))
+
 
 class FakePresentation:
     def __init__(self, controller):
@@ -94,9 +155,16 @@ class FakePresentation:
 
     def start(self) -> None:
         self.started = True
+        if self.controller is not None:
+            self.controller.running = True
 
     def end(self) -> None:
         self.ended = True
+        if self.controller is not None:
+            self.controller.running = False
+
+    def isRunning(self) -> bool:
+        return bool(self.controller is not None and self.controller.running)
 
 
 class FakeCurrentController:
@@ -167,36 +235,48 @@ class ControllerTests(unittest.TestCase):
     def test_state_reports_current_and_next_slide_details(self) -> None:
         slideshow = FakeSlideShowController(current_index=1, slides=self.slides)
         document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[0])
-        controller = ImpressController(FakeContext(document))
+        controller = ImpressController(FakeContext(document), monotonic=lambda: 100.0)
 
         state = controller.state()
 
         self.assertTrue(state.running)
+        self.assertTrue(state.active)
+        self.assertFalse(state.paused)
+        self.assertFalse(state.blanked)
         self.assertEqual(state.document_kind, "impress")
         self.assertEqual(state.status_message, "Presentation running")
         self.assertEqual(state.current_slide, 1)
         self.assertEqual(state.slide_count, 3)
         self.assertEqual(state.current_title, "Metrics")
+        self.assertEqual(state.current_preview, "Metrics | Revenue up | Churn down")
         self.assertEqual(state.notes, "Focus on churn")
         self.assertEqual(state.next_slide, 2)
         self.assertEqual(state.next_title, "Wrap Up")
         self.assertIn("Wrap Up", state.next_preview)
+        self.assertEqual(state.remaining_slides, 1)
+        self.assertFalse(state.at_end_of_deck)
+        self.assertEqual(state.elapsed_seconds, 0)
         self.assertTrue(state.can_go_previous)
         self.assertTrue(state.can_go_next)
+        self.assertTrue(state.current_render_token)
+        self.assertTrue(state.next_render_token)
 
     def test_state_falls_back_to_editing_view_when_slideshow_is_not_running(self) -> None:
-        document = FakeDocument(self.slides, FakePresentation(None), self.slides[2])
+        slideshow = FakeSlideShowController(current_index=0, slides=self.slides, running=False)
+        document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[2])
         controller = ImpressController(FakeContext(document))
 
         state = controller.state()
 
         self.assertFalse(state.running)
+        self.assertFalse(state.active)
         self.assertEqual(state.document_kind, "impress")
         self.assertEqual(state.status_message, "Ready in editing view")
         self.assertEqual(state.current_slide, 2)
         self.assertEqual(state.current_title, "Wrap Up")
         self.assertEqual(state.next_slide, None)
         self.assertFalse(state.can_go_next)
+        self.assertEqual(state.elapsed_seconds, 0)
 
     def test_state_reports_non_impress_documents(self) -> None:
         controller = ImpressController(FakeContext(FakeNonImpressDocument()))
@@ -204,6 +284,7 @@ class ControllerTests(unittest.TestCase):
         state = controller.state()
 
         self.assertFalse(state.running)
+        self.assertFalse(state.active)
         self.assertEqual(state.document_kind, "other")
         self.assertIn("not an Impress presentation", state.status_message)
         self.assertEqual(state.slide_count, 0)
@@ -215,13 +296,27 @@ class ControllerTests(unittest.TestCase):
         controller = ImpressController(FakeContext(document))
 
         controller.command("start_presentation")
+        controller.command("pause_presentation")
+        controller.command("blank_screen")
+        controller.command("resume_presentation")
+        controller.command("goto_last_slide")
         controller.command("next_slide")
         controller.command("goto_slide", 2)
         controller.command("end_presentation")
 
         self.assertTrue(presentation.started)
         self.assertTrue(presentation.ended)
-        self.assertEqual(slideshow.commands, [("next_slide", None), ("goto_slide", 2)])
+        self.assertEqual(
+            slideshow.commands,
+            [
+                ("pause", None),
+                ("blank_screen", 0),
+                ("resume", None),
+                ("goto_last_slide", None),
+                ("next_slide", None),
+                ("goto_slide", 2),
+            ],
+        )
 
     def test_slide_navigation_falls_back_to_editing_view(self) -> None:
         document = FakeDocument(self.slides, FakePresentation(None), self.slides[1])
@@ -234,3 +329,57 @@ class ControllerTests(unittest.TestCase):
             document.current_controller.selected_pages,
             [self.slides[0], self.slides[2]],
         )
+
+    def test_state_falls_back_to_controller_slide_object_when_index_is_invalid(self) -> None:
+        slideshow = FakeSlideShowController(
+            current_index=0,
+            slides=self.slides,
+            current_slide_override=self.slides[1],
+            fail_current_slide_index=True,
+        )
+        document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[0])
+        controller = ImpressController(FakeContext(document))
+
+        state = controller.state()
+
+        self.assertEqual(state.current_slide, 1)
+        self.assertEqual(state.current_title, "Metrics")
+
+    def test_state_uses_controller_next_slide_index_when_available(self) -> None:
+        slideshow = FakeSlideShowController(current_index=0, slides=self.slides, next_index=2)
+        document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[0])
+        controller = ImpressController(FakeContext(document))
+
+        state = controller.state()
+
+        self.assertEqual(state.next_slide, 2)
+        self.assertEqual(state.next_title, "Wrap Up")
+
+    def test_state_tracks_blank_pause_and_end_of_deck_helpers(self) -> None:
+        current_time = [100.0]
+        slideshow = FakeSlideShowController(current_index=2, slides=self.slides, paused=True)
+        document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[2])
+        controller = ImpressController(FakeContext(document), monotonic=lambda: current_time[0])
+
+        controller.state()
+        controller.command("blank_screen")
+        current_time[0] = 145.0
+
+        state = controller.state()
+
+        self.assertTrue(state.running)
+        self.assertTrue(state.paused)
+        self.assertTrue(state.blanked)
+        self.assertTrue(state.at_end_of_deck)
+        self.assertEqual(state.remaining_slides, 0)
+        self.assertEqual(state.elapsed_seconds, 45)
+        self.assertEqual(state.status_message, "Presentation paused with the projector blanked")
+
+        controller.command("next_slide")
+        unblanked_state = controller.state()
+
+        self.assertFalse(unblanked_state.blanked)
+
+
+if __name__ == "__main__":
+    unittest.main()

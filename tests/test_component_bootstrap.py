@@ -73,6 +73,7 @@ class ComponentBootstrapTests(unittest.TestCase):
         frame_module = types.ModuleType("com.sun.star.frame")
         cast(Any, frame_module).XDispatch = type("XDispatch", (), {})
         cast(Any, frame_module).XDispatchProvider = type("XDispatchProvider", (), {})
+        cast(Any, frame_module).XTerminateListener = type("XTerminateListener", (), {})
 
         lang_module = types.ModuleType("com.sun.star.lang")
         cast(Any, lang_module).XServiceInfo = type("XServiceInfo", (), {})

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<oor:component-data
+    xmlns:oor="http://openoffice.org/2001/registry"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    oor:name="Settings"
+    oor:package="org.borayarkin.libreoffice.impressremote">
+    <prop oor:name="LocalHost" oor:type="xs:string">
+        <value>0.0.0.0</value>
+    </prop>
+    <prop oor:name="LocalPort" oor:type="xs:int">
+        <value>17865</value>
+    </prop>
+    <prop oor:name="RelayUrl" oor:type="xs:string">
+        <value></value>
+    </prop>
+    <prop oor:name="EnableRelay" oor:type="xs:boolean">
+        <value>false</value>
+    </prop>
+    <prop oor:name="EnableIpv6Direct" oor:type="xs:boolean">
+        <value>true</value>
+    </prop>
+    <prop oor:name="EnableLocalListener" oor:type="xs:boolean">
+        <value>true</value>
+    </prop>
+    <prop oor:name="PreferredRoute" oor:type="xs:string">
+        <value>auto</value>
+    </prop>
+</oor:component-data>

@@ -4,6 +4,7 @@
 # Documentation
 
 - [Architecture](architecture.md)
+- [Roadmap](roadmap.md)
 - [LibreOffice Extension](libreoffice-extension.md)
 - [Relay Server](relay-server.md)
 - [E2E Security](security/e2ee.md)

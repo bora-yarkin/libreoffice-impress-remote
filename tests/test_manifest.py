@@ -12,6 +12,8 @@ def test_extension_manifest_files_exist() -> None:
         "extension/description.xml",
         "extension/Addons.xcu",
         "extension/ProtocolHandler.xcu",
+        "extension/Settings.xcs",
+        "extension/Settings.xcu",
         "extension/python/impress_remote/component.py",
         "extension/web/index.html",
     ]
@@ -22,3 +24,10 @@ def test_extension_manifest_files_exist() -> None:
 def test_python_component_manifest_entry_uses_python_component_media_type() -> None:
     manifest = (ROOT / "extension/META-INF/manifest.xml").read_text(encoding="utf-8")
     assert 'application/vnd.sun.star.uno-component;type=Python' in manifest
+
+
+def test_extension_manifest_includes_settings_schema_and_data() -> None:
+    manifest = (ROOT / "extension/META-INF/manifest.xml").read_text(encoding="utf-8")
+    assert 'application/vnd.sun.star.configuration-schema' in manifest
+    assert 'manifest:full-path="Settings.xcs"' in manifest
+    assert 'manifest:full-path="Settings.xcu"' in manifest

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import time
 
 from impress_remote.notes import extract_notes_for_slide
 from impress_remote.preview import export_slide_png_bytes, extract_slide_title, render_slide_preview
@@ -12,87 +14,145 @@ from impress_remote.preview import export_slide_png_bytes, extract_slide_title, 
 @dataclass
 class PresentationState:
     running: bool
+    active: bool
+    paused: bool
+    blanked: bool
     document_kind: str
     status_message: str
     current_slide: int
     slide_count: int
     notes: str
     current_title: str
+    current_preview: str
     next_slide: int | None
     next_title: str
     next_preview: str
     can_go_previous: bool
     can_go_next: bool
+    remaining_slides: int
+    at_end_of_deck: bool
+    elapsed_seconds: int
+    current_render_token: str
+    next_render_token: str
+
+
+@dataclass
+class _ResolvedPresentation:
+    document: object
+    presentation: object | None
+    controller: object | None
+    slide_count: int
+    running: bool
+    active: bool
+    paused: bool
+    endless: bool
+    current_index: int
+    next_index: int | None
 
 
 class ImpressController:
-    def __init__(self, ctx):
+    def __init__(self, ctx, monotonic=None):
         self.ctx = ctx
+        self._monotonic = monotonic or time.monotonic
+        self._running_presentation_key: tuple[int, int] | None = None
+        self._presentation_started_at: float | None = None
+        self._blanked_presentation_key: tuple[int, int] | None = None
+        self._blanked_slide_index: int | None = None
 
     def state(self) -> PresentationState:
         document = self._document()
         if document is None:
-            return PresentationState(
-                running=False,
+            self._reset_runtime_tracking()
+            return self._empty_state(
                 document_kind="none",
                 status_message="Open an Impress presentation to use the remote.",
-                current_slide=0,
-                slide_count=0,
-                notes="",
-                current_title="",
-                next_slide=None,
-                next_title="",
-                next_preview="",
-                can_go_previous=False,
-                can_go_next=False,
             )
         if not self._is_impress_document(document):
-            return PresentationState(
-                running=False,
+            self._reset_runtime_tracking()
+            return self._empty_state(
                 document_kind="other",
                 status_message="The active LibreOffice document is not an Impress presentation.",
-                current_slide=0,
-                slide_count=0,
-                notes="",
-                current_title="",
-                next_slide=None,
-                next_title="",
-                next_preview="",
-                can_go_previous=False,
-                can_go_next=False,
             )
 
-        slide_count = self._slide_count(document)
-        slideshow_controller = self._slideshow_controller(document)
-        current_index = self._current_slide_index(slideshow_controller, document, slide_count)
-        current_slide = self._slide_for_index(document, current_index)
-        next_index = current_index + 1 if current_index + 1 < slide_count else None
-        next_slide = self._slide_for_index(document, next_index) if next_index is not None else None
-        running = slideshow_controller is not None
-        if running:
-            status_message = "Presentation running"
-        elif slide_count:
-            status_message = "Ready in editing view"
-        else:
-            status_message = "This Impress document does not contain any slides."
+        resolved = self._resolve_presentation(document)
+        key = (
+            self._presentation_key(resolved.document, resolved.controller)
+            if resolved.running
+            else None
+        )
+        self._sync_runtime_tracking(key, resolved.running, resolved.current_index)
+        blanked = key is not None and self._blanked_presentation_key == key
+        current_slide = self._slide_for_index(document, resolved.current_index)
+        next_slide = (
+            self._slide_for_index(document, resolved.next_index)
+            if resolved.next_index is not None
+            else None
+        )
+        current_title = extract_slide_title(current_slide)
+        current_preview = (
+            render_slide_preview(current_slide, resolved.current_index)
+            if current_slide is not None
+            else ""
+        )
+        notes = extract_notes_for_slide(current_slide)
+        next_title = extract_slide_title(next_slide)
+        next_preview = (
+            render_slide_preview(next_slide, resolved.next_index)
+            if resolved.next_index is not None
+            else ""
+        )
+        remaining_slides = max(resolved.slide_count - resolved.current_index - 1, 0)
+        at_end_of_deck = resolved.slide_count > 0 and resolved.next_index is None
+        status_message = self._status_message(
+            resolved,
+            blanked=blanked,
+            at_end_of_deck=at_end_of_deck,
+        )
+        can_go_previous = resolved.current_index > 0 or (
+            resolved.running and resolved.endless and resolved.slide_count > 1
+        )
+        can_go_next = resolved.next_index is not None
 
         return PresentationState(
-            running=running,
+            running=resolved.running,
+            active=resolved.active,
+            paused=resolved.paused,
+            blanked=blanked,
             document_kind="impress",
             status_message=status_message,
-            current_slide=current_index,
-            slide_count=slide_count,
-            notes=extract_notes_for_slide(current_slide),
-            current_title=extract_slide_title(current_slide),
-            next_slide=next_index,
-            next_title=extract_slide_title(next_slide),
-            next_preview=(
-                render_slide_preview(next_slide, next_index)
-                if next_index is not None
-                else ""
+            current_slide=resolved.current_index,
+            slide_count=resolved.slide_count,
+            notes=notes,
+            current_title=current_title,
+            current_preview=current_preview,
+            next_slide=resolved.next_index,
+            next_title=next_title,
+            next_preview=next_preview,
+            can_go_previous=can_go_previous,
+            can_go_next=can_go_next,
+            remaining_slides=remaining_slides,
+            at_end_of_deck=at_end_of_deck,
+            elapsed_seconds=self._elapsed_seconds(resolved.running),
+            current_render_token=self._render_token(
+                current_slide,
+                resolved.current_index,
+                current_title,
+                notes,
+                current_preview,
+                resolved.running,
+                resolved.paused,
+                blanked,
             ),
-            can_go_previous=current_index > 0,
-            can_go_next=next_index is not None,
+            next_render_token=self._render_token(
+                next_slide,
+                resolved.next_index,
+                next_title,
+                "",
+                next_preview,
+                False,
+                False,
+                False,
+            ),
         )
 
     def command(self, name: str, index: int | None = None) -> None:
@@ -106,26 +166,57 @@ class ImpressController:
             and presentation is not None
             and hasattr(presentation, "start")
         ):
+            self._reset_runtime_tracking()
             presentation.start()
             return
         if name == "end_presentation" and presentation is not None and hasattr(presentation, "end"):
             presentation.end()
+            self._reset_runtime_tracking()
             return
         if controller is not None:
+            key = self._presentation_key(document, controller)
             if name == "next_effect":
+                self._clear_blank_tracking(key)
                 controller.gotoNextEffect()
                 return
             if name == "previous_effect":
+                self._clear_blank_tracking(key)
                 controller.gotoPreviousEffect()
                 return
             if name == "next_slide":
+                self._clear_blank_tracking(key)
                 controller.gotoNextSlide()
                 return
             if name == "previous_slide":
+                self._clear_blank_tracking(key)
                 controller.gotoPreviousSlide()
                 return
             if name == "goto_slide" and index is not None:
+                self._clear_blank_tracking(key)
                 controller.gotoSlideIndex(index)
+                return
+            if name == "pause_presentation" and hasattr(controller, "pause"):
+                controller.pause()
+                return
+            if name == "resume_presentation" and hasattr(controller, "resume"):
+                self._clear_blank_tracking(key)
+                controller.resume()
+                return
+            if name == "blank_screen" and hasattr(controller, "blankScreen"):
+                self._mark_blank_tracking(
+                    key,
+                    self._current_slide_index(
+                        controller,
+                        document,
+                        self._slide_count(document),
+                        True,
+                    ),
+                )
+                controller.blankScreen(0)
+                return
+            if name == "goto_last_slide" and hasattr(controller, "gotoLastSlide"):
+                self._clear_blank_tracking(key)
+                controller.gotoLastSlide()
                 return
 
         if name == "next_slide":
@@ -136,17 +227,17 @@ class ImpressController:
             self._set_editing_slide(document, index)
 
     def current_slide_png_bytes(self) -> bytes:
-        document = self._document()
-        if not self._is_impress_document(document):
-            raise RuntimeError("The active LibreOffice document is not an Impress presentation.")
-        slide = self._slide_for_index(
-            document,
-            self._current_slide_index(
-                self._slideshow_controller(document),
-                document,
-                self._slide_count(document),
-            ),
-        )
+        document = self._require_impress_document()
+        resolved = self._resolve_presentation(document)
+        slide = self._slide_for_index(document, resolved.current_index)
+        return export_slide_png_bytes(self.ctx, slide)
+
+    def next_slide_png_bytes(self) -> bytes:
+        document = self._require_impress_document()
+        resolved = self._resolve_presentation(document)
+        if resolved.next_index is None:
+            raise RuntimeError("No next slide is available to export.")
+        slide = self._slide_for_index(document, resolved.next_index)
         return export_slide_png_bytes(self.ctx, slide)
 
     def _desktop(self):
@@ -191,10 +282,39 @@ class ImpressController:
             return None
         return draw_pages.getByIndex(index)
 
-    def _current_slide_index(self, controller, document, slide_count: int) -> int:
+    def _resolve_presentation(self, document) -> _ResolvedPresentation:
+        slide_count = self._slide_count(document)
+        presentation = self._presentation(document)
+        controller = self._slideshow_controller(document)
+        running = self._presentation_running(presentation, controller)
+        active = self._presentation_active(controller, running)
+        paused = running and self._controller_bool(controller, "isPaused")
+        endless = running and self._controller_bool(controller, "isEndless")
+        current_index = self._current_slide_index(controller, document, slide_count, running)
+        next_index = self._next_slide_index(
+            controller,
+            current_index,
+            slide_count,
+            running,
+            endless,
+        )
+        return _ResolvedPresentation(
+            document=document,
+            presentation=presentation,
+            controller=controller,
+            slide_count=slide_count,
+            running=running,
+            active=active,
+            paused=paused,
+            endless=endless,
+            current_index=current_index,
+            next_index=next_index,
+        )
+
+    def _current_slide_index(self, controller, document, slide_count: int, running: bool) -> int:
         if slide_count <= 0:
             return 0
-        if controller is not None:
+        if running and controller is not None:
             if hasattr(controller, "getCurrentSlideIndex"):
                 try:
                     index = int(controller.getCurrentSlideIndex())
@@ -211,6 +331,30 @@ class ImpressController:
         current_slide = self._editing_current_slide(document)
         resolved = self._slide_index(document, current_slide)
         return resolved if resolved is not None else 0
+
+    def _next_slide_index(
+        self,
+        controller,
+        current_index: int,
+        slide_count: int,
+        running: bool,
+        endless: bool,
+    ) -> int | None:
+        if slide_count <= 0 or current_index < 0:
+            return None
+        if running and controller is not None and hasattr(controller, "getNextSlideIndex"):
+            try:
+                next_index = int(controller.getNextSlideIndex())
+            except (TypeError, ValueError):
+                next_index = None
+            if next_index is not None and 0 <= next_index < slide_count:
+                if next_index != current_index or endless:
+                    return next_index
+        if endless and slide_count > 0:
+            return (current_index + 1) % slide_count
+        if current_index + 1 < slide_count:
+            return current_index + 1
+        return None
 
     def _slide_from_controller(self, controller):
         if controller is None:
@@ -272,3 +416,166 @@ class ImpressController:
                 except Exception:
                     continue
         return None
+
+    def _empty_state(self, document_kind: str, status_message: str) -> PresentationState:
+        return PresentationState(
+            running=False,
+            active=False,
+            paused=False,
+            blanked=False,
+            document_kind=document_kind,
+            status_message=status_message,
+            current_slide=0,
+            slide_count=0,
+            notes="",
+            current_title="",
+            current_preview="",
+            next_slide=None,
+            next_title="",
+            next_preview="",
+            can_go_previous=False,
+            can_go_next=False,
+            remaining_slides=0,
+            at_end_of_deck=False,
+            elapsed_seconds=0,
+            current_render_token="",
+            next_render_token="",
+        )
+
+    def _presentation_running(self, presentation, controller) -> bool:
+        for target in (presentation, controller):
+            result = self._call_optional(target, "isRunning")
+            if result is not None:
+                return bool(result)
+        return controller is not None
+
+    def _presentation_active(self, controller, running: bool) -> bool:
+        result = self._call_optional(controller, "isActive")
+        if result is not None:
+            return bool(result)
+        return running
+
+    def _controller_bool(self, controller, method_name: str) -> bool:
+        result = self._call_optional(controller, method_name)
+        return bool(result) if result is not None else False
+
+    def _call_optional(self, target, method_name: str):
+        if target is None or not hasattr(target, method_name):
+            return None
+        try:
+            return getattr(target, method_name)()
+        except Exception:
+            return None
+
+    def _status_message(
+        self,
+        resolved: _ResolvedPresentation,
+        *,
+        blanked: bool,
+        at_end_of_deck: bool,
+    ) -> str:
+        if resolved.slide_count <= 0:
+            return "This Impress document does not contain any slides."
+        if resolved.running:
+            if blanked and resolved.paused:
+                return "Presentation paused with the projector blanked"
+            if blanked:
+                return "Presentation blanked"
+            if resolved.paused and at_end_of_deck:
+                return "Presentation paused on the last slide"
+            if resolved.paused:
+                return "Presentation paused"
+            if at_end_of_deck:
+                return "Presentation running on the last slide"
+            if not resolved.active:
+                return "Presentation connected"
+            return "Presentation running"
+        return "Ready in editing view"
+
+    def _render_token(
+        self,
+        slide,
+        index: int | None,
+        title: str,
+        notes: str,
+        preview: str,
+        running: bool,
+        paused: bool,
+        blanked: bool,
+    ) -> str:
+        if slide is None or index is None or index < 0:
+            return ""
+        digest = hashlib.blake2s(digest_size=8)
+        for value in (
+            str(index),
+            title,
+            notes,
+            preview,
+            str(int(running)),
+            str(int(paused)),
+            str(int(blanked)),
+        ):
+            digest.update(value.encode("utf-8", errors="ignore"))
+            digest.update(b"\0")
+        return digest.hexdigest()
+
+    def _presentation_key(self, document, controller) -> tuple[int, int]:
+        return (id(document), id(controller) if controller is not None else 0)
+
+    def _sync_runtime_tracking(
+        self,
+        presentation_key: tuple[int, int] | None,
+        running: bool,
+        current_index: int,
+    ) -> None:
+        if not running or presentation_key is None:
+            self._reset_runtime_tracking()
+            return
+        if self._running_presentation_key != presentation_key:
+            preserve_blank = self._blanked_presentation_key == presentation_key
+            self._running_presentation_key = presentation_key
+            self._presentation_started_at = self._monotonic()
+            if not preserve_blank:
+                self._blanked_presentation_key = None
+                self._blanked_slide_index = None
+            return
+        if (
+            self._blanked_presentation_key == presentation_key
+            and self._blanked_slide_index is not None
+            and self._blanked_slide_index != current_index
+        ):
+            self._clear_blank_tracking(presentation_key)
+
+    def _reset_runtime_tracking(self) -> None:
+        self._running_presentation_key = None
+        self._presentation_started_at = None
+        self._blanked_presentation_key = None
+        self._blanked_slide_index = None
+
+    def _mark_blank_tracking(
+        self,
+        presentation_key: tuple[int, int] | None,
+        current_index: int,
+    ) -> None:
+        if presentation_key is None:
+            return
+        self._blanked_presentation_key = presentation_key
+        self._blanked_slide_index = current_index
+
+    def _clear_blank_tracking(self, presentation_key: tuple[int, int] | None) -> None:
+        if presentation_key is None:
+            return
+        if self._blanked_presentation_key == presentation_key:
+            self._blanked_presentation_key = None
+            self._blanked_slide_index = None
+
+    def _elapsed_seconds(self, running: bool) -> int:
+        if not running or self._presentation_started_at is None:
+            return 0
+        return max(int(self._monotonic() - self._presentation_started_at), 0)
+
+    def _require_impress_document(self):
+        document = self._document()
+        if not self._is_impress_document(document):
+            raise RuntimeError("The active LibreOffice document is not an Impress presentation.")
+        return document

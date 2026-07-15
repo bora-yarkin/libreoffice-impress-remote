@@ -194,6 +194,10 @@ class RelayClient:
             self._thread.join(timeout=2)
         self._set_status(False, "")
 
+    def is_running(self) -> bool:
+        thread = self._thread
+        return thread is not None and thread.is_alive() and not self._stop_event.is_set()
+
     def status(self) -> dict[str, str | bool]:
         with self._lock:
             if self._connected:

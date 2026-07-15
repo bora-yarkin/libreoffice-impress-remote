@@ -8,12 +8,26 @@ import webbrowser
 from typing import TYPE_CHECKING, Any, cast
 
 import unohelper
-from com.sun.star.awt import XActionListener, XItemListener  # pyright: ignore[reportMissingImports]
+from com.sun.star import awt as star_awt  # pyright: ignore[reportMissingImports]
 
 from impress_remote.config import DEFAULT_PREFERRED_ROUTE, ROUTE_LABELS, normalize_preferred_route
 
 if TYPE_CHECKING:
+    from com.sun.star.awt import (  # pyright: ignore[reportMissingImports]
+        XActionListener,
+        XItemListener,
+        XTextListener,
+    )
     from impress_remote.component import ImpressRemoteProtocolHandler
+
+if TYPE_CHECKING:
+    XActionListenerBase = XActionListener
+    XItemListenerBase = XItemListener
+    XTextListenerBase = XTextListener
+else:
+    XActionListenerBase = star_awt.XActionListener
+    XItemListenerBase = getattr(star_awt, "XItemListener", object)
+    XTextListenerBase = getattr(star_awt, "XTextListener", object)
 
 
 def _service_manager(ctx):
@@ -36,7 +50,25 @@ def open_external_url(ctx, url: str) -> bool:
         return bool(webbrowser.open(url, new=2))
 
 
-class DialogButtonListener(unohelper.Base, XActionListener):
+def show_error_message(ctx, message: str, title: str = "Impress Remote") -> None:
+    if not message:
+        return
+    try:
+        desktop = _service_manager(ctx).createInstanceWithContext(
+            "com.sun.star.frame.Desktop",
+            ctx,
+        )
+        frame = desktop.getCurrentFrame() if hasattr(desktop, "getCurrentFrame") else None
+        window = frame.getContainerWindow() if frame is not None else None
+        parent = window.getPeer() if window is not None and hasattr(window, "getPeer") else None
+        toolkit = _service_manager(ctx).createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
+        message_box = toolkit.createMessageBox(parent, 3, 1, title, message)
+        message_box.execute()
+    except Exception:
+        return
+
+
+class DialogButtonListener(unohelper.Base, XActionListenerBase):
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -48,7 +80,7 @@ class DialogButtonListener(unohelper.Base, XActionListener):
         self.dialog.handle_action(control_name)
 
 
-class DialogItemListener(unohelper.Base, XItemListener):
+class DialogItemListener(unohelper.Base, XItemListenerBase):
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -60,6 +92,18 @@ class DialogItemListener(unohelper.Base, XItemListener):
         self.dialog.handle_item_change(control_name)
 
 
+class DialogTextListener(unohelper.Base, XTextListenerBase):
+    def __init__(self, dialog):
+        self.dialog = dialog
+
+    def disposing(self, _event):
+        return None
+
+    def textChanged(self, text_event):
+        control_name = text_event.Source.getModel().Name
+        self.dialog.handle_text_change(control_name)
+
+
 class RemoteSettingsDialog:
     def __init__(self, ctx, handler: ImpressRemoteProtocolHandler):
         self.ctx = ctx
@@ -68,7 +112,9 @@ class RemoteSettingsDialog:
         self.dialog: Any | None = None
         self.listeners: dict[str, DialogButtonListener] = {}
         self.item_listeners: dict[str, DialogItemListener] = {}
+        self.text_listeners: dict[str, DialogTextListener] = {}
         self.qr_error = ""
+        self.preview_error = ""
         self.qr_image_path: Path | None = None
         self._updating_route = False
 
@@ -103,12 +149,19 @@ class RemoteSettingsDialog:
                 self._open_selected_remote()
                 return
         except Exception as exc:
-            self.refresh(f"Action failed: {exc}")
+            message = f"Action failed: {exc}"
+            self.handler.report_runtime_error(message)
+            show_error_message(self.ctx, message)
+            self.refresh(message)
 
     def handle_item_change(self, control_name: str) -> None:
         if self._updating_route:
             return
-        if control_name == "route_value":
+        if control_name in {"route_value", "local_value", "ipv6_value", "relay_value"}:
+            self._refresh_pairing_preview()
+
+    def handle_text_change(self, control_name: str) -> None:
+        if control_name in {"relay_url_value", "local_port_value"}:
             self._refresh_pairing_preview()
 
     def refresh(self, status_line: str | None = None) -> None:
@@ -120,10 +173,11 @@ class RemoteSettingsDialog:
         self._set_label("session_value", f"Session ID: {connection['session']}")
         self._set_text("local_port_value", str(config["localPort"]))
         self._set_text("relay_url_value", str(config["relayUrl"]))
+        self._set_checkbox("local_value", bool(config["enableLocalListener"]))
         self._set_checkbox("ipv6_value", bool(config["enableIpv6Direct"]))
         self._set_checkbox("relay_value", bool(config["enableRelay"]))
         self._set_label("relay_state_value", self._relay_state_text(connection))
-        self._set_label("warning_value", self._warning_text(connection))
+        self._set_label("warning_value", self._issues_text(snapshot, connection))
         self._updating_route = True
         try:
             self._set_route_selection(
@@ -144,6 +198,7 @@ class RemoteSettingsDialog:
 
         payload = {
             "localPort": int(local_port_text),
+            "enableLocalListener": self._get_checkbox("local_value"),
             "enableIpv6Direct": self._get_checkbox("ipv6_value"),
             "enableRelay": self._get_checkbox("relay_value"),
             "relayUrl": self._get_text("relay_url_value").strip(),
@@ -157,7 +212,10 @@ class RemoteSettingsDialog:
         self.refresh("Settings saved.")
 
     def _open_selected_remote(self) -> None:
-        pairing = self.handler.pairing_target(self._selected_route())
+        if self._has_unsaved_transport_changes():
+            self.refresh("Save settings before opening a route with new transport changes.")
+            return
+        pairing = self.handler.preview_pairing_target(self._draft_payload(), self._selected_route())
         target = pairing["selectedUrl"]
         if not target:
             self.refresh(pairing["hint"])
@@ -205,7 +263,7 @@ class RemoteSettingsDialog:
         )
         self._add_fixed_text(dialog_model, "relay_title", "Relay Status", 118, 116, 66, 10)
         self._add_fixed_text(dialog_model, "relay_state_value", "", 118, 126, 220, 12)
-        self._add_fixed_text(dialog_model, "warning_title", "Warnings", 8, 148, 52, 10)
+        self._add_fixed_text(dialog_model, "warning_title", "Issues", 8, 148, 52, 10)
         self._add_fixed_text(dialog_model, "warning_value", "", 8, 158, 330, 18, multiline=True)
         self._add_fixed_text(dialog_model, "session_value", "", 8, 180, 330, 10)
         self._add_fixed_text(dialog_model, "manual_link_title", "Manual Link", 8, 194, 58, 10)
@@ -222,8 +280,9 @@ class RemoteSettingsDialog:
         )
         self._add_fixed_text(dialog_model, "local_port_title", "Local Port", 246, 210, 40, 10)
         self._add_edit(dialog_model, "local_port_value", "", 292, 208, 46, 12)
-        self._add_checkbox(dialog_model, "ipv6_value", "Enable direct IPv6", 8, 228, 106, 10)
-        self._add_checkbox(dialog_model, "relay_value", "Enable relay", 126, 228, 70, 10)
+        self._add_checkbox(dialog_model, "local_value", "Enable local", 8, 228, 82, 10)
+        self._add_checkbox(dialog_model, "ipv6_value", "Enable direct IPv6", 96, 228, 108, 10)
+        self._add_checkbox(dialog_model, "relay_value", "Enable relay", 222, 228, 70, 10)
         self._add_fixed_text(dialog_model, "relay_url_title", "Relay Server", 8, 246, 58, 10)
         self._add_edit(dialog_model, "relay_url_value", "", 72, 244, 266, 12)
         self._add_button(dialog_model, "stop_button", "Stop", 8, 266, 44, 14)
@@ -260,6 +319,16 @@ class RemoteSettingsDialog:
         route_listener = DialogItemListener(self)
         route_control.addItemListener(route_listener)
         self.item_listeners["route_value"] = route_listener
+        for control_name in ("local_value", "ipv6_value", "relay_value"):
+            control = dialog.getControl(control_name)
+            listener = DialogItemListener(self)
+            control.addItemListener(listener)
+            self.item_listeners[control_name] = listener
+        for control_name in ("relay_url_value", "local_port_value"):
+            control = dialog.getControl(control_name)
+            listener = DialogTextListener(self)
+            control.addTextListener(listener)
+            self.text_listeners[control_name] = listener
 
     def _remove_listeners(self) -> None:
         dialog = self._dialog()
@@ -271,6 +340,10 @@ class RemoteSettingsDialog:
             control = dialog.getControl(control_name)
             control.removeItemListener(listener)
         self.item_listeners = {}
+        for control_name, listener in self.text_listeners.items():
+            control = dialog.getControl(control_name)
+            control.removeTextListener(listener)
+        self.text_listeners = {}
 
     def _set_label(self, name: str, value: str) -> None:
         self._dialog_model().getByName(name).Label = value
@@ -345,7 +418,15 @@ class RemoteSettingsDialog:
         if snapshot is None:
             snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
         connection = cast(dict[str, Any], snapshot["connection"])
-        pairing = self.handler.pairing_target(self._selected_route())
+        self.preview_error = ""
+        try:
+            pairing = self.handler.preview_pairing_target(
+                self._draft_payload(),
+                self._selected_route(),
+            )
+        except ValueError as exc:
+            self.preview_error = str(exc)
+            pairing = self.handler.pairing_target(self._selected_route())
         self._set_qr_image(pairing["selectedUrl"])
         self._set_label(
             "pairing_route_value",
@@ -372,6 +453,8 @@ class RemoteSettingsDialog:
         return "The selected pairing route is unavailable."
 
     def _pairing_hint_text(self, pairing: dict[str, str], connection: dict[str, Any]) -> str:
+        if self.preview_error:
+            return f"{pairing['hint']} Draft settings error: {self.preview_error}"
         if self.qr_error:
             return f"{pairing['hint']} QR generation failed: {self.qr_error}"
         if pairing["selectedUrl"]:
@@ -401,6 +484,46 @@ class RemoteSettingsDialog:
         if warnings:
             return str(warnings[0])
         return "No runtime warnings."
+
+    def _issues_text(self, snapshot: dict[str, Any], connection: dict[str, Any]) -> str:
+        issues: list[str] = []
+        last_error = str(snapshot.get("lastError", "")).strip()
+        if last_error:
+            issues.append(last_error)
+        warning = self._warning_text(connection)
+        if warning != "No runtime warnings.":
+            issues.append(warning)
+        if bool(connection.get("configPendingRestart")):
+            issues.append("Restart the remote to apply the saved listener changes.")
+        return " ".join(issues) if issues else "No current issues."
+
+    def _draft_payload(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "enableLocalListener": self._get_checkbox("local_value"),
+            "enableIpv6Direct": self._get_checkbox("ipv6_value"),
+            "enableRelay": self._get_checkbox("relay_value"),
+            "relayUrl": self._get_text("relay_url_value").strip(),
+            "preferredRoute": self._selected_route(),
+        }
+        local_port_text = self._get_text("local_port_value").strip()
+        if local_port_text.isdigit() and 1 <= int(local_port_text) <= 65535:
+            payload["localPort"] = int(local_port_text)
+        return payload
+
+    def _has_unsaved_transport_changes(self) -> bool:
+        snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
+        config = cast(dict[str, Any], snapshot["config"])
+        draft = self._draft_payload()
+        for key in (
+            "localPort",
+            "enableLocalListener",
+            "enableIpv6Direct",
+            "enableRelay",
+            "relayUrl",
+        ):
+            if key in draft and draft[key] != config.get(key):
+                return True
+        return False
 
     def _dialog(self) -> Any:
         if self.dialog is None:

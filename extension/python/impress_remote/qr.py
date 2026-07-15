@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from binascii import crc32
+from collections.abc import Sequence
 from pathlib import Path
 from struct import pack
 import tempfile
@@ -38,7 +39,10 @@ def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
     )
 
 
-def _matrix_to_png_bytes(matrix: list[list[bool]], box_size: int = 8) -> bytes:
+def _matrix_to_png_bytes(
+    matrix: Sequence[Sequence[bool | None]],
+    box_size: int = 8,
+) -> bytes:
     if not matrix or not matrix[0]:
         raise RuntimeError("QR matrix is empty.")
 
@@ -48,7 +52,7 @@ def _matrix_to_png_bytes(matrix: list[list[bool]], box_size: int = 8) -> bytes:
     for matrix_row in matrix:
         pixel_row = bytearray()
         for cell in matrix_row:
-            color = PNG_BLACK if cell else PNG_WHITE
+            color = PNG_BLACK if bool(cell) else PNG_WHITE
             pixel_row.extend([color] * box_size)
         for _ in range(box_size):
             rows.append(0)

@@ -5,7 +5,9 @@
 
 LibreOffice Impress Remote is a FOSS, self-hostable remote-control system for LibreOffice Impress presentations. It is designed to work locally like a Keynote-style presenter remote while also supporting relay and direct IPv6 transports for difficult networks such as phone hotspots, CGNAT, locked-down conference Wi-Fi, and public IPv6.
 
-The project is pre-1.0. Version `0.2.0` delivers a usable QR-first local/direct browser remote with full current-slide rendering, live local presenter updates, a LibreOffice-native settings dialog, persisted network settings, and a prototype relay mode with a hosted phone UI and extension-side relay client. Production E2E encryption and deeper LibreOffice-native persistence work are still blocking milestones before security-sensitive use.
+The project is pre-1.0. Version `0.2.0` delivers a usable QR-first local/direct browser remote with full current-slide rendering, live local presenter updates, a LibreOffice-native settings dialog, LibreOffice-persisted network settings, and a prototype relay mode with a hosted phone UI and extension-side relay client. Production E2E encryption is still a blocking milestone before security-sensitive use.
+
+See [docs/roadmap.md](docs/roadmap.md) for the staged plan toward a no-mandatory-third-party, upstream-friendly LibreOffice feature.
 
 ## Product Areas
 
@@ -100,7 +102,7 @@ Slide Show -> Presentation Remote
 
 - `Start Remote` starts the embedded HTTP listener.
 - `Open Console` starts the listener if needed and opens the currently selected remote route in your browser.
-- `Settings` opens the LibreOffice dialog for local port, IPv6 direct mode, relay enablement, relay URL, route selection, and QR pairing.
+- `Settings` opens the LibreOffice dialog for local listener enablement, local port, IPv6 direct mode, relay enablement, relay URL, route selection, and QR pairing.
 - `Stop Remote` tears the local runtime down cleanly.
 
 The default pairing route is `auto`, which prefers:
