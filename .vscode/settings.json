@@ -1,0 +1,13 @@
+{
+  "python.analysis.exclude": [
+    "third_party/libreoffice-sdk/**",
+    ".venv/**",
+    "build/**",
+    "dist/**"
+  ],
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/extension/python",
+    "${workspaceFolder}/server/src"
+  ],
+  "python.analysis.stubPath": "${workspaceFolder}/typings"
+}

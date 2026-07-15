@@ -19,3 +19,14 @@ class RelaySession:
 
     def empty(self) -> bool:
         return self.plugin is None and not self.phones
+
+    def phone_count(self) -> int:
+        return len([phone for phone in self.phones if not getattr(phone, "closed", False)])
+
+    def snapshot(self) -> dict[str, object]:
+        return {
+            "session": self.session_id,
+            "hasPlugin": self.plugin is not None and not getattr(self.plugin, "closed", False),
+            "phones": self.phone_count(),
+            "ageSeconds": round(time.time() - self.created_at, 3),
+        }

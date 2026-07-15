@@ -11,13 +11,17 @@ OUT = DIST / "libreoffice-impress-remote.oxt"
 INCLUDE = ["META-INF", "description.xml", "Addons.xcu", "ProtocolHandler.xcu", "python", "web", "icons"]
 
 
+def should_include(path: Path) -> bool:
+    return "__pycache__" not in path.parts and path.suffix not in {".pyc", ".pyo"}
+
+
 def add_path(package: ZipFile, path: Path, base: Path) -> None:
     if path.is_dir():
         for child in sorted(path.rglob("*")):
-            if child.is_file():
+            if child.is_file() and should_include(child):
                 package.write(child, child.relative_to(base))
         return
-    if path.is_file():
+    if path.is_file() and should_include(path):
         package.write(path, path.relative_to(base))
 
 

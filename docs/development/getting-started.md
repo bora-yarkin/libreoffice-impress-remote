@@ -6,9 +6,10 @@
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
 cd libreoffice-impress-remote
-python -m venv .venv
-. .venv/bin/activate
-pip install -e '.[dev,security]' -e './server[dev]'
+make venv
+make sdk-download
 make test
 make oxt
 ```
+
+On macOS, `make sdk-download` downloads the matching LibreOffice SDK disk image from the official archive and installs its SDK directory into `third_party/libreoffice-sdk/`.

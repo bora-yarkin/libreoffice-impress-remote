@@ -31,12 +31,15 @@ The project is pre-1.0. The current implementation is an initial developer found
 ### Prerequisites
 
 - Python 3.11+
+- `uv`
 - LibreOffice
 - LibreOffice SDK matching the installed LibreOffice version
 
 ### Build the extension
 
 ```bash
+make venv
+make sdk-download
 make oxt
 ```
 
@@ -52,14 +55,17 @@ Install it with LibreOffice Extension Manager:
 Tools -> Extensions -> Add
 ```
 
+To resolve, download, and install the latest SDK compatible with your installed LibreOffice branch:
+
+```bash
+make sdk-download
+```
+
 ### Run the relay server
 
 ```bash
-cd server
-python -m venv .venv
-. .venv/bin/activate
-pip install -e .
-impress-remote-relay --host-v4 0.0.0.0 --host-v6 :: --port 8080
+make venv
+make server-dev
 ```
 
 Default relay endpoint:

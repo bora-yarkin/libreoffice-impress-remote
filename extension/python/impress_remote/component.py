@@ -3,17 +3,42 @@
 
 from __future__ import annotations
 
+import sys
 import traceback
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
+    from unohelper import Base as UnoBase
     import unohelper
     from com.sun.star.frame import XDispatch, XDispatchProvider
     from com.sun.star.lang import XServiceInfo
-except Exception:
-    unohelper = None
-    XDispatch = object
-    XDispatchProvider = object
-    XServiceInfo = object
+else:
+    try:
+        import unohelper
+        from com.sun.star.frame import XDispatch, XDispatchProvider
+        from com.sun.star.lang import XServiceInfo
+
+        UnoBase = unohelper.Base
+    except Exception:
+        unohelper = None
+
+        class UnoBase:
+            pass
+
+        class XDispatch:
+            pass
+
+        class XDispatchProvider:
+            pass
+
+        class XServiceInfo:
+            pass
+
+PACKAGE_ROOT = Path(__file__).resolve().parent
+PYTHON_ROOT = PACKAGE_ROOT.parent
+if str(PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(PYTHON_ROOT))
 
 from impress_remote.local_server import RemoteServer
 
@@ -22,7 +47,7 @@ SERVICE_NAMES = ("com.sun.star.frame.ProtocolHandler",)
 
 
 class ImpressRemoteProtocolHandler(
-    unohelper.Base if unohelper is not None else object,
+    UnoBase,
     XServiceInfo,
     XDispatchProvider,
     XDispatch,

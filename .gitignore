@@ -8,5 +8,6 @@ dist/
 build/
 *.egg-info/
 .venv/
+third_party/libreoffice-sdk/
 .DS_Store
 *.oxt

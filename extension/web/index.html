@@ -10,18 +10,56 @@
 </head>
 <body>
   <main>
-    <header>
-      <h1>Impress Remote</h1>
-      <p id="status">Connecting...</p>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">LibreOffice Impress Remote</p>
+        <h1>Presenter Console</h1>
+      </div>
+      <p class="status" id="status">Connecting...</p>
     </header>
-    <section class="slide-card">
-      <div id="slide">Slide -- / --</div>
-      <pre id="notes"></pre>
+    <section class="connection-card">
+      <div>
+        <h2>Session</h2>
+        <p class="session" id="session">----------</p>
+      </div>
+      <div>
+        <h2>Local URLs</h2>
+        <ul class="url-list" id="local-urls"></ul>
+      </div>
+      <div>
+        <h2>Direct IPv6</h2>
+        <ul class="url-list" id="direct-urls"></ul>
+      </div>
+    </section>
+    <section class="slide-grid">
+      <section class="slide-card">
+        <p class="card-label">Current Slide</p>
+        <div id="slide">Slide -- / --</div>
+        <p class="slide-title" id="current-title">Waiting for presentation data...</p>
+        <pre id="notes"></pre>
+      </section>
+      <section class="slide-card next-card">
+        <p class="card-label">Next Slide</p>
+        <div id="next-slide">Slide --</div>
+        <p class="slide-title" id="next-title">No next slide</p>
+        <p class="preview" id="next-preview"></p>
+      </section>
     </section>
     <section class="controls">
-      <button data-command="previous_effect">Back</button>
-      <button data-command="next_effect">Next</button>
+      <button data-command="start_presentation">Start Show</button>
+      <button data-command="end_presentation">End Show</button>
+      <button data-command="previous_slide">Prev Slide</button>
+      <button data-command="next_slide">Next Slide</button>
+      <button data-command="previous_effect">Prev Effect</button>
+      <button data-command="next_effect">Next Effect</button>
     </section>
+    <form class="goto-form" id="goto-form">
+      <label for="goto-slide">Jump to slide</label>
+      <div class="goto-row">
+        <input id="goto-slide" min="1" step="1" inputmode="numeric" type="number" placeholder="1">
+        <button type="submit">Go</button>
+      </div>
+    </form>
   </main>
   <script src="/app.js"></script>
 </body>

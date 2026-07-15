@@ -1,0 +1,22 @@
+{
+  "include": [
+    "extension/python",
+    "server/src",
+    "server/tests",
+    "tests",
+    "tools"
+  ],
+  "exclude": [
+    ".venv",
+    "build",
+    "dist",
+    "third_party",
+    "**/__pycache__"
+  ],
+  "extraPaths": [
+    "extension/python",
+    "server/src"
+  ],
+  "stubPath": "typings",
+  "reportMissingModuleSource": "none"
+}

@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 from dataclasses import dataclass
-
-
 @dataclass(frozen=True)
 class RemoteConfig:
     local_host: str = "0.0.0.0"

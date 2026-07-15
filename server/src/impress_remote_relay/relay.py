@@ -16,6 +16,9 @@ from impress_remote_relay.session import RelaySession
 @dataclass
 class RelayState:
     session_ttl: int = 3600
+    max_phones_per_session: int = 8
+    max_message_bytes: int = 1024 * 1024
+    max_session_id_length: int = 128
     sessions: dict[str, RelaySession] = field(default_factory=dict)
 
     def get(self, session_id: str) -> RelaySession:
@@ -37,9 +40,18 @@ class RelayState:
             self.sessions.pop(key, None)
 
 
+RELAY_STATE_KEY = web.AppKey("relay_state", RelayState)
+
+
+def get_relay_state(app) -> RelayState:
+    if RELAY_STATE_KEY in app:
+        return app[RELAY_STATE_KEY]
+    return app["relay_state"]
+
+
 def create_app(state: RelayState | None = None) -> web.Application:
     app = web.Application()
-    app["relay_state"] = state or RelayState()
+    app[RELAY_STATE_KEY] = state or RelayState()
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
     app.router.add_get("/ws", websocket_handler)
@@ -47,9 +59,21 @@ def create_app(state: RelayState | None = None) -> web.Application:
 
 
 async def health(request: web.Request) -> web.Response:
-    state: RelayState = request.app["relay_state"]
+    state = get_relay_state(request.app)
     state.cleanup()
-    return web.json_response({"ok": True, "sessions": len(state.sessions)})
+    return web.json_response(
+        {
+            "ok": True,
+            "sessions": len(state.sessions),
+            "limits": {
+                "sessionTtl": state.session_ttl,
+                "maxPhonesPerSession": state.max_phones_per_session,
+                "maxMessageBytes": state.max_message_bytes,
+                "maxSessionIdLength": state.max_session_id_length,
+            },
+            "active": [session.snapshot() for session in state.sessions.values()],
+        }
+    )
 
 
 async def index(_request: web.Request) -> web.Response:
@@ -64,10 +88,14 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     session_id = request.query.get("session", "")
     if role not in {"plugin", "phone"} or not session_id:
         raise web.HTTPBadRequest(text="role and session are required")
-    ws = web.WebSocketResponse(heartbeat=30)
-    await ws.prepare(request)
-    state: RelayState = request.app["relay_state"]
+    state = get_relay_state(request.app)
+    if len(session_id) > state.max_session_id_length:
+        raise web.HTTPBadRequest(text="session id is too long")
     session = state.get(session_id)
+    if role == "phone" and session.phone_count() >= state.max_phones_per_session:
+        raise web.HTTPTooManyRequests(text="too many phones connected to this session")
+    ws = web.WebSocketResponse(heartbeat=30, max_msg_size=state.max_message_bytes)
+    await ws.prepare(request)
     if role == "plugin":
         if session.plugin is not None:
             await session.plugin.close(code=4000, message=b"plugin replaced")
