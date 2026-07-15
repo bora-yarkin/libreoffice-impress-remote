@@ -8,7 +8,6 @@ import webbrowser
 from typing import TYPE_CHECKING, Any, cast
 
 import unohelper
-from com.sun.star import awt as star_awt  # pyright: ignore[reportMissingImports]
 
 from impress_remote.config import DEFAULT_PREFERRED_ROUTE, ROUTE_LABELS, normalize_preferred_route
 
@@ -19,15 +18,27 @@ if TYPE_CHECKING:
         XTextListener,
     )
     from impress_remote.component import ImpressRemoteProtocolHandler
-
-if TYPE_CHECKING:
-    XActionListenerBase = XActionListener
-    XItemListenerBase = XItemListener
-    XTextListenerBase = XTextListener
 else:
-    XActionListenerBase = star_awt.XActionListener
-    XItemListenerBase = getattr(star_awt, "XItemListener", object)
-    XTextListenerBase = getattr(star_awt, "XTextListener", object)
+    from com.sun.star.awt import XActionListener  # pyright: ignore[reportMissingImports]
+    try:
+        from com.sun.star.awt import XItemListener  # pyright: ignore[reportMissingImports]
+    except Exception:
+        class XItemListener:
+            def disposing(self, _event) -> None:
+                return None
+
+            def itemStateChanged(self, item_event) -> None:
+                return None
+
+    try:
+        from com.sun.star.awt import XTextListener  # pyright: ignore[reportMissingImports]
+    except Exception:
+        class XTextListener:
+            def disposing(self, _event) -> None:
+                return None
+
+            def textChanged(self, text_event) -> None:
+                return None
 
 
 def _service_manager(ctx):
@@ -68,7 +79,7 @@ def show_error_message(ctx, message: str, title: str = "Impress Remote") -> None
         return
 
 
-class DialogButtonListener(unohelper.Base, XActionListenerBase):
+class DialogButtonListener(unohelper.Base, XActionListener):
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -80,7 +91,7 @@ class DialogButtonListener(unohelper.Base, XActionListenerBase):
         self.dialog.handle_action(control_name)
 
 
-class DialogItemListener(unohelper.Base, XItemListenerBase):
+class DialogItemListener(unohelper.Base, XItemListener):
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -92,7 +103,7 @@ class DialogItemListener(unohelper.Base, XItemListenerBase):
         self.dialog.handle_item_change(control_name)
 
 
-class DialogTextListener(unohelper.Base, XTextListenerBase):
+class DialogTextListener(unohelper.Base, XTextListener):
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -233,7 +244,7 @@ class RemoteSettingsDialog:
         dialog_model.PositionX = 40
         dialog_model.PositionY = 40
         dialog_model.Width = 346
-        dialog_model.Height = 292
+        dialog_model.Height = 338
         dialog_model.Closeable = True
         dialog_model.Sizeable = False
 
@@ -268,28 +279,39 @@ class RemoteSettingsDialog:
         self._add_fixed_text(dialog_model, "session_value", "", 8, 180, 330, 10)
         self._add_fixed_text(dialog_model, "manual_link_title", "Manual Link", 8, 194, 58, 10)
         self._add_edit(dialog_model, "manual_link_value", "", 72, 192, 266, 12, readonly=True)
-        self._add_fixed_text(dialog_model, "route_title", "Pairing Route", 8, 210, 68, 10)
+        self._add_fixed_text(dialog_model, "howto_title", "How to Use", 8, 210, 60, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "howto_value",
+            "",
+            8,
+            220,
+            330,
+            28,
+            multiline=True,
+        )
+        self._add_fixed_text(dialog_model, "route_title", "Pairing Route", 8, 252, 68, 10)
         self._add_route_list_box(
             dialog_model,
             "route_value",
             normalize_preferred_route(DEFAULT_PREFERRED_ROUTE),
             82,
-            208,
+            250,
             156,
             14,
         )
-        self._add_fixed_text(dialog_model, "local_port_title", "Local Port", 246, 210, 40, 10)
-        self._add_edit(dialog_model, "local_port_value", "", 292, 208, 46, 12)
-        self._add_checkbox(dialog_model, "local_value", "Enable local", 8, 228, 82, 10)
-        self._add_checkbox(dialog_model, "ipv6_value", "Enable direct IPv6", 96, 228, 108, 10)
-        self._add_checkbox(dialog_model, "relay_value", "Enable relay", 222, 228, 70, 10)
-        self._add_fixed_text(dialog_model, "relay_url_title", "Relay Server", 8, 246, 58, 10)
-        self._add_edit(dialog_model, "relay_url_value", "", 72, 244, 266, 12)
-        self._add_button(dialog_model, "stop_button", "Stop", 8, 266, 44, 14)
-        self._add_button(dialog_model, "save_button", "Save", 58, 266, 44, 14)
-        self._add_button(dialog_model, "start_button", "Start", 158, 266, 44, 14)
-        self._add_button(dialog_model, "open_button", "Open", 208, 266, 44, 14)
-        self._add_button(dialog_model, "close_button", "Close", 294, 266, 44, 14)
+        self._add_fixed_text(dialog_model, "local_port_title", "Local Port", 246, 252, 40, 10)
+        self._add_edit(dialog_model, "local_port_value", "", 292, 250, 46, 12)
+        self._add_checkbox(dialog_model, "local_value", "Enable local", 8, 270, 82, 10)
+        self._add_checkbox(dialog_model, "ipv6_value", "Enable direct IPv6", 96, 270, 108, 10)
+        self._add_checkbox(dialog_model, "relay_value", "Enable relay", 222, 270, 70, 10)
+        self._add_fixed_text(dialog_model, "relay_url_title", "Relay Server", 8, 288, 58, 10)
+        self._add_edit(dialog_model, "relay_url_value", "", 72, 286, 266, 12)
+        self._add_button(dialog_model, "stop_button", "Stop", 8, 310, 44, 14)
+        self._add_button(dialog_model, "save_button", "Save", 58, 310, 44, 14)
+        self._add_button(dialog_model, "start_button", "Start", 158, 310, 44, 14)
+        self._add_button(dialog_model, "open_button", "Open", 208, 310, 44, 14)
+        self._add_button(dialog_model, "close_button", "Close", 294, 310, 44, 14)
 
         dialog = self.smgr.createInstanceWithContext(
             "com.sun.star.awt.UnoControlDialog",
@@ -436,6 +458,10 @@ class RemoteSettingsDialog:
             "pairing_hint_value",
             self._pairing_hint_text(pairing, connection),
         )
+        self._set_label(
+            "howto_value",
+            self._how_to_use_text(pairing, bool(snapshot["running"])),
+        )
         self._set_text(
             "manual_link_value",
             pairing["selectedUrl"] or "Unavailable for the current route.",
@@ -462,6 +488,32 @@ class RemoteSettingsDialog:
         if connection["relayStatus"] == "error" and connection["relayLastError"]:
             return f"{pairing['hint']} Relay error: {connection['relayLastError']}"
         return pairing["hint"]
+
+    def _how_to_use_text(self, pairing: dict[str, str], running: bool) -> str:
+        if not running:
+            return (
+                "Click Start, keep the phone on the same Wi-Fi or hotspot, then scan "
+                "the QR code. Use Manual Link if scanning fails."
+            )
+        if pairing["selectedRoute"] in {"", "local"} or pairing["requestedRoute"] == "auto":
+            return (
+                "Local mode is recommended. Keep the phone on the same Wi-Fi or hotspot, "
+                "then scan the QR code or open the Manual Link."
+            )
+        if pairing["selectedRoute"] == "ipv6":
+            return (
+                "Use Direct IPv6 only if local mode does not work. Scan the QR code or "
+                "open the Manual Link on the phone."
+            )
+        if pairing["selectedRoute"] == "relay":
+            return (
+                "Use Relay only when local mode does not work. Save the relay server, "
+                "start the remote, then scan the QR code or open the Manual Link."
+            )
+        return (
+            "Use local mode first. If it does not work on your network, try Direct IPv6 "
+            "or Relay from the Pairing Route menu."
+        )
 
     def _relay_state_text(self, connection: dict[str, Any]) -> str:
         relay_status = str(connection["relayStatus"])

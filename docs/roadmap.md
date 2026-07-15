@@ -13,15 +13,18 @@ The long-term goal is:
 
 - a FOSS presenter remote for LibreOffice Impress
 - no mandatory third-party relay or tunnel service
-- no mandatory local install beyond LibreOffice itself for local and direct modes
+- no mandatory local install beyond LibreOffice itself for the main local workflow
 - optional self-hosted relay support for hard networks such as CGNAT and hostile Wi-Fi
 - an architecture that can eventually move from extension prototype to LibreOffice core
+
+In practice, local mode should solve most same-room use cases, including normal Wi-Fi and many phone hotspot setups. Direct IPv6 and relay support are important fallback paths, but they should not define the main product experience.
 
 ## Hard Rules
 
 - Do not make a public tunnel service such as LocalTunnel, ngrok, or similar a required product dependency.
 - Do not require a vendor-hosted cloud service for core functionality.
-- Keep local mode and direct mode first-class, not fallback features.
+- Keep local mode as the primary path users are expected to try first.
+- Keep direct IPv6 and relay available as fallback paths, not as the default story.
 - Keep the relay optional, self-hostable, and protocol-compatible with alternative implementations.
 - Keep the phone UI lightweight and settings-free.
 - Keep transport and pairing policy inside LibreOffice UI.
@@ -34,12 +37,15 @@ The project should distinguish between what is a realistic LibreOffice core cand
 ### Strong LibreOffice Core Candidates
 
 - local LAN remote control
-- direct IPv6 remote control
 - QR pairing and pairing route selection
 - presenter notes and slide preview generation
 - LibreOffice-native settings UI
 - localization, accessibility, help, and QA coverage
 - transport-neutral command and state protocol definitions
+
+### Secondary Core Candidates
+
+- direct IPv6 remote control, once local mode is considered complete and trustworthy
 
 ### Likely Companion Project Scope
 
@@ -98,7 +104,37 @@ Exit criteria:
 - a user can install the extension, start the remote, scan a QR code, and control a presentation locally without manual troubleshooting
 - local mode has clear documentation and regression coverage
 
-### M2 - Protocol and Security Foundation
+### M2 - LibreOffice-quality UX, Guidance, Localization, and Accessibility
+
+Target outcome:
+
+- the feature feels like LibreOffice software, not a sidecar prototype
+- local mode is understandable without reading external docs
+- users get explicit in-product guidance for same-Wi-Fi and hotspot use before they reach for fallback routes
+
+Main work:
+
+- move strings into a localization-friendly workflow
+- align menu labels, dialog copy, status text, errors, and help text for translation
+- improve keyboard behavior, focus order, and readable status feedback
+- add LibreOffice help and troubleshooting content
+- confirm package behavior and UI quality across supported desktop platforms
+- make the LibreOffice UI clearly explain the recommended local-first usage flow
+
+Repository focus:
+
+- `extension/python/impress_remote/office_ui.py`
+- LibreOffice configuration and metadata files under `extension/`
+- `extension/web/`
+- `docs/`
+
+Exit criteria:
+
+- the extension is ready for broader community testing
+- localization is no longer blocked on hard-coded strings
+- users can understand the recommended workflow directly from LibreOffice
+
+### M3 - Protocol and Security Foundation
 
 Target outcome:
 
@@ -128,11 +164,11 @@ Exit criteria:
 - relay mode no longer requires trusting the relay with slide notes or commands
 - the protocol is documented tightly enough that another implementation could interoperate
 
-### M3 - Direct IPv6 Production Ready
+### M4 - Optional Direct IPv6 Hardening
 
 Target outcome:
 
-- direct IPv6 becomes a real second path, not just a prototype route toggle
+- direct IPv6 becomes a reliable fallback when local mode does not work
 
 Main work:
 
@@ -154,7 +190,7 @@ Exit criteria:
 - users with usable IPv6 can pair directly without relay setup
 - users without usable IPv6 get clear route guidance instead of silent failure
 
-### M4 - Optional Self-hosted Relay Viable
+### M5 - Optional Self-hosted Relay Viable
 
 Target outcome:
 
@@ -181,32 +217,6 @@ Exit criteria:
 - a user can run the reference relay on their own VPS and use it without patching the product
 - relay deployment is documented well enough for non-authors
 
-### M5 - LibreOffice-quality UX, Localization, and Accessibility
-
-Target outcome:
-
-- the feature feels like LibreOffice software, not a sidecar prototype
-
-Main work:
-
-- move strings into a localization-friendly workflow
-- align menu labels, dialog copy, status text, and errors for translation
-- improve keyboard behavior, focus order, and readable status feedback
-- add LibreOffice help and troubleshooting content
-- confirm package behavior and UI quality across supported desktop platforms
-
-Repository focus:
-
-- `extension/python/impress_remote/office_ui.py`
-- LibreOffice configuration and metadata files under `extension/`
-- `extension/web/`
-- `docs/`
-
-Exit criteria:
-
-- the extension is ready for broader community testing
-- localization is no longer blocked on hard-coded strings
-
 ### M6 - Upstream Preparation
 
 Target outcome:
@@ -217,7 +227,7 @@ Main work:
 
 - define the upstream candidate scope explicitly:
   - local mode
-  - direct IPv6 mode
+  - optional direct IPv6 mode, only if it stays maintainable and justified
   - pairing and QR flow
   - presenter state and controls
   - LibreOffice-native configuration
@@ -247,13 +257,15 @@ Target outcome:
 Main work:
 
 - port the local/direct client-facing functionality into LibreOffice core
+- keep the first proof of concept local-first instead of making fallback transports a merge blocker
 - integrate settings, menu actions, localization, and help in the normal LibreOffice way
 - preserve protocol compatibility where possible so the optional self-hosted relay can remain usable
 - gather reviewer feedback early and narrow scope if necessary
 
 Expected upstream surface:
 
-- an initial patch series should focus on local mode and direct IPv6
+- an initial patch series should focus on local mode first
+- direct IPv6 can follow as a smaller, optional follow-up if it still proves useful
 - relay support may need to remain optional, minimized, or deferred depending on reviewer feedback
 
 Exit criteria:
@@ -284,11 +296,11 @@ Exit criteria:
 The next practical order for this repo should be:
 
 1. Finish local mode polish and local endpoint coverage.
-2. Freeze a versioned protocol document.
-3. Implement encrypted transport for relay and direct paths.
-4. Make direct IPv6 route detection trustworthy.
-5. Harden self-hosted relay lifecycle and deployment docs.
-6. Add localization plumbing and accessibility polish.
+2. Improve LibreOffice-side guidance, localization plumbing, and accessibility around the local-first workflow.
+3. Freeze a versioned protocol document.
+4. Implement encrypted transport for relay and direct paths.
+5. Make direct IPv6 route detection trustworthy as an optional fallback.
+6. Harden self-hosted relay lifecycle and deployment docs as an optional fallback.
 7. Write the upstream design note before attempting a large core port.
 
 ## Decision Policy For Public Tunnel Services
@@ -309,7 +321,8 @@ If a tunnel service is mentioned in documentation at all, it should be labeled a
 This project is successful when:
 
 - local mode is excellent
-- direct IPv6 works where it should
+- local mode covers most real same-room cases, including many hotspot setups
+- direct IPv6 works where it should, when fallback connectivity is needed
 - difficult networks are solved by an optional self-hosted relay, not by a mandatory third-party service
 - the security model is honest and documented
 - localization and accessibility are first-class

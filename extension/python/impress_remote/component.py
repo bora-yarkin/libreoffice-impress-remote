@@ -32,20 +32,24 @@ def _write_bootstrap_log(summary):
 
 try:
     import unohelper
-    from com.sun.star import frame as star_frame
+    if not TYPE_CHECKING:
+        from com.sun.star.frame import XDispatch, XDispatchProvider
+        try:
+            from com.sun.star.frame import XTerminateListener
+        except Exception:
+            class XTerminateListener:
+                def disposing(self, _event) -> None:
+                    return None
+
+                def queryTermination(self, _event) -> None:
+                    return None
+
+                def notifyTermination(self, _event) -> None:
+                    return None
     from com.sun.star.lang import XServiceInfo
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
-
-if TYPE_CHECKING:
-    XDispatchBase = XDispatch
-    XDispatchProviderBase = XDispatchProvider
-    XTerminateListenerBase = XTerminateListener
-else:
-    XDispatchBase = star_frame.XDispatch
-    XDispatchProviderBase = star_frame.XDispatchProvider
-    XTerminateListenerBase = getattr(star_frame, "XTerminateListener", object)
 
 
 IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ProtocolHandler"
@@ -108,7 +112,7 @@ def _compose_status_line(remote_running: bool, presentation: dict[str, object]) 
 
 
 try:
-    class ProtocolTerminateListener(unohelper.Base, XTerminateListenerBase):
+    class ProtocolTerminateListener(unohelper.Base, XTerminateListener):
         def __init__(self, handler):
             self.handler = handler
 
@@ -124,8 +128,8 @@ try:
     class ImpressRemoteProtocolHandler(
         unohelper.Base,
         XServiceInfo,
-        XDispatchProviderBase,
-        XDispatchBase,
+        XDispatchProvider,
+        XDispatch,
     ):
         def __init__(self, ctx):
             self.ctx = ctx

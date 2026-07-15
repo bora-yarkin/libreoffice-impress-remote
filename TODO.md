@@ -7,6 +7,8 @@ This file tracks the `0.2.0` project snapshot: what already ships today and what
 
 For milestone order and upstream strategy, see `docs/roadmap.md`.
 
+Current product direction: local mode is the primary path, including same-Wi-Fi and many hotspot setups. Direct IPv6 and relay remain optional fallback routes.
+
 ## Implemented
 
 - Packaging: LibreOffice `.oxt` packaging, manifest files, menu registration, versioned extension builds, and source-only OXT output are in place.
@@ -18,7 +20,7 @@ For milestone order and upstream strategy, see `docs/roadmap.md`.
 - Phone UI: The local browser remote now acts as a lightweight dummy remote with a full current-slide image, presenter notes, live status, and side-by-side previous and next buttons.
 - Slide rendering: The extension can export the current Impress slide to PNG and serve it to the local phone UI.
 - LibreOffice UX: The extension menu now exposes start, stop, open-console, and settings actions, and the LibreOffice dialog now owns route selection, relay configuration, runtime status, QR-based phone pairing, and recoverable runtime issue reporting.
-- Pairing flow: The extension now supports `auto`, `local`, `ipv6`, and `relay` pairing modes, with `auto` preferring local first, then direct IPv6, then relay.
+- Pairing flow: The extension now supports `auto`, `local`, `ipv6`, and `relay` pairing modes, with `auto` preferring local first, then direct IPv6, then relay, and local mode is the primary recommended route.
 - Relay mode prototype: The extension can persist relay settings, open an outbound relay connection as the plugin, publish a shareable relay link, receive commands from relay-connected phones, and push live presentation state over the relay.
 - Relay server: The relay exposes `/`, `/app.js`, `/app.css`, `/health`, and `/ws`, serves a relay-hosted phone controller UI, forwards plugin and phone WebSocket messages, replaces an existing plugin when a new one joins, and expires empty or stale sessions.
 - Relay safety: Session-id length limits, phone-count limits, and WebSocket message-size limits are implemented.
@@ -31,14 +33,15 @@ For milestone order and upstream strategy, see `docs/roadmap.md`.
 ## Planned
 
 - Local mode: Decide whether to support HTTPS locally or explicitly document the chosen trust model.
+- Local mode: Expand in-product and user-facing guidance for same-Wi-Fi and hotspot usage.
 - Phone UI: Add stronger error presentation, retry flows, and accessibility polish for mobile use.
 - Phone UI: Add installable PWA behavior if offline launch or homescreen install is desired.
 - Localization: Move LibreOffice dialog strings, menu labels, status text, errors, and phone UI copy into a translation-friendly workflow that can scale to LibreOffice's language coverage.
-- Direct IPv6 mode: Detect whether the host has a globally reachable IPv6 address, not just any non-link-local IPv6.
+- Direct IPv6 mode: Detect whether the host has a globally reachable IPv6 address, not just any non-link-local IPv6, when local mode is unavailable.
 - Direct IPv6 mode: Add reachability checks and user-facing guidance for router, firewall, and hotspot caveats.
 - Direct IPv6 mode: Secure direct IPv6 transport with the same protocol used in other modes.
 - Bluetooth support: Design and implement a Bluetooth-based pairing and control path for environments where local network, IPv6, and relay are poor fits.
-- Relay mode: Add session creation, pairing, resume, and reconnect behavior for relay transport.
+- Relay mode: Add session creation, pairing, resume, and reconnect behavior for relay transport as a fallback path.
 - Relay mode: Add relay deployment docs for VPS, reverse proxy, TLS, and firewall setup.
 - Relay mode: Add authentication or admission control if public relay deployment is expected.
 - Security and protocol: Implement the planned ECDH P-256 key exchange.

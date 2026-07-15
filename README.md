@@ -3,7 +3,7 @@
 
 # LibreOffice Impress Remote
 
-LibreOffice Impress Remote is a FOSS, self-hostable remote-control system for LibreOffice Impress presentations. It is designed to work locally like a Keynote-style presenter remote while also supporting relay and direct IPv6 transports for difficult networks such as phone hotspots, CGNAT, locked-down conference Wi-Fi, and public IPv6.
+LibreOffice Impress Remote is a FOSS, self-hostable remote-control system for LibreOffice Impress presentations. It is designed to work locally like a Keynote-style presenter remote while also supporting relay and direct IPv6 transports for difficult networks such as CGNAT, locked-down conference Wi-Fi, and public IPv6. In practice, the project is local-first: same-Wi-Fi and many phone hotspot setups should work without needing IPv6 or a relay.
 
 The project is pre-1.0. Version `0.2.0` delivers a usable QR-first local/direct browser remote with full current-slide rendering, live local presenter updates, a LibreOffice-native settings dialog, LibreOffice-persisted network settings, and a prototype relay mode with a hosted phone UI and extension-side relay client. Production E2E encryption is still a blocking milestone before security-sensitive use.
 
@@ -117,9 +117,9 @@ Use the route dropdown in the LibreOffice dialog when you want to force a specif
 
 | Mode | Path | Use case |
 | --- | --- | --- |
-| Local | Phone -> laptop local IP | Same Wi-Fi, local router, Android hotspot |
-| Relay | Phone -> relay-hosted UI/WS <- LibreOffice extension | iPhone hotspot, CGNAT, restricted networks |
-| Direct IPv6 | Phone -> laptop global IPv6 | IPv4 behind CGNAT but public IPv6 available |
+| Local | Phone -> laptop local IP | Same Wi-Fi, local router, Android hotspot, many personal hotspots including tested iPhone hotspot setups |
+| Relay | Phone -> relay-hosted UI/WS <- LibreOffice extension | Fallback for restricted networks or when local/direct pairing fails |
+| Direct IPv6 | Phone -> laptop global IPv6 | Optional fallback when local pairing fails but public IPv6 is available |
 
 ## Security Model
 

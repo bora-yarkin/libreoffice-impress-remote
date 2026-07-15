@@ -16,6 +16,7 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 - Added richer presenter-state API fields for pause, blank-screen, timer, remaining-slides, and end-of-deck status.
 - Added rendered next-slide thumbnail export and preload URLs for the embedded phone remote.
 - Added a concrete project roadmap that separates local/direct upstream goals from the optional self-hosted relay companion path.
+- Added LibreOffice-side usage guidance that explains the recommended local-first workflow directly in the settings dialog.
 
 ### Changed
 
@@ -23,6 +24,7 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 - Improved runtime lifecycle handling so LibreOffice shutdown tears down local listeners and relay sessions cleanly.
 - Improved slide-state tracking so controller fallbacks and render revisions stay synchronized when the presenter changes slides outside the phone UI.
 - Improved the LibreOffice runtime status line to surface slide position and presenter timer details while the remote is running.
+- Reframed the project documentation around a local-first strategy, with Direct IPv6 and relay treated as optional fallback paths instead of the main user story.
 
 ### Fixed
 
