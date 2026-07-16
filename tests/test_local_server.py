@@ -15,6 +15,7 @@ class PairingServerStub:
     pairing_target = RemoteServer.pairing_target
     preview_pairing_target = RemoteServer.preview_pairing_target
     console_url = RemoteServer.console_url
+    mark_client_activity = RemoteServer.mark_client_activity
     _pairing_hint = RemoteServer._pairing_hint
     _network_settings = RemoteServer._network_settings
 
@@ -50,6 +51,9 @@ class PairingServerStub:
             enable_local_listener,
             enable_ipv6_direct,
         )
+        self.client_connected = False
+        self.client_connection_source = ""
+        self.last_client_seen_at = 0.0
 
     def is_running(self) -> bool:
         return self._running
@@ -165,6 +169,21 @@ class LocalServerTests(unittest.TestCase):
         )
 
         self.assertEqual(server.console_url(), "http://192.168.1.20:17865/#s=demo123")
+
+    def test_mark_client_activity_ignores_loopback_requests(self) -> None:
+        server = PairingServerStub()
+
+        server.mark_client_activity("local", "127.0.0.1")
+
+        self.assertFalse(server.client_connected)
+
+    def test_mark_client_activity_records_non_loopback_clients(self) -> None:
+        server = PairingServerStub()
+
+        server.mark_client_activity("local", "192.168.1.20")
+
+        self.assertTrue(server.client_connected)
+        self.assertEqual(server.client_connection_source, "local")
 
 
 if __name__ == "__main__":

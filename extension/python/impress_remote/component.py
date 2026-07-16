@@ -4,17 +4,61 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 import sys
 import traceback
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from com.sun.star.frame import (  # pyright: ignore[reportMissingImports]
-        XDispatch,
-        XDispatchProvider,
-        XTerminateListener,
-    )
     from impress_remote.local_server import RemoteServer
+
+
+class _FallbackXTerminateListenerBase:
+    def disposing(self, _event) -> None:
+        return None
+
+    def queryTermination(self, _event) -> None:
+        return None
+
+    def notifyTermination(self, _event) -> None:
+        return None
+
+
+class _FallbackXDispatchProviderBase:
+    def queryDispatch(self, url, target_frame_name, search_flags):
+        return None
+
+    def queryDispatches(self, requests):
+        return ()
+
+
+class _FallbackXDispatchBase:
+    def dispatch(self, url, args) -> None:
+        return None
+
+    def addStatusListener(self, listener, url) -> None:
+        return None
+
+    def removeStatusListener(self, listener, url) -> None:
+        return None
+
+
+class _FallbackXServiceInfoBase:
+    def getImplementationName(self):
+        return ""
+
+    def supportsService(self, name):
+        return False
+
+    def getSupportedServiceNames(self):
+        return ()
+
+
+XTerminateListenerBase: Any = _FallbackXTerminateListenerBase
+XDispatchProviderBase: Any = _FallbackXDispatchProviderBase
+XDispatchBase: Any = _FallbackXDispatchBase
+XServiceInfoBase: Any = _FallbackXServiceInfoBase
+
 
 BOOTSTRAP_LOG_PATH = os.path.join(
     os.environ.get("TMPDIR", "/tmp"),
@@ -32,21 +76,22 @@ def _write_bootstrap_log(summary):
 
 try:
     import unohelper
+
     if not TYPE_CHECKING:
-        from com.sun.star.frame import XDispatch, XDispatchProvider
+        from com.sun.star.frame import XDispatch
+        from com.sun.star.frame import XDispatchProvider
+
+        XDispatchBase = XDispatch
+        XDispatchProviderBase = XDispatchProvider
         try:
             from com.sun.star.frame import XTerminateListener
+
+            XTerminateListenerBase = XTerminateListener
         except Exception:
-            class XTerminateListener:
-                def disposing(self, _event) -> None:
-                    return None
-
-                def queryTermination(self, _event) -> None:
-                    return None
-
-                def notifyTermination(self, _event) -> None:
-                    return None
+            pass
     from com.sun.star.lang import XServiceInfo
+
+    XServiceInfoBase = XServiceInfo
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
@@ -54,6 +99,7 @@ except Exception:
 
 IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ProtocolHandler"
 SERVICE_NAMES = ("com.sun.star.frame.ProtocolHandler",)
+PROTOCOL = "vnd.org.borayarkin.impressremote:"
 
 
 def _ensure_python_root():
@@ -111,8 +157,12 @@ def _compose_status_line(remote_running: bool, presentation: dict[str, object]) 
     return f"{message}."
 
 
+def _feature_url(path: str) -> object:
+    return SimpleNamespace(Protocol=PROTOCOL, Path=path)
+
+
 try:
-    class ProtocolTerminateListener(unohelper.Base, XTerminateListener):
+    class ProtocolTerminateListener(unohelper.Base, XTerminateListenerBase):
         def __init__(self, handler):
             self.handler = handler
 
@@ -125,17 +175,19 @@ try:
         def notifyTermination(self, _event):
             self.handler.shutdown()
 
+
     class ImpressRemoteProtocolHandler(
         unohelper.Base,
-        XServiceInfo,
-        XDispatchProvider,
-        XDispatch,
+        XServiceInfoBase,
+        XDispatchProviderBase,
+        XDispatchBase,
     ):
         def __init__(self, ctx):
             self.ctx = ctx
             self.server: RemoteServer | None = None
             self._last_error = ""
             self._terminate_listener = None
+            self._status_listeners: list[tuple[object, str]] = []
             self._register_terminate_listener()
 
         def getImplementationName(self):
@@ -148,7 +200,7 @@ try:
             return SERVICE_NAMES
 
         def queryDispatch(self, url, _target_frame_name, _search_flags):
-            if getattr(url, "Protocol", "") == "vnd.org.borayarkin.impressremote:":
+            if getattr(url, "Protocol", "") == PROTOCOL:
                 return self
             return None
 
@@ -161,7 +213,9 @@ try:
         def dispatch(self, url, _args):
             command = getattr(url, "Path", "")
             try:
-                if command == "start":
+                if command == "toggle":
+                    self.toggle_remote()
+                elif command == "start":
                     self.start()
                 elif command == "open":
                     self.open_console()
@@ -183,26 +237,49 @@ try:
                     pass
                 traceback.print_exc()
 
-        def addStatusListener(self, _listener, _url):
+        def addStatusListener(self, listener, url):
+            if getattr(url, "Protocol", "") != PROTOCOL:
+                return None
+            self.removeStatusListener(listener, url)
+            self._status_listeners.append((listener, getattr(url, "Path", "")))
+            self._notify_status_listener(listener, getattr(url, "Path", ""))
             return None
 
-        def removeStatusListener(self, _listener, _url):
+        def removeStatusListener(self, listener, url):
+            path = getattr(url, "Path", "")
+            self._status_listeners = [
+                (registered_listener, registered_path)
+                for registered_listener, registered_path in self._status_listeners
+                if not (registered_listener is listener and registered_path == path)
+            ]
             return None
 
         def start(self):
             server = self._ensure_server()
             server.start()
             self.clear_runtime_error()
-            print(f"LibreOffice Impress Remote started at {server.url}")
+            self._notify_status_listeners()
+            server_url = str(getattr(server, "url", "")).strip()
+            if server_url:
+                print(f"LibreOffice Impress Remote started at {server_url}")
+            else:
+                print("LibreOffice Impress Remote started.")
 
         def stop(self):
             if self.server is not None:
                 self.server.stop()
             self.clear_runtime_error()
+            self._notify_status_listeners()
 
         def shutdown(self):
-            if self.server is not None:
-                self.server.stop()
+            self.stop()
+
+        def toggle_remote(self):
+            if self.server is not None and self.server.is_running():
+                self.stop()
+                return
+            self.start()
+            self.show_pairing()
 
         def open_console(self, view: str | None = None):
             server = self._ensure_server()
@@ -217,11 +294,17 @@ try:
                 raise RuntimeError("LibreOffice could not open the remote preview.")
             self.clear_runtime_error()
 
+        def show_pairing(self):
+            _ensure_python_root()
+            from impress_remote.office_ui import show_remote_pairing_dialog
+
+            show_remote_pairing_dialog(self.ctx, self)
+
         def show_settings(self):
             _ensure_python_root()
-            from impress_remote.office_ui import show_remote_settings_dialog
+            from impress_remote.office_ui import show_remote_advanced_dialog
 
-            show_remote_settings_dialog(self.ctx, self)
+            show_remote_advanced_dialog(self.ctx, self)
 
         def runtime_snapshot(self) -> dict[str, object]:
             server = self._ensure_server()
@@ -304,6 +387,48 @@ try:
                 self._terminate_listener = listener
             except Exception:
                 self._terminate_listener = None
+
+        def _notify_status_listeners(self) -> None:
+            for listener, path in tuple(self._status_listeners):
+                self._notify_status_listener(listener, path)
+
+        def _notify_status_listener(self, listener: object, path: str) -> None:
+            status_changed = getattr(listener, "statusChanged", None)
+            if status_changed is None:
+                return
+            try:
+                status_changed(self._feature_state_event(path))
+            except Exception:
+                return
+
+        def _feature_state_event(self, path: str) -> Any:
+            label = self._menu_label(path)
+            try:
+                import uno  # pyright: ignore[reportMissingImports]
+
+                event = uno.createUnoStruct("com.sun.star.frame.FeatureStateEvent")
+            except Exception:
+                event = SimpleNamespace()
+            event.FeatureURL = _feature_url(path)
+            event.Source = self
+            event.FeatureDescriptor = label
+            event.IsEnabled = True
+            event.Requery = False
+            event.State = label
+            return event
+
+        def _menu_label(self, path: str) -> str:
+            if path == "toggle":
+                if self.server is not None and self.server.is_running():
+                    return "Stop Remote"
+                return "Start Remote"
+            if path == "settings":
+                return "Advanced Options"
+            if path == "open":
+                return "Open Remote"
+            if path == "stop":
+                return "Stop Remote"
+            return "Start Remote"
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise

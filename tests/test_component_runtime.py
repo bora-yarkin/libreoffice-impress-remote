@@ -102,8 +102,9 @@ def _install_uno_stubs() -> None:
 
 
 class FakeUrl:
-    def __init__(self, path: str):
+    def __init__(self, path: str, protocol: str = "vnd.org.borayarkin.impressremote:"):
         self.Path = path
+        self.Protocol = protocol
 
 
 class FakeMergedConfig:
@@ -190,6 +191,8 @@ class FakeServer:
             "routeRelayUrl": "",
             "relayStatus": "disabled",
             "relayLastError": "",
+            "clientConnected": False,
+            "clientConnectionSource": "",
         }
 
     def update_config(self, updated, restart_runtime: bool) -> None:
@@ -210,6 +213,12 @@ class FakeServer:
     def is_running(self) -> bool:
         return bool(self.http_servers)
 
+    def start(self) -> None:
+        self.http_servers = [object()]
+
+    def stop(self) -> None:
+        self.http_servers = []
+
 
 class ComponentRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -223,15 +232,60 @@ class ComponentRuntimeTests(unittest.TestCase):
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
         actions: list[str] = []
 
+        handler.toggle_remote = lambda: actions.append("toggle")
         handler.start = lambda: actions.append("start")
         handler.stop = lambda: actions.append("stop")
         handler.open_console = lambda: actions.append("open")
         handler.show_settings = lambda: actions.append("settings")
 
-        for path in ("start", "open", "settings", "stop"):
+        for path in ("toggle", "start", "open", "settings", "stop"):
             handler.dispatch(FakeUrl(path), ())
 
-        self.assertEqual(actions, ["start", "open", "settings", "stop"])
+        self.assertEqual(actions, ["toggle", "start", "open", "settings", "stop"])
+
+    def test_toggle_remote_shows_pairing_after_starting(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        handler.server = FakeServer(running=False)
+        paired: list[str] = []
+
+        handler.show_pairing = lambda: paired.append("shown")
+
+        handler.toggle_remote()
+
+        server = handler.server
+        self.assertIsNotNone(server)
+        assert server is not None
+        self.assertTrue(server.is_running())
+        self.assertEqual(paired, ["shown"])
+
+    def test_toggle_remote_stops_without_showing_pairing_when_running(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        handler.server = FakeServer(running=True)
+        paired: list[str] = []
+
+        handler.show_pairing = lambda: paired.append("shown")
+
+        handler.toggle_remote()
+
+        server = handler.server
+        self.assertIsNotNone(server)
+        assert server is not None
+        self.assertFalse(server.is_running())
+        self.assertEqual(paired, [])
+
+    def test_status_listener_receives_dynamic_menu_label(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        handler.server = FakeServer(running=False)
+        labels: list[str] = []
+
+        class Listener:
+            def statusChanged(self, event) -> None:
+                labels.append(event.FeatureDescriptor)
+
+        handler.addStatusListener(Listener(), FakeUrl("toggle"))
+        handler.start()
+
+        self.assertEqual(labels, ["Start Remote", "Stop Remote"])
 
     def test_runtime_snapshot_reports_when_remote_is_stopped(self) -> None:
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())

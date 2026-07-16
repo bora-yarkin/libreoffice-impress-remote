@@ -67,6 +67,9 @@ class RemoteServer:
         self.pending_restart = False
         self.relay_client: RelayClient | None = None
         self._runtime_requested = False
+        self.client_connected = False
+        self.client_connection_source = ""
+        self.last_client_seen_at = 0.0
 
     def is_running(self) -> bool:
         relay_running = self.relay_client is not None and self.relay_client.is_running()
@@ -122,6 +125,9 @@ class RemoteServer:
         self.url = ""
         self.pending_restart = False
         self.bound_port = self.config.local_port
+        self.client_connected = False
+        self.client_connection_source = ""
+        self.last_client_seen_at = 0.0
 
     def state_payload(self) -> dict[str, object]:
         state = self.controller.state()
@@ -217,6 +223,8 @@ class RemoteServer:
             "routeRelayUrl": route_urls["relay"],
             "relayStatus": relay_status["state"],
             "relayLastError": relay_status["lastError"],
+            "clientConnected": self.client_connected,
+            "clientConnectionSource": self.client_connection_source,
         }
 
     def config_payload(self) -> dict[str, object]:
@@ -329,6 +337,13 @@ class RemoteServer:
         else:
             self.url = ""
 
+    def mark_client_activity(self, source: str, client_host: str | None = None) -> None:
+        if client_host is not None and client_host in {"127.0.0.1", "::1", "localhost"}:
+            return
+        self.client_connected = True
+        self.client_connection_source = source
+        self.last_client_seen_at = time.monotonic()
+
     def _pairing_hint(
         self,
         requested_route: str,
@@ -430,6 +445,7 @@ class RemoteServer:
             session_id=self.session_id,
             state_provider=self.state_payload,
             command_handler=self.controller.command,
+            activity_callback=self.mark_client_activity,
         )
         self.relay_client.start()
 
@@ -447,6 +463,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        self._track_client_activity(parsed.path)
         if parsed.path in {"/", "/index.html"}:
             self._send_file(WEB_ROOT / "index.html", "text/html; charset=utf-8")
         elif parsed.path == "/app.css":
@@ -468,6 +485,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        self._track_client_activity(parsed.path)
         if parsed.path == "/api/command":
             self._handle_command()
             return
@@ -504,6 +522,22 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         self._json(response)
+
+    def _track_client_activity(self, path: str) -> None:
+        if path not in {
+            "/",
+            "/index.html",
+            "/app.css",
+            "/app.js",
+            "/api/state",
+            "/api/events",
+            "/api/command",
+            "/api/slide/current",
+            "/api/slide/next",
+        }:
+            return
+        client_host = self.client_address[0] if self.client_address else None
+        self.server_ref.mark_client_activity("local", client_host)
 
     def _read_json(self) -> dict[str, object]:
         length = int(self.headers.get("Content-Length", "0"))

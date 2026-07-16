@@ -18,6 +18,7 @@ from impress_remote.protocol import decode_command_message, encode_state_message
 
 StateProvider = Callable[[], dict[str, object]]
 CommandHandler = Callable[[str, int | None], None]
+ActivityCallback = Callable[[str], None]
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -165,11 +166,13 @@ class RelayClient:
         session_id: str,
         state_provider: StateProvider,
         command_handler: CommandHandler,
+        activity_callback: ActivityCallback | None = None,
     ):
         self.relay_url = relay_url
         self.session_id = session_id
         self.state_provider = state_provider
         self.command_handler = command_handler
+        self.activity_callback = activity_callback
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
@@ -250,6 +253,8 @@ class RelayClient:
         command = decode_command_message(raw)
         if command is None:
             return
+        if self.activity_callback is not None:
+            self.activity_callback("relay")
         self.command_handler(command.command, command.index)
 
     def _set_status(self, connected: bool, last_error: str) -> None:
