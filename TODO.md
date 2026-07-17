@@ -3,7 +3,7 @@
 
 # TODO
 
-This file tracks the `0.3.5` project snapshot: what already ships today and what is still planned next.
+This file tracks the `0.5.0` project snapshot: what already ships today and what is still planned next.
 
 For milestone order and upstream strategy, see `docs/roadmap.md`.
 
@@ -12,27 +12,30 @@ Current product direction: local mode is the primary path, including same-Wi-Fi 
 ## Implemented
 
 - Packaging: LibreOffice `.oxt` packaging, manifest files, menu registration, versioned extension builds, and source-only OXT output are in place.
-- Setup tooling: `make venv` creates a `uv`-managed environment with project dependencies installed, and `make sdk-download` resolves, downloads, and installs a compatible LibreOffice SDK.
+- Setup tooling: `make venv` creates a `uv`-managed environment with project dependencies installed, `make sdk-download` resolves, downloads, and installs a compatible LibreOffice SDK, and the build flow now ships `make release-bundle`, `make cloudflare-bundle`, and `make release-full` outputs.
 - Local mode server: The extension can start and stop embedded HTTP listeners, expose local IPv4 URLs, expose direct IPv6 URLs when available, and fall back to the next available local port when the preferred one is busy.
 - Local mode runtime UX: The phone UI now receives live server-push updates, shows reconnect and offline states, falls back to polling when `EventSource` is unavailable, and preloads the next rendered slide image without adding extra phone UI controls.
 - Presenter state: The extension reports slide count, current slide index, current slide title, presenter notes, next slide index, next slide title, richer controller-state fallbacks, current and next slide render tokens, next-slide thumbnails for preload/export, presenter timer state, blank-screen state, end-of-deck state, and clearer state when no presentation is open or when the active document is not Impress.
 - Presentation control: The phone UI can start a slideshow, end a slideshow, move by slide, move by effect, and jump to a specific slide.
-- Phone UI: The local browser remote now acts as a lightweight dummy remote with a full current-slide image, presenter notes, live status, and side-by-side previous and next buttons.
+- Phone UI: The local browser remote now acts as a lightweight dummy remote with a full current-slide image, presenter notes, live status, and side-by-side previous and next buttons, and the authored web UI now lives in a shared source tree reused across the extension, Python relay, and Cloudflare relay bundle.
 - Slide rendering: The extension can export the current Impress slide to PNG and serve it to the local phone UI.
 - LibreOffice UX: The extension menu now exposes start, stop, open-console, and settings actions, and the LibreOffice dialog now owns route selection, relay configuration, runtime status, QR-based phone pairing, and recoverable runtime issue reporting.
 - Pairing flow: The extension now supports `auto`, `local`, `ipv6`, and `relay` pairing modes, with `auto` preferring local first, then direct IPv6, then relay, and local mode is the primary recommended route.
 - Direct IPv6 mode: The extension now advertises only globally reachable IPv6 addresses, self-tests the IPv6 listener before offering the route, surfaces router/firewall/hotspot guidance in LibreOffice, and uses encrypted state, command, and slide-asset transport for the direct IPv6 phone route.
-- Relay mode prototype: The extension can persist relay settings, open an outbound relay connection as the plugin, publish a shareable relay link, receive encrypted commands from relay-connected phones, push live presentation state over the relay, and publish encrypted current/next slide asset frames for the relay-hosted phone UI.
-- Relay server: The relay exposes `/`, `/app.js`, `/app.css`, `/health`, and `/ws`, serves a lightweight relay-hosted phone remote, validates current protocol envelopes, forwards opaque encrypted plugin and phone frames, replaces an existing plugin when a new one joins, and expires empty or stale sessions.
-- Relay safety: Session-id length limits, phone-count limits, and WebSocket message-size limits are implemented.
+- Relay mode: The extension can persist relay settings, open an outbound relay connection as the plugin, publish a shareable relay link with a relay admission token, detect joined phones from the relay session-status API so LibreOffice can auto-start the slideshow, receive encrypted commands from relay-connected phones, push live presentation state over the relay, and publish encrypted current/next slide asset frames for the relay-hosted phone UI.
+- Relay server: The relay exposes `/`, `/app.js`, `/app.css`, `/asset-manifest.json`, `/health`, `/api/session`, and `/ws`, serves a lightweight relay-hosted phone remote, validates current protocol envelopes, forwards opaque encrypted plugin and phone frames, replaces an existing plugin when a new one joins, and expires empty or stale sessions.
+- Relay deployment bundles: The repository now produces a self-hosted Python relay release bundle and a separate Cloudflare Worker plus Durable Object bundle that both serve the same shared mobile remote UI.
+- Relay operations: The standalone Python relay bundle now includes a one-command foreground runner plus Linux and Windows install/uninstall service scripts that persist a randomly chosen port.
+- Relay deployment docs: VPS, reverse proxy, TLS, firewall, session-status, and bundle-verification guidance now exist for the Python and Cloudflare relay deployments.
+- Relay safety: Session-id length limits, phone-count limits, websocket message-size limits, per-session admission tokens, structured runtime logs, per-session metrics, rate limits, and send-failure cleanup are implemented across the reference relay deployments.
 - Relay protocol: The relay now uses versioned `hello`, `frame`, and `error` messages for negotiation, commands, state updates, and runtime errors.
-- Relay security: LibreOffice now generates a per-pairing secret, carries it in QR and manual-link fragments, derives relay keys with HKDF-SHA256, encrypts relay state, command, and error frames with AES-256-GCM, binds frames to the session with authenticated metadata, detects replayed nonces, and rotates plugin send keys.
+- Relay security: LibreOffice now generates a per-pairing secret, carries it in QR and manual-link fragments together with the relay admission token, derives relay keys with HKDF-SHA256, encrypts relay state, command, and error frames with AES-256-GCM, binds frames to the session with authenticated metadata, detects replayed nonces, rotates plugin send keys, and documents the current self-hosted UI trust model through release-bundle asset verification.
 - Relay reconnect: Active relay sessions replay the latest key advertisement plus a bounded window of recent encrypted plugin frames to newly joined phones without server-side decryption, and cached secure state is cleared when the plugin disconnects.
 - Crypto foundation: Random session token generation, base64url helpers, HKDF-SHA256 helpers, and pure-Python AES-GCM helpers exist.
 - Config persistence: Transport settings are stored in LibreOffice configuration data with migration/fallback support for the earlier extension-owned config file.
 - Runtime flexibility: Users can disable the local listener for relay-only or direct-IPv6-only testing, and LibreOffice shutdown now tears down listeners and relay sessions cleanly.
 - Editor support: Workspace analysis config, import roots, and UNO stubs are in place to keep Pylance usable in this repo.
-- Tests: Unit and integration coverage exists for bootstrap/import behavior, SDK resolution logic, config and protocol helpers, controller state extraction, network URL helpers, crypto helpers, encrypted relay protocol flows, manifest presence, and relay message forwarding.
+- Tests: Unit and integration coverage exists for bootstrap/import behavior, SDK resolution logic, config and protocol helpers, controller state extraction, network URL helpers, crypto helpers, encrypted relay protocol flows, relay admission control and reconnect handling, manifest presence, and relay message forwarding.
 
 ## Planned
 
@@ -42,19 +45,11 @@ Current product direction: local mode is the primary path, including same-Wi-Fi 
 - Phone UI: Add stronger error presentation, retry flows, and accessibility polish for mobile use.
 - Phone UI: Add installable PWA behavior if offline launch or homescreen install is desired.
 - Localization: Move LibreOffice dialog strings, menu labels, status text, errors, and phone UI copy into a translation-friendly workflow that can scale to LibreOffice's language coverage.
-- Bluetooth support: Design and implement a Bluetooth-based pairing and control path for environments where local network, IPv6, and relay are poor fits.
-- Relay mode: Add session creation, pairing, resume, and reconnect behavior for relay transport as a fallback path.
-- Relay mode: Add relay deployment docs for VPS, reverse proxy, TLS, and firewall setup.
-- Relay mode: Add authentication or admission control if public relay deployment is expected.
 - Security and protocol: Replace the current pairing-secret bootstrap with the planned ECDH P-256 key exchange.
 - Security and protocol: Extend the versioned encrypted protocol to the local transport.
-- Security and protocol: Decide how to trust or pin the phone UI when it is served through a relay-controlled origin.
-- Relay hardening: Add structured logs and operational metrics.
-- Relay hardening: Add abuse protections if the relay will be internet-facing.
-- Relay hardening: Add more cleanup and backpressure behavior for noisy or abandoned clients.
 - Testing: Add local HTTP endpoint tests for the embedded extension server.
-- Testing: Add end-to-end manual or automated scenarios for local, IPv6, and relay workflows.
-- Testing: Add broader browser-level and reconnect coverage for encrypted relay and direct-IPv6 handshakes, key rotation, and secure resume flows.
+- Testing: Add end-to-end manual or automated scenarios for local and direct-IPv6 workflows.
+- Testing: Add broader browser-level coverage for encrypted direct-IPv6 handshakes, key rotation, and future secure local resume flows.
 - Testing: Add broader LibreOffice runtime compatibility checks across supported versions.
 - Documentation: Keep a user-facing feature matrix that clearly marks implemented versus planned behavior.
 - Documentation: Expand the run/install troubleshooting guide for LibreOffice extension loading failures.

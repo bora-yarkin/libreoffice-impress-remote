@@ -165,7 +165,13 @@ def normalize_relay_url(value: str) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, normalized_path, "", "", ""))
 
 
-def relay_websocket_url(relay_url: str, session_id: str) -> str:
+def relay_websocket_url(
+    relay_url: str,
+    session_id: str,
+    *,
+    role: str = "plugin",
+    admission_token: str = "",
+) -> str:
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"http": "ws", "https": "wss"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -173,11 +179,19 @@ def relay_websocket_url(relay_url: str, session_id: str) -> str:
         path = "/ws"
     elif not path.endswith("/ws"):
         path = f"{path}/ws"
-    query = urlencode({"role": "plugin", "session": session_id})
+    query_values = {"role": role, "session": session_id}
+    if admission_token:
+        query_values["a"] = admission_token
+    query = urlencode(query_values)
     return urlunparse((scheme, parsed.netloc, path, "", query, ""))
 
 
-def relay_join_url(relay_url: str, session_id: str, pairing_secret: str = "") -> str:
+def relay_join_url(
+    relay_url: str,
+    session_id: str,
+    pairing_secret: str = "",
+    admission_token: str = "",
+) -> str:
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -188,8 +202,31 @@ def relay_join_url(relay_url: str, session_id: str, pairing_secret: str = "") ->
     fragment_values = {"mode": "relay", "s": session_id}
     if pairing_secret:
         fragment_values["k"] = pairing_secret
+    if admission_token:
+        fragment_values["a"] = admission_token
     fragment = urlencode(fragment_values)
     return urlunparse((scheme, parsed.netloc, path, "", "", fragment))
+
+
+def relay_session_status_url(
+    relay_url: str,
+    session_id: str,
+    admission_token: str = "",
+) -> str:
+    parsed = urlparse(normalize_relay_url(relay_url))
+    scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/api/session"
+    elif path.endswith("/ws"):
+        path = f"{path[:-3]}/api/session"
+    else:
+        path = f"{path}/api/session"
+    query_values = {"session": session_id}
+    if admission_token:
+        query_values["a"] = admission_token
+    query = urlencode(query_values)
+    return urlunparse((scheme, parsed.netloc, path, "", query, ""))
 
 
 @dataclass(frozen=True)

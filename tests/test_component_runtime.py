@@ -185,6 +185,7 @@ class FakeServer:
             "relayConfigured": False,
             "relayUrl": "",
             "relayJoinUrl": "",
+            "relaySessionStatusUrl": "",
             "consoleUrl": "http://127.0.0.1:17865/#s=demo123&k=pairsecret",
             "settingsUrl": "http://127.0.0.1:17865/#s=demo123&k=pairsecret&view=settings",
             "pairingRouteRequested": "auto",

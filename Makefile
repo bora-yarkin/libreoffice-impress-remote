@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
-.PHONY: help sdk-download oxt install-oxt test lint security clean server-dev
+.PHONY: help sdk-download oxt install-oxt test lint security clean server-dev release-bundle cloudflare-bundle release-full
 
 UV ?= uv
 VENV_DIR ?= .venv
@@ -17,7 +17,7 @@ VENV_RELAY := $(VENV_DIR)/bin/impress-remote-relay
 SETUP_STAMP := $(VENV_DIR)/.setup-complete
 
 help:
-	@echo "Targets: venv sdk-download oxt install-oxt test lint security clean server-dev"
+	@echo "Targets: venv sdk-download oxt install-oxt test lint security server-dev release-bundle cloudflare-bundle release-full clean"
 
 venv: $(SETUP_STAMP)
 
@@ -31,7 +31,15 @@ sdk-download: $(SETUP_STAMP)
 	$(VENV_PYTHON) tools/download_sdk.py --output-dir $(SDK_DIR)
 
 oxt: $(SETUP_STAMP)
-	$(VENV_PYTHON) tools/build_oxt.py
+	$(VENV_PYTHON) -m tools.build_oxt
+
+release-bundle: $(SETUP_STAMP)
+	$(VENV_PYTHON) -m tools.build_release_bundle
+
+cloudflare-bundle: $(SETUP_STAMP)
+	$(VENV_PYTHON) -m tools.build_cloudflare_bundle
+
+release-full: oxt release-bundle cloudflare-bundle
 
 install-oxt: oxt
 	@if [ -z "$(LO_UNOPKG)" ]; then echo "LibreOffice unopkg not found. Set LO_UNOPKG=/path/to/unopkg."; exit 1; fi

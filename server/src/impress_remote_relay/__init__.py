@@ -1,4 +1,4 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
-__version__ = "0.3.5"
+__version__ = "0.5.0"

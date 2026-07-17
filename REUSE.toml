@@ -20,7 +20,7 @@ path = [
   "extension/description.xml",
   "extension/Addons.xcu",
   "extension/ProtocolHandler.xcu",
-  "extension/web/**",
+  "shared/webui/**",
   "extension/icons/**",
 ]
 precedence = "override"

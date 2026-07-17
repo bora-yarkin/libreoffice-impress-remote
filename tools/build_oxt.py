@@ -4,6 +4,8 @@
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from tools.shared_webui import add_webui_to_zip
+
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "extension"
 DIST = ROOT / "dist"
@@ -16,7 +18,6 @@ INCLUDE = [
     "Settings.xcs",
     "Settings.xcu",
     "python",
-    "web",
     "icons",
 ]
 
@@ -35,14 +36,19 @@ def add_path(package: ZipFile, path: Path, base: Path) -> None:
         package.write(path, path.relative_to(base))
 
 
-def main() -> None:
-    DIST.mkdir(exist_ok=True)
-    if OUT.exists():
-        OUT.unlink()
-    with ZipFile(OUT, "w", ZIP_DEFLATED) as package:
+def build_oxt(output_path: Path = OUT) -> Path:
+    output_path.parent.mkdir(exist_ok=True)
+    if output_path.exists():
+        output_path.unlink()
+    with ZipFile(output_path, "w", ZIP_DEFLATED) as package:
         for item in INCLUDE:
             add_path(package, EXTENSION / item, EXTENSION)
-    print(OUT)
+        add_webui_to_zip(package, "web")
+    return output_path
+
+
+def main() -> None:
+    print(build_oxt())
 
 
 if __name__ == "__main__":

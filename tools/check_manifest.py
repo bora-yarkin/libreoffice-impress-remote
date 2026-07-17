@@ -9,7 +9,7 @@ REQUIRED = [
     "extension/description.xml",
     "extension/Addons.xcu",
     "extension/ProtocolHandler.xcu",
-    "extension/web/index.html",
+    "shared/webui/index.html",
     "extension/python/impress_remote/component.py",
 ]
 

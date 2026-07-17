@@ -29,13 +29,16 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups should work wit
 
 ## Current Status
 
-Version `0.3.5` is a usable pre-1.0 build with:
+Version `0.5.0` is a usable pre-1.0 build with:
 
 - QR-first local pairing
 - live current-slide rendering
 - presenter notes on the phone
 - LibreOffice-native remote controls and settings
-- encrypted relay and direct IPv6 transport for fallback networking, including relay-hosted slide previews
+- encrypted relay and direct IPv6 transport for fallback networking, including relay-hosted slide previews and relay admission control
+- one shared phone-remote web UI source reused by the LibreOffice extension, the Python relay, and the Cloudflare relay bundle
+- build tooling for the `.oxt`, a stripped standalone Python relay bundle with service installers, and the separate Cloudflare relay deployment bundle
+- relay session-status, reconnect replay, structured logs, and published self-hosting docs for testing relay mode as a real fallback path
 
 Still in progress:
 

@@ -9,6 +9,53 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-17
+
+### Added
+
+- Added relay admission tokens to relay pairing links plus an admission-controlled `/api/session` endpoint for both the Python relay and the Cloudflare relay bundle.
+- Added relay-session probing in the LibreOffice extension so joined relay phones can trigger the same auto-start behavior as local mode before the first remote command is pressed.
+- Added relay tests covering asset-manifest delivery, admission-token enforcement, reconnect with fresh relay `hello` replay, and websocket rate limiting.
+
+### Changed
+
+- Hardened the Python relay with structured JSON logging, per-session metrics, rate limiting, session-cap enforcement, and send-failure cleanup.
+- Brought the Cloudflare relay bundle up to the same shared-web-ui and admission-control model as the Python relay, including session status, replay behavior, and runtime limits.
+- Expanded the relay documentation with deployment, firewall, reverse-proxy, trust-model, and verification guidance for both relay bundle variants.
+
+### Security
+
+- Relay websocket and session-status access now require the LibreOffice-generated admission token in addition to the encrypted pairing secret.
+- Documented the current supported relay trust model as self-hosting the published bundle and verifying `asset-manifest.json` until a stronger frontend-pinning story exists.
+
+## [0.4.1] - 2026-07-17
+
+### Added
+
+- Added a standalone Python relay bundle layout that ships only relay runtime files, bundled web assets, and helper scripts instead of mixing in the `.oxt` package and shared-source tree.
+- Added relay runtime config helpers that can persist a randomly chosen free port for standalone and service installations.
+- Added foreground `run-relay` helpers plus Linux systemd and Windows service install/uninstall scripts to the Python relay bundle.
+- Added bundle and runtime tests covering the stripped relay archive shape and first-run config generation.
+
+### Changed
+
+- Refactored `make release-bundle` to produce a minimal Python relay artifact, while `make release-full` now combines `oxt`, `release-bundle`, and `cloudflare-bundle`.
+
+## [0.4.0] - 2026-07-17
+
+### Added
+
+- Added a shared `shared/webui/` source tree so the phone remote UI is authored once and reused across the LibreOffice extension, the Python relay, and future companion implementations.
+- Added `make release-bundle` to build a releasable bundle containing the `.oxt`, the self-hosted Python relay sources, and the shared mobile UI.
+- Added `make cloudflare-bundle` to produce a Cloudflare Worker plus Durable Object relay bundle that serves the same shared UI.
+- Added an OXT build regression test that verifies shared web assets are vendored into the extension package.
+
+### Changed
+
+- Refactored the extension and Python relay runtimes to load the shared mobile UI from a packaged `web/` directory when bundled and from `shared/webui/` during source development.
+- Removed the duplicated authored web UI copies from `extension/web/` and `server/src/impress_remote_relay/web/`.
+- Updated build tooling and repo metadata for the new shared-web and release-bundle layout.
+
 ## [0.3.5] - 2026-07-17
 
 ### Added

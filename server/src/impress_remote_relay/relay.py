@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import asyncio
-from importlib import resources
+import logging
 import json
 import time
 from dataclasses import dataclass, field
@@ -12,6 +12,7 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
+from impress_remote_relay.assets import read_web_asset, web_asset_manifest
 from impress_remote_relay.session import RelaySession
 
 RELAY_PROTOCOL_VERSION = 1
@@ -21,6 +22,7 @@ _REPLAYABLE_PLUGIN_FRAME_KINDS = {"state", "asset", "error"}
 _SESSION_ID_CHARS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 )
+LOGGER = logging.getLogger("impress_remote_relay")
 
 
 @dataclass(frozen=True)
@@ -44,13 +46,36 @@ class RelayState:
     max_message_bytes: int = 8 * 1024 * 1024
     max_cached_plugin_frames: int = 6
     max_session_id_length: int = 128
+    max_sessions: int = 512
+    max_messages_per_window: int = 120
+    message_window_seconds: float = 10.0
+    send_timeout_seconds: float = 5.0
     sessions: dict[str, RelaySession] = field(default_factory=dict)
+    metrics: dict[str, int] = field(
+        default_factory=lambda: {
+            "sessionsCreated": 0,
+            "sessionsExpired": 0,
+            "websocketAccepts": 0,
+            "websocketCloses": 0,
+            "framesReceived": 0,
+            "framesForwarded": 0,
+            "protocolRejects": 0,
+            "authRejects": 0,
+            "rateLimitRejects": 0,
+            "sendFailures": 0,
+            "sessionStatusRequests": 0,
+        }
+    )
 
-    def get(self, session_id: str) -> RelaySession:
+    def get(self, session_id: str) -> RelaySession | None:
         session = self.sessions.get(session_id)
         if session is None:
+            self.cleanup()
+            if len(self.sessions) >= self.max_sessions:
+                return None
             session = RelaySession(session_id=session_id)
             self.sessions[session_id] = session
+            self.metrics["sessionsCreated"] += 1
         session.touch()
         return session
 
@@ -63,6 +88,15 @@ class RelayState:
         ]
         for key in expired:
             self.sessions.pop(key, None)
+            self.metrics["sessionsExpired"] += 1
+
+    def count(self, name: str, amount: int = 1) -> None:
+        self.metrics[name] = self.metrics.get(name, 0) + amount
+
+
+def _log_event(level: int, event: str, **fields: object) -> None:
+    payload = {"event": event, **fields}
+    LOGGER.log(level, json.dumps(payload, separators=(",", ":"), sort_keys=True))
 
 
 RELAY_STATE_KEY = web.AppKey("relay_state", RelayState)
@@ -78,6 +112,8 @@ def create_app(state: RelayState | None = None) -> web.Application:
     app = web.Application()
     app[RELAY_STATE_KEY] = state or RelayState()
     app.router.add_get("/health", health)
+    app.router.add_get("/api/session", session_status)
+    app.router.add_get("/asset-manifest.json", asset_manifest)
     app.router.add_get("/", index)
     app.router.add_get("/index.html", index)
     app.router.add_get("/app.js", app_js)
@@ -99,29 +135,58 @@ async def health(request: web.Request) -> web.Response:
                 "maxMessageBytes": state.max_message_bytes,
                 "maxCachedPluginFrames": state.max_cached_plugin_frames,
                 "maxSessionIdLength": state.max_session_id_length,
+                "maxSessions": state.max_sessions,
+                "maxMessagesPerWindow": state.max_messages_per_window,
+                "messageWindowSeconds": state.message_window_seconds,
+                "sendTimeoutSeconds": state.send_timeout_seconds,
             },
+            "metrics": dict(state.metrics),
             "active": [session.snapshot() for session in state.sessions.values()],
         }
     )
 
 
+async def session_status(request: web.Request) -> web.Response:
+    state = get_relay_state(request.app)
+    state.cleanup()
+    state.count("sessionStatusRequests")
+    session_id = request.query.get("session", "")
+    admission_token = request.query.get("a", "")
+    if not session_id:
+        raise web.HTTPBadRequest(text="session is required")
+    if len(session_id) > state.max_session_id_length or not _is_valid_session_id(session_id):
+        raise web.HTTPBadRequest(text="session id format is invalid")
+    session = state.sessions.get(session_id)
+    if session is None:
+        raise web.HTTPNotFound(text="session not found")
+    if not session.authorize(admission_token):
+        state.count("authRejects")
+        raise web.HTTPForbidden(text="session admission token is invalid")
+    session.touch()
+    return web.json_response({"ok": True, "session": session.snapshot()})
+
+
+async def asset_manifest(_request: web.Request) -> web.Response:
+    return web.json_response(web_asset_manifest())
+
+
 async def index(_request: web.Request) -> web.Response:
     return web.Response(
-        text=_read_web_asset("index.html"),
+        text=read_web_asset("index.html"),
         content_type="text/html",
     )
 
 
 async def app_js(_request: web.Request) -> web.Response:
     return web.Response(
-        text=_read_web_asset("app.js"),
+        text=read_web_asset("app.js"),
         content_type="application/javascript",
     )
 
 
 async def app_css(_request: web.Request) -> web.Response:
     return web.Response(
-        text=_read_web_asset("app.css"),
+        text=read_web_asset("app.css"),
         content_type="text/css",
     )
 
@@ -129,6 +194,7 @@ async def app_css(_request: web.Request) -> web.Response:
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     role = request.query.get("role", "")
     session_id = request.query.get("session", "")
+    admission_token = request.query.get("a", "")
     if role not in {"plugin", "phone"} or not session_id:
         raise web.HTTPBadRequest(text="role and session are required")
     state = get_relay_state(request.app)
@@ -137,10 +203,24 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     if not _is_valid_session_id(session_id):
         raise web.HTTPBadRequest(text="session id format is invalid")
     session = state.get(session_id)
+    if session is None:
+        state.count("rateLimitRejects")
+        raise web.HTTPServiceUnavailable(text="relay session capacity has been reached")
+    if not session.authorize(admission_token):
+        state.count("authRejects")
+        _log_event(
+            logging.WARNING,
+            "relay.auth_reject",
+            role=role,
+            session=session_id,
+        )
+        raise web.HTTPForbidden(text="session admission token is invalid")
     if role == "phone" and session.phone_count() >= state.max_phones_per_session:
         raise web.HTTPTooManyRequests(text="too many phones connected to this session")
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=state.max_message_bytes)
     await ws.prepare(request)
+    state.count("websocketAccepts")
+    _log_event(logging.INFO, "relay.ws_accept", role=role, session=session_id)
     if role == "plugin":
         if session.plugin is not None:
             await session.plugin.close(code=4000, message=b"plugin replaced")
@@ -156,7 +236,21 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
         async for message in ws:
             session.touch()
             if message.type == WSMsgType.TEXT:
+                if not session.allow_message(
+                    ws,
+                    max_messages=state.max_messages_per_window,
+                    window_seconds=state.message_window_seconds,
+                ):
+                    state.count("rateLimitRejects")
+                    await _reject_protocol(
+                        ws,
+                        session_id,
+                        "rate-limit",
+                        "Relay connection exceeded the message rate limit.",
+                    )
+                    break
                 accepted = await relay_message(
+                    state,
                     session,
                     role,
                     ws,
@@ -179,19 +273,25 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
         if role == "plugin" and session.plugin is ws:
             session.plugin = None
             session.clear_cached_plugin_messages()
+            session.last_plugin_disconnect_at = time.time()
         if role == "phone":
             session.phones.discard(ws)
+        session.forget_connection(ws)
+        state.count("websocketCloses")
+        _log_event(logging.INFO, "relay.ws_close", role=role, session=session_id)
         state.cleanup()
     return ws
 
 
 async def relay_message(
+    state: RelayState,
     session: RelaySession,
     role: str,
     ws: web.WebSocketResponse,
     raw_message: str,
     max_cached_plugin_frames: int,
 ) -> bool:
+    state.count("framesReceived")
     try:
         envelope = _validate_protocol_message(
             raw_message,
@@ -200,7 +300,15 @@ async def relay_message(
             session.latest_plugin_hello,
         )
     except _RelayProtocolViolation as exc:
+        state.count("protocolRejects")
         await _reject_protocol(ws, session.session_id, exc.code, exc.message)
+        _log_event(
+            logging.WARNING,
+            "relay.protocol_reject",
+            code=exc.code,
+            role=role,
+            session=session.session_id,
+        )
         return False
 
     _record_plugin_metadata(session, role, envelope, raw_message, max_cached_plugin_frames)
@@ -209,15 +317,30 @@ async def relay_message(
         targets.extend(phone for phone in session.phones if not phone.closed)
     elif session.plugin is not None and not session.plugin.closed:
         targets.append(session.plugin)
-    await asyncio.gather(
-        *(send_text_message(target, raw_message) for target in targets),
+    results = await asyncio.gather(
+        *(
+            send_text_message(target, raw_message, timeout_seconds=state.send_timeout_seconds)
+            for target in targets
+        ),
         return_exceptions=True,
     )
+    successes = 0
+    for target, result in zip(targets, results):
+        if isinstance(result, Exception) or result is False:
+            state.count("sendFailures")
+            try:
+                await target.close(code=1011, message=b"relay send failure")
+            except Exception:
+                pass
+            continue
+        successes += 1
+    state.count("framesForwarded", successes)
     return True
 
 
-async def send_text_message(target: Any, raw_message: str) -> None:
-    await target.send_str(raw_message)
+async def send_text_message(target: Any, raw_message: str, *, timeout_seconds: float) -> bool:
+    await asyncio.wait_for(target.send_str(raw_message), timeout=max(timeout_seconds, 0.1))
+    return True
 
 
 def _record_plugin_metadata(
@@ -376,7 +499,3 @@ def _encode_error_message(session_id: str, code: str, message: str) -> str:
 
 def _is_valid_session_id(session_id: str) -> bool:
     return bool(session_id) and all(character in _SESSION_ID_CHARS for character in session_id)
-
-
-def _read_web_asset(name: str) -> str:
-    return resources.files("impress_remote_relay.web").joinpath(name).read_text(encoding="utf-8")

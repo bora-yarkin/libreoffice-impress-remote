@@ -16,6 +16,7 @@ from impress_remote.config import (
     RemoteConfig,
     normalize_preferred_route,
     relay_join_url,
+    relay_session_status_url,
     route_label,
 )
 from impress_remote.controller import ImpressController
@@ -26,7 +27,7 @@ from impress_remote.network import (
     format_http_url,
     probe_ipv6_listener,
 )
-from impress_remote.paths import module_file_path
+from impress_remote.paths import resolve_packaged_or_shared_dir
 from impress_remote.protocol import (
     RELAY_KIND_ASSET,
     RELAY_KIND_COMMAND,
@@ -37,7 +38,11 @@ from impress_remote.protocol import (
 )
 from impress_remote.relay_client import RelayClient
 
-WEB_ROOT = module_file_path(__file__).parents[2] / "web"
+WEB_ROOT = resolve_packaged_or_shared_dir(
+    __file__,
+    ("web",),
+    ("shared", "webui"),
+)
 AUTO_ROUTE_PRIORITY = ("local", "ipv6", "relay")
 
 
@@ -137,6 +142,7 @@ class RemoteServer:
         self.config = config or RemoteConfig.load(ctx=ctx)
         self.session_id = random_token(12)
         self.pairing_secret = random_token(32)
+        self.relay_admission_token = random_token(24)
         self.direct_session = SecureDirectSession(self.session_id, self.pairing_secret)
         self.controller = ImpressController(ctx)
         self.http_servers: list[ThreadingHTTPServer] = []
@@ -420,6 +426,15 @@ class RemoteServer:
             "relayConfigured": bool(self.config.relay_url),
             "relayUrl": self.config.relay_url,
             "relayJoinUrl": join_url,
+            "relaySessionStatusUrl": (
+                relay_session_status_url(
+                    self.config.relay_url,
+                    self.session_id,
+                    self.relay_admission_token,
+                )
+                if self.config.relay_url
+                else ""
+            ),
             "consoleUrl": self.console_url(),
             "settingsUrl": self.settings_url(),
             "pairingRouteRequested": pairing["requestedRoute"],
@@ -461,7 +476,12 @@ class RemoteServer:
         listeners_match = self._network_settings(config) == self._active_network_settings
         relay_url = ""
         if config.enable_relay and config.relay_url:
-            relay_url = relay_join_url(config.relay_url, self.session_id, self.pairing_secret)
+            relay_url = relay_join_url(
+                config.relay_url,
+                self.session_id,
+                self.pairing_secret,
+                self.relay_admission_token,
+            )
         return {
             "local": (
                 self.local_urls[0]
@@ -735,6 +755,7 @@ class RemoteServer:
             relay_url=desired_url,
             session_id=self.session_id,
             pairing_secret=self.pairing_secret,
+            admission_token=self.relay_admission_token,
             state_provider=self.relay_state_payload,
             asset_provider=self.relay_asset_payload,
             command_handler=self.controller.command,

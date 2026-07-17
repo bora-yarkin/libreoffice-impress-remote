@@ -50,6 +50,7 @@ class PairingServerStub:
         self.direct_ipv6_ready_addresses = ["2606:4700:4700::1111"] if direct_urls else []
         self.session_id = "demo123"
         self.pairing_secret = "pairsecret"
+        self.relay_admission_token = "relaytoken"
         self.url = ""
         self.bound_port = local_port
         self.commands: list[tuple[str, int | None]] = []
@@ -213,7 +214,7 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(pairing["selectedRoute"], "relay")
         self.assertEqual(
             pairing["selectedUrl"],
-            "https://relay.example.com/base#mode=relay&s=demo123&k=pairsecret",
+            "https://relay.example.com/base#mode=relay&s=demo123&k=pairsecret&a=relaytoken",
         )
 
     def test_pairing_target_hides_local_route_when_local_listener_is_disabled(self) -> None:

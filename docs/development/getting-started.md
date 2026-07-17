@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.3.5` release line.
+This guide matches the `0.5.0` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -13,6 +13,8 @@ make sdk-download
 make test
 make oxt
 make install-oxt
+make release-bundle
+make cloudflare-bundle
 ```
 
 On macOS, `make sdk-download` downloads the matching LibreOffice SDK disk image from the official archive and installs its SDK directory into `third_party/libreoffice-sdk/`.
@@ -33,7 +35,7 @@ Slide Show -> Presentation Remote
 4. Scan the QR code shown by LibreOffice with your phone.
 5. Choose `Open Console` if you also want to preview the current route in a desktop browser.
 
-## Prototype Relay Mode
+## Relay Mode
 
 ```bash
 make server-dev
@@ -46,8 +48,34 @@ Then:
 3. Start the remote from the same dialog.
 4. Change the route dropdown to `Relay server only` if you want to force relay mode during testing.
 5. Scan the QR code on the phone, or open the full pairing link with its `#...` fragment intact if you are testing the hosted relay page manually.
+6. When the phone joins successfully, LibreOffice should detect the relay session and start the slideshow automatically.
 
-The relay host now serves the phone UI at `/` and the relay WebSocket transport at `/ws`.
+The relay host now serves:
+
+- `/` for the phone UI
+- `/ws` for the relay websocket transport
+- `/api/session` for admission-controlled session status
+- `/health` for runtime and limit checks
+- `/asset-manifest.json` for bundle verification
+
+## Release Bundles
+
+```bash
+make release-bundle
+make cloudflare-bundle
+```
+
+- `make release-bundle` produces a stripped standalone Python relay bundle with the relay Python sources, bundled phone web UI, and Linux or Windows service helper scripts under `dist/`.
+- `make cloudflare-bundle` produces a Cloudflare Worker plus Durable Object relay bundle that serves the same shared phone UI from a `public/` assets directory.
+- `make release-full` builds `dist/libreoffice-impress-remote.oxt` plus both relay bundle variants in one command.
+
+Useful relay checks:
+
+```bash
+curl http://127.0.0.1:17865/health
+curl 'http://127.0.0.1:17865/api/session?session=<session-id>&a=<admission-token>'
+curl http://127.0.0.1:17865/asset-manifest.json
+```
 
 ## Troubleshooting
 

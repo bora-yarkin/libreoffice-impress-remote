@@ -9,6 +9,7 @@ from impress_remote.config import (
     RemoteConfig,
     normalize_relay_url,
     relay_join_url,
+    relay_session_status_url,
     relay_websocket_url,
 )
 
@@ -77,6 +78,17 @@ class ConfigTests(unittest.TestCase):
             "wss://relay.example.com/base/ws?role=plugin&session=demo",
         )
 
+    def test_relay_websocket_url_can_embed_admission_token(self) -> None:
+        self.assertEqual(
+            relay_websocket_url(
+                "https://relay.example.com/base",
+                "demo",
+                role="phone",
+                admission_token="join-token",
+            ),
+            "wss://relay.example.com/base/ws?role=phone&session=demo&a=join-token",
+        )
+
     def test_relay_join_url_builds_a_shareable_phone_link(self) -> None:
         self.assertEqual(
             relay_join_url("wss://relay.example.com/base/ws", "demo"),
@@ -87,6 +99,27 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(
             relay_join_url("wss://relay.example.com/base/ws", "demo", "pairsecret"),
             "https://relay.example.com/base#mode=relay&s=demo&k=pairsecret",
+        )
+
+    def test_relay_join_url_can_embed_admission_token_in_fragment(self) -> None:
+        self.assertEqual(
+            relay_join_url(
+                "wss://relay.example.com/base/ws",
+                "demo",
+                "pairsecret",
+                "join-token",
+            ),
+            "https://relay.example.com/base#mode=relay&s=demo&k=pairsecret&a=join-token",
+        )
+
+    def test_relay_session_status_url_targets_api_endpoint(self) -> None:
+        self.assertEqual(
+            relay_session_status_url(
+                "wss://relay.example.com/base/ws",
+                "demo",
+                "join-token",
+            ),
+            "https://relay.example.com/base/api/session?session=demo&a=join-token",
         )
 
     def test_remote_config_round_trips_to_disk(self) -> None:

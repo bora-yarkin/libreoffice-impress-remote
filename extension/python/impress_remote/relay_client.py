@@ -5,15 +5,18 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import os
 import socket
 import ssl
 import threading
 import time
 from collections.abc import Callable
+from urllib.error import URLError
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
-from impress_remote.config import relay_websocket_url
+from impress_remote.config import relay_session_status_url, relay_websocket_url
 from impress_remote.protocol import (
     RelayProtocolFailure,
     SecureRelayCodec,
@@ -174,6 +177,7 @@ class RelayClient:
         relay_url: str,
         session_id: str,
         pairing_secret: str,
+        admission_token: str,
         state_provider: StateProvider,
         asset_provider: RelayAssetProvider | None,
         command_handler: CommandHandler,
@@ -182,10 +186,16 @@ class RelayClient:
         self.relay_url = relay_url
         self.session_id = session_id
         self.pairing_secret = pairing_secret
+        self.admission_token = admission_token
         self.state_provider = state_provider
         self.asset_provider = asset_provider
         self.command_handler = command_handler
         self.activity_callback = activity_callback
+        self._session_status_url = relay_session_status_url(
+            relay_url,
+            session_id,
+            admission_token,
+        )
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
@@ -236,7 +246,14 @@ class RelayClient:
         last_state_message = ""
         last_asset_revisions = {"current": "", "next": ""}
         while not self._stop_event.is_set():
-            websocket = RelayWebSocket(relay_websocket_url(self.relay_url, self.session_id))
+            websocket = RelayWebSocket(
+                relay_websocket_url(
+                    self.relay_url,
+                    self.session_id,
+                    role="plugin",
+                    admission_token=self.admission_token,
+                )
+            )
             try:
                 websocket.connect()
                 with self._lock:
@@ -246,6 +263,7 @@ class RelayClient:
                 last_state_message = ""
                 last_asset_revisions = {"current": "", "next": ""}
                 last_state_sent_at = 0.0
+                last_presence_probe_at = 0.0
                 while not self._stop_event.is_set():
                     now = time.monotonic()
                     state = self.state_provider()
@@ -265,6 +283,9 @@ class RelayClient:
                         last_state_message = state_message
                         last_state_sent_at = now
                     self._send_asset_frames(websocket, state, last_asset_revisions)
+                    if now - last_presence_probe_at >= 1.0:
+                        last_presence_probe_at = now
+                        self._probe_phone_presence()
                     incoming = websocket.receive_text(timeout=0.5)
                     if incoming:
                         self._handle_message(incoming)
@@ -323,6 +344,25 @@ class RelayClient:
         if self.activity_callback is not None:
             self.activity_callback("relay")
         self.command_handler(command.command, command.index)
+
+    def _probe_phone_presence(self) -> None:
+        if self.activity_callback is None:
+            return
+        try:
+            request = Request(
+                self._session_status_url,
+                headers={"Accept": "application/json"},
+            )
+            with urlopen(request, timeout=2) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (OSError, TimeoutError, ValueError, URLError):
+            return
+        session = payload.get("session")
+        if not isinstance(session, dict):
+            return
+        phones = session.get("phones")
+        if isinstance(phones, int) and phones > 0:
+            self.activity_callback("relay")
 
     def _set_status(self, connected: bool, last_error: str) -> None:
         with self._lock:

@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-17` and the current `0.3.5` snapshot.
+It reflects the repository state as of `2026-07-17` and the current `0.5.0` snapshot.
 
 ## Product Direction
 
@@ -95,7 +95,7 @@ Repository focus:
 
 - `extension/python/impress_remote/local_server.py`
 - `extension/python/impress_remote/controller.py`
-- `extension/web/`
+- `shared/webui/`
 - `tests/`
 - `docs/`
 
@@ -125,7 +125,7 @@ Repository focus:
 
 - `extension/python/impress_remote/office_ui.py`
 - LibreOffice configuration and metadata files under `extension/`
-- `extension/web/`
+- `shared/webui/`
 - `docs/`
 
 Exit criteria:
@@ -136,7 +136,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.3.5`
+Status: in progress after `0.5.0`
 
 Target outcome:
 
@@ -173,7 +173,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.3.5`
+Status: completed in the current repository snapshot after `0.5.0`
 
 Target outcome:
 
@@ -201,18 +201,24 @@ Exit criteria:
 
 ### M5 - Optional Self-hosted Relay Viable
 
+Status: completed in `0.5.0`
+
 Target outcome:
 
 - the project can cross CGNAT and bad Wi-Fi without depending on a third-party service
 - the relay is optional and self-hostable by advanced users or organizations
 
+Current baseline:
+
+- relay sessions now support admission-controlled join plus session-status probing
+- LibreOffice can detect joined relay phones and auto-start the slideshow
+- the reference Python relay and the Cloudflare bundle both serve the shared phone UI
+- both reference deployments now expose deployment-health and session-status endpoints
+- relay reconnect, replay, rate limits, and structured operational logging are implemented in the reference relay deployments
+
 Main work:
 
-- add session creation, join, reconnect, and resume behavior
-- harden cleanup, backpressure, rate limits, and observability
-- publish deployment documentation for Docker, reverse proxy, TLS, DNS, and firewall rules
-- document the policy that public tunnel services are debug-only, not product dependencies
-- keep the relay protocol open so the reference server is replaceable
+- keep the relay protocol open so the reference server is replaceable as other implementations appear
 
 Repository focus:
 
