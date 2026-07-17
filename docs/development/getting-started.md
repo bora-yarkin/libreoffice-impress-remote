@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.3.3` release line.
+This guide matches the `0.3.5` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git

@@ -25,6 +25,7 @@ from impress_remote.protocol import (
 )
 
 StateProvider = Callable[[], dict[str, object]]
+RelayAssetProvider = Callable[[str, str], dict[str, object] | None]
 CommandHandler = Callable[[str, int | None], None]
 ActivityCallback = Callable[[str], None]
 
@@ -174,6 +175,7 @@ class RelayClient:
         session_id: str,
         pairing_secret: str,
         state_provider: StateProvider,
+        asset_provider: RelayAssetProvider | None,
         command_handler: CommandHandler,
         activity_callback: ActivityCallback | None = None,
     ):
@@ -181,6 +183,7 @@ class RelayClient:
         self.session_id = session_id
         self.pairing_secret = pairing_secret
         self.state_provider = state_provider
+        self.asset_provider = asset_provider
         self.command_handler = command_handler
         self.activity_callback = activity_callback
         self._thread: threading.Thread | None = None
@@ -231,6 +234,7 @@ class RelayClient:
 
     def _run(self) -> None:
         last_state_message = ""
+        last_asset_revisions = {"current": "", "next": ""}
         while not self._stop_event.is_set():
             websocket = RelayWebSocket(relay_websocket_url(self.relay_url, self.session_id))
             try:
@@ -240,17 +244,27 @@ class RelayClient:
                 websocket.send_text(encode_hello_message(self._codec.rotate_send_key()))
                 self._set_status(True, "")
                 last_state_message = ""
+                last_asset_revisions = {"current": "", "next": ""}
                 last_state_sent_at = 0.0
                 while not self._stop_event.is_set():
                     now = time.monotonic()
                     state = self.state_provider()
+                    resend_secure_snapshot = False
                     state_message = encode_state_message(state)
                     if self._codec.should_rotate_send_key():
                         websocket.send_text(encode_hello_message(self._codec.rotate_send_key()))
-                    if state_message != last_state_message or now - last_state_sent_at >= 1.0:
+                        resend_secure_snapshot = True
+                        last_state_message = ""
+                        last_asset_revisions = {"current": "", "next": ""}
+                    if (
+                        resend_secure_snapshot
+                        or state_message != last_state_message
+                        or now - last_state_sent_at >= 1.0
+                    ):
                         websocket.send_text(self._codec.encode_state_frame(state))
                         last_state_message = state_message
                         last_state_sent_at = now
+                    self._send_asset_frames(websocket, state, last_asset_revisions)
                     incoming = websocket.receive_text(timeout=0.5)
                     if incoming:
                         self._handle_message(incoming)
@@ -263,6 +277,31 @@ class RelayClient:
                     self._websocket = None
                 websocket.close()
                 self._set_status(False, self._last_error)
+
+    def _send_asset_frames(
+        self,
+        websocket: RelayWebSocket,
+        state: dict[str, object],
+        last_asset_revisions: dict[str, str],
+    ) -> None:
+        if self.asset_provider is None:
+            return
+        for slot, revision_key in (
+            ("current", "currentSlideImageRevision"),
+            ("next", "nextSlideImageRevision"),
+        ):
+            revision_value = state.get(revision_key, "")
+            revision = revision_value if isinstance(revision_value, str) else ""
+            if not revision:
+                last_asset_revisions[slot] = ""
+                continue
+            if last_asset_revisions.get(slot) == revision:
+                continue
+            asset_payload = self.asset_provider(slot, revision)
+            if asset_payload is None:
+                continue
+            websocket.send_text(self._codec.encode_asset_frame(asset_payload))
+            last_asset_revisions[slot] = revision
 
     def _handle_message(self, raw: str) -> None:
         if decode_hello_message(raw) is not None:

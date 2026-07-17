@@ -3,7 +3,7 @@
 
 # End-to-End Encryption
 
-Current relay and direct IPv6 profile in `0.3.3`:
+Current relay and direct IPv6 profile in `0.3.5`:
 
 ```text
 Pairing secret in QR/manual-link fragment
@@ -13,7 +13,7 @@ Versioned hello/frame/error messages
 Replay protection, session binding, and key rotation
 ```
 
-Today, relay mode protects presenter state and commands from passive or honest-but-curious relay operators. The relay only sees session metadata, plaintext `hello` negotiation messages, and opaque encrypted `frame` payloads.
+Today, relay mode protects presenter state, slide assets, and commands from passive or honest-but-curious relay operators. The relay only sees session metadata, plaintext `hello` negotiation messages, and opaque encrypted `frame` payloads.
 
 Direct IPv6 now uses the same encrypted session profile for presenter state, commands, and slide assets on the phone route. The phone loads the LibreOffice-served web UI, receives plaintext `hello` negotiation messages, and then decrypts `state`, `asset`, and command-related traffic in the browser.
 

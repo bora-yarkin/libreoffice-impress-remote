@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-17` and the current `0.3.3` snapshot.
+It reflects the repository state as of `2026-07-17` and the current `0.3.5` snapshot.
 
 ## Product Direction
 
@@ -136,7 +136,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.3.3`
+Status: in progress after `0.3.5`
 
 Target outcome:
 
@@ -173,7 +173,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.3.3`
+Status: completed in the current repository snapshot after `0.3.5`
 
 Target outcome:
 

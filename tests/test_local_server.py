@@ -141,6 +141,48 @@ class LocalServerTests(unittest.TestCase):
             "/api/slide/next?rev=next456",
         )
 
+    def test_relay_asset_payload_encodes_current_slide_png_for_the_expected_revision(self) -> None:
+        state = SimpleNamespace(
+            document_kind="impress",
+            slide_count=5,
+            current_render_token="current123",
+            next_slide=2,
+            next_render_token="next456",
+        )
+        controller = SimpleNamespace(
+            state=lambda: state,
+            current_slide_png_bytes=lambda: b"png-bytes",
+            next_slide_png_bytes=lambda: b"next-png-bytes",
+        )
+        server = cast(RemoteServer, SimpleNamespace(controller=controller))
+
+        payload = RemoteServer.relay_asset_payload(server, "current", "current123")
+
+        self.assertIsNotNone(payload)
+        assert payload is not None
+        self.assertEqual(payload["slot"], "current")
+        self.assertEqual(payload["revision"], "current123")
+        self.assertEqual(payload["encoding"], "base64url")
+
+    def test_relay_asset_payload_returns_none_when_the_revision_is_stale(self) -> None:
+        state = SimpleNamespace(
+            document_kind="impress",
+            slide_count=5,
+            current_render_token="current123",
+            next_slide=2,
+            next_render_token="next456",
+        )
+        controller = SimpleNamespace(
+            state=lambda: state,
+            current_slide_png_bytes=lambda: b"png-bytes",
+            next_slide_png_bytes=lambda: b"next-png-bytes",
+        )
+        server = cast(RemoteServer, SimpleNamespace(controller=controller))
+
+        payload = RemoteServer.relay_asset_payload(server, "current", "stale999")
+
+        self.assertIsNone(payload)
+
     def test_pairing_target_prefers_local_route_for_auto_mode(self) -> None:
         server = PairingServerStub(
             local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],

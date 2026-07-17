@@ -9,6 +9,31 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-17
+
+### Added
+
+- Added encrypted relay asset publishing for current and next slide PNG frames plus relay state image revisions so relay mode can render the same image-first mobile remote as the local path.
+
+### Changed
+
+- Rebuilt the relay-hosted phone UI to match the current lightweight mobile remote layout with the slide pinned to the top, scrollable presenter notes, bottom-pinned previous/next controls, and tap-to-advance on the slide.
+- Hardened the relay server into a thinner opaque transport that validates only the outer protocol envelope, replays the latest `hello` plus a bounded window of recent encrypted plugin frames, and raises the websocket message limit for encrypted slide assets.
+
+### Security
+
+- Relay connections now reject legacy plaintext or malformed websocket messages instead of forwarding them across the third-party relay path.
+
+## [0.3.4] - 2026-07-17
+
+### Fixed
+
+- Fixed addon command parsing so LibreOffice menu-status updates can resolve the Start Remote toggle command even when status listeners provide the full command URL instead of a populated `Path`, which keeps the menu label in sync with the running remote state.
+
+### Changed
+
+- Added a planned LibreOffice UX item for placing Presentation Remote under Slide Show across toolbar modes and adding Start Remote plus Advanced Remote Settings near Start from First Slide where the current UI supports it.
+
 ## [0.3.3] - 2026-07-17
 
 ### Changed

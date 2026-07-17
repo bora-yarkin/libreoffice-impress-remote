@@ -2,13 +2,26 @@ const RELAY_PROTOCOL_VERSION = 1
 const RELAY_KIND_STATE = 'state'
 const RELAY_KIND_COMMAND = 'command'
 const RELAY_KIND_ERROR = 'error'
+const RELAY_KIND_ASSET = 'asset'
 const REPLAY_CACHE_SIZE = 1024
 
-function slideLabel(currentSlide, slideCount){
-  if(!slideCount){
-    return 'Slide -- / --'
-  }
-  return `Slide ${currentSlide + 1} / ${slideCount}`
+let lastState = null
+let connectionPhase = 'connecting'
+let hasEverConnected = false
+let currentImageObjectUrl = ''
+let nextImageObjectUrl = ''
+const nextImagePreload = new Image()
+
+const relayState = {
+  session: '',
+  pairingSecret: '',
+  socket: null,
+  reconnectTimer: null,
+  codec: null,
+  assets: {
+    current: {revision: '', url: ''},
+    next: {revision: '', url: ''},
+  },
 }
 
 function hashParams(){
@@ -23,55 +36,193 @@ function relaySocketUrl(session){
   return url.toString()
 }
 
-function setStatus(message){
-  document.getElementById('status').textContent = message
+function setConnectionPhase(nextPhase){
+  connectionPhase = nextPhase
+  document.body.dataset.connectionState = nextPhase
+  const commandsEnabled = nextPhase === 'live'
+  document.querySelectorAll('[data-command]').forEach(button => {
+    button.disabled = !commandsEnabled
+  })
+  document.getElementById('prev-button').disabled = !commandsEnabled
+  document.getElementById('next-button').disabled = !commandsEnabled
+  renderBanner()
 }
 
-function setSocketState(message){
-  document.getElementById('socket-state').textContent = message
-}
-
-function renderState(payload){
-  setStatus(payload.statusMessage || (payload.running ? 'Presentation running' : 'Connected to relay.'))
-  document.getElementById('slide').textContent = slideLabel(payload.currentSlide, payload.slideCount)
-  document.getElementById('current-title').textContent = payload.currentTitle || 'Untitled slide'
-  document.getElementById('notes').textContent = payload.notes || 'No presenter notes detected.'
-
-  const nextSlide = typeof payload.nextSlide === 'number' ? `Slide ${payload.nextSlide + 1}` : 'No next slide'
-  document.getElementById('next-slide').textContent = nextSlide
-  document.getElementById('next-title').textContent = payload.nextTitle || 'No next slide'
-  document.getElementById('next-preview').textContent = payload.nextPreview || 'The current slide is the last slide in the deck.'
-}
-
-function updateHash(session, pairingSecret){
-  const params = new URLSearchParams()
-  if(session){
-    params.set('mode', 'relay')
-    params.set('s', session)
+function renderBanner(){
+  const target = document.getElementById('status')
+  if(!target){
+    return
   }
-  if(pairingSecret){
-    params.set('k', pairingSecret)
+  if(connectionPhase === 'connecting'){
+    target.textContent = 'Connecting to LibreOffice through the relay...'
+    return
   }
-  window.location.hash = params.toString()
+  if(connectionPhase === 'reconnecting'){
+    target.textContent = 'Relay connection lost. Reconnecting...'
+    return
+  }
+  if(connectionPhase === 'offline'){
+    target.textContent = 'Remote is offline. Open the full pairing link from LibreOffice again.'
+    return
+  }
+  if(!lastState){
+    target.textContent = 'Connected. Waiting for presenter state...'
+    return
+  }
+  target.textContent = lastState.statusMessage || (lastState.running ? 'Presentation running' : 'Waiting for slideshow')
+}
+
+function slideLabel(currentSlide, slideCount){
+  if(typeof currentSlide !== 'number' || !slideCount){
+    return '-- / --'
+  }
+  return `${currentSlide + 1} / ${slideCount}`
+}
+
+function revokeObjectUrl(value){
+  if(value){
+    URL.revokeObjectURL(value)
+  }
+}
+
+function clearSlideImage(){
+  const image = document.getElementById('slide-image')
+  const placeholder = document.getElementById('slide-placeholder')
+  image.hidden = true
+  placeholder.hidden = false
+  image.removeAttribute('src')
+}
+
+function syncCurrentSlideAsset(){
+  const image = document.getElementById('slide-image')
+  const placeholder = document.getElementById('slide-placeholder')
+  const expectedRevision = lastState && typeof lastState.currentSlideImageRevision === 'string'
+    ? lastState.currentSlideImageRevision
+    : ''
+  const asset = relayState.assets.current
+  if(!expectedRevision || asset.revision !== expectedRevision || !asset.url){
+    clearSlideImage()
+    currentImageObjectUrl = ''
+    return
+  }
+  if(currentImageObjectUrl !== asset.url){
+    const previousUrl = currentImageObjectUrl
+    image.src = asset.url
+    currentImageObjectUrl = asset.url
+    if(previousUrl && previousUrl !== asset.url && previousUrl !== relayState.assets.next.url){
+      revokeObjectUrl(previousUrl)
+    }
+  }
+  image.hidden = false
+  placeholder.hidden = true
+}
+
+function syncNextSlideAsset(){
+  const expectedRevision = lastState && typeof lastState.nextSlideImageRevision === 'string'
+    ? lastState.nextSlideImageRevision
+    : ''
+  const asset = relayState.assets.next
+  if(!expectedRevision || asset.revision !== expectedRevision || !asset.url){
+    nextImageObjectUrl = ''
+    nextImagePreload.removeAttribute('src')
+    return
+  }
+  if(nextImageObjectUrl !== asset.url){
+    const previousUrl = nextImageObjectUrl
+    nextImageObjectUrl = asset.url
+    nextImagePreload.src = asset.url
+    if(previousUrl && previousUrl !== asset.url && previousUrl !== currentImageObjectUrl){
+      revokeObjectUrl(previousUrl)
+    }
+  }
+}
+
+function syncRenderedAssets(){
+  syncCurrentSlideAsset()
+  syncNextSlideAsset()
+}
+
+function showPlaceholderMessage(message){
+  document.getElementById('current-title').textContent = message
+  document.getElementById('notes').textContent = ''
+  document.querySelectorAll('.slide-label').forEach(node => {
+    node.textContent = '-- / --'
+  })
+  clearSlideImage()
+}
+
+function showTransportError(error){
+  renderBanner()
+  const status = document.getElementById('status')
+  if(status){
+    status.textContent = String(error)
+  }
+  setConnectionPhase('offline')
+}
+
+function renderState(state){
+  lastState = state
+  document.querySelectorAll('.slide-label').forEach(node => {
+    node.textContent = slideLabel(state.currentSlide, state.slideCount)
+  })
+  document.getElementById('current-title').textContent = state.currentTitle || ''
+  document.getElementById('notes').textContent = state.notes || ''
+  document.getElementById('prev-button').disabled = connectionPhase !== 'live' || !state.canGoPrevious
+  document.getElementById('next-button').disabled = connectionPhase !== 'live' || !state.canGoNext
+  syncRenderedAssets()
+  renderBanner()
 }
 
 function closeSocket(){
-  if(state.socket){
-    state.socket.onclose = null
-    state.socket.close()
-    state.socket = null
+  if(relayState.socket){
+    relayState.socket.onclose = null
+    relayState.socket.close()
+    relayState.socket = null
   }
 }
 
 function scheduleReconnect(){
-  if(state.reconnectTimer || !state.session){
+  if(relayState.reconnectTimer || !relayState.session || !relayState.pairingSecret){
     return
   }
-  state.reconnectTimer = window.setTimeout(() => {
-    state.reconnectTimer = null
-    connectRelay()
+  relayState.reconnectTimer = window.setTimeout(() => {
+    relayState.reconnectTimer = null
+    connectRelay().catch(showTransportError)
   }, 1500)
 }
+
+function canAdvanceWithSlideTap(){
+  return connectionPhase === 'live' && !!lastState && !!lastState.canGoNext
+}
+
+function handleSlideAdvance(){
+  if(!canAdvanceWithSlideTap()){
+    return
+  }
+  sendCommand('next_slide').catch(showTransportError)
+}
+
+document.querySelectorAll('[data-command]').forEach(button => {
+  button.addEventListener('click', () => {
+    sendCommand(button.dataset.command).catch(showTransportError)
+  })
+})
+
+const slideFrame = document.getElementById('slide-frame')
+slideFrame.addEventListener('click', () => {
+  handleSlideAdvance()
+})
+slideFrame.addEventListener('keydown', event => {
+  if(event.key !== 'Enter' && event.key !== ' '){
+    return
+  }
+  event.preventDefault()
+  handleSlideAdvance()
+})
+
+document.getElementById('slide-image').addEventListener('error', () => {
+  clearSlideImage()
+})
 
 function utf8(text){
   return new TextEncoder().encode(text)
@@ -173,24 +324,21 @@ function parseHello(payload){
 }
 
 async function decryptRelayFrame(payload){
-  if(!state.codec){
+  if(!relayState.codec){
     throw new Error('Waiting for secure relay handshake.')
   }
   if(
     payload.type !== 'frame'
     || payload.v !== RELAY_PROTOCOL_VERSION
-    || payload.s !== state.session
-    || payload.k !== state.codec.keyId
+    || payload.s !== relayState.session
+    || typeof payload.k !== 'string'
     || typeof payload.kind !== 'string'
     || typeof payload.n !== 'string'
     || typeof payload.ct !== 'string'
   ){
     return null
   }
-  if(payload.kind !== RELAY_KIND_STATE && payload.kind !== RELAY_KIND_ERROR){
-    return null
-  }
-  if(!rememberReplay(state.codec.pluginReplay, payload.n)){
+  if(!rememberReplay(relayState.codec.pluginReplay, payload.n)){
     throw new Error('Relay replay detected.')
   }
   const blob = base64UrlToBytes(payload.ct)
@@ -206,10 +354,10 @@ async function decryptRelayFrame(payload){
     {
       name: 'AES-GCM',
       iv: base64UrlToBytes(payload.n),
-      additionalData: frameAad(state.session, state.codec.keyId, payload.kind, payload.n),
+      additionalData: frameAad(relayState.session, payload.k, payload.kind, payload.n),
       tagLength: 128,
     },
-    state.codec.stateKey,
+    relayState.codec.stateKey,
     combined,
   )
   return {
@@ -218,89 +366,71 @@ async function decryptRelayFrame(payload){
   }
 }
 
-async function connectRelay(){
-  closeSocket()
-  state.codec = null
-  if(!state.session){
-    setStatus('Open the full pairing link from LibreOffice to connect.')
-    setSocketState('Idle')
-    return
+async function applyAssetPayload(payload){
+  const contentType = payload.contentType
+  const encoding = payload.encoding
+  const data = payload.data
+  const slot = payload.slot
+  const revision = payload.revision
+  if(
+    typeof contentType !== 'string'
+    || typeof encoding !== 'string'
+    || typeof data !== 'string'
+    || typeof slot !== 'string'
+    || typeof revision !== 'string'
+    || encoding !== 'base64url'
+    || !['current', 'next'].includes(slot)
+  ){
+    throw new Error('Relay asset payload is malformed.')
   }
-  if(!state.pairingSecret){
-    setStatus('This relay route needs the full pairing link, not only the session code.')
-    setSocketState('Missing key')
-    return
+  const blob = new Blob([base64UrlToBytes(data)], {type: contentType})
+  const objectUrl = URL.createObjectURL(blob)
+  const existing = relayState.assets[slot]
+  if(existing.url && existing.url !== currentImageObjectUrl && existing.url !== nextImageObjectUrl){
+    revokeObjectUrl(existing.url)
   }
-  if(!window.crypto || !window.crypto.subtle){
-    setStatus('This browser does not expose Web Crypto, so encrypted relay mode is unavailable here.')
-    setSocketState('Unsupported')
-    return
-  }
-
-  setStatus('Connecting to relay...')
-  setSocketState('Connecting')
-  const socket = new WebSocket(relaySocketUrl(state.session))
-  state.socket = socket
-
-  socket.addEventListener('open', () => {
-    setStatus('Connected to relay. Waiting for secure pairing data...')
-    setSocketState('Connected')
-  })
-
-  socket.addEventListener('message', event => {
-    handleIncoming(event.data).catch(error => {
-      setStatus(String(error))
-      setSocketState('Error')
-    })
-  })
-
-  socket.addEventListener('close', () => {
-    state.codec = null
-    setSocketState('Disconnected')
-    setStatus('Relay connection lost. Reconnecting...')
-    scheduleReconnect()
-  })
-
-  socket.addEventListener('error', () => {
-    setSocketState('Error')
-    setStatus('Relay connection failed.')
-  })
+  relayState.assets[slot] = {revision, url: objectUrl}
+  syncRenderedAssets()
 }
 
 async function handleIncoming(raw){
   const payload = JSON.parse(raw)
   const hello = parseHello(payload)
   if(hello){
-    if(hello.sessionId !== state.session){
+    if(hello.sessionId !== relayState.session){
       return
     }
-    state.codec = await deriveRelayCodec(state.session, state.pairingSecret, hello)
-    setSocketState('Encrypted')
-    setStatus('Encrypted relay connected. Waiting for presentation state...')
+    relayState.codec = await deriveRelayCodec(relayState.session, relayState.pairingSecret, hello)
+    renderBanner()
     return
   }
   if(payload.type === 'error' && typeof payload.message === 'string'){
-    setStatus(payload.message)
-    return
+    throw new Error(payload.message)
   }
   const decrypted = await decryptRelayFrame(payload)
   if(!decrypted){
     return
   }
   if(decrypted.kind === RELAY_KIND_STATE && decrypted.payload){
+    hasEverConnected = true
+    setConnectionPhase('live')
     renderState(decrypted.payload)
+    return
+  }
+  if(decrypted.kind === RELAY_KIND_ASSET && decrypted.payload){
+    await applyAssetPayload(decrypted.payload)
     return
   }
   if(
     decrypted.kind === RELAY_KIND_ERROR
     && typeof decrypted.payload.message === 'string'
   ){
-    setStatus(decrypted.payload.message)
+    throw new Error(decrypted.payload.message)
   }
 }
 
 async function sendCommand(command, payload = {}){
-  if(!state.socket || state.socket.readyState !== WebSocket.OPEN || !state.codec){
+  if(!relayState.socket || relayState.socket.readyState !== WebSocket.OPEN || !relayState.codec){
     return
   }
   const nonce = crypto.getRandomValues(new Uint8Array(12))
@@ -310,101 +440,72 @@ async function sendCommand(command, payload = {}){
     {
       name: 'AES-GCM',
       iv: nonce,
-      additionalData: frameAad(state.session, state.codec.keyId, RELAY_KIND_COMMAND, nonceText),
+      additionalData: frameAad(relayState.session, relayState.codec.keyId, RELAY_KIND_COMMAND, nonceText),
       tagLength: 128,
     },
-    state.codec.commandKey,
+    relayState.codec.commandKey,
     plaintext,
   )
-  state.socket.send(JSON.stringify({
+  relayState.socket.send(JSON.stringify({
     type: 'frame',
     v: RELAY_PROTOCOL_VERSION,
-    s: state.session,
-    k: state.codec.keyId,
+    s: relayState.session,
+    k: relayState.codec.keyId,
     kind: RELAY_KIND_COMMAND,
     n: nonceText,
     ct: bytesToBase64Url(new Uint8Array(encrypted)),
   }))
 }
 
-function parseSessionInput(value){
-  const trimmed = value.trim()
-  if(!trimmed){
-    return {session: '', pairingSecret: ''}
-  }
-  if(trimmed.startsWith('#')){
-    const params = new URLSearchParams(trimmed.replace(/^#/, ''))
-    return {
-      session: params.get('s') || '',
-      pairingSecret: params.get('k') || '',
-    }
-  }
-  try{
-    const url = new URL(trimmed, window.location.href)
-    const params = new URLSearchParams(url.hash.replace(/^#/, ''))
-    const session = params.get('s') || ''
-    const pairingSecret = params.get('k') || ''
-    if(session || pairingSecret){
-      return {session, pairingSecret}
-    }
-  }catch(_error){
-  }
-  return {session: trimmed, pairingSecret: state.pairingSecret}
-}
-
-const state = {
-  session: '',
-  pairingSecret: '',
-  socket: null,
-  reconnectTimer: null,
-  codec: null,
-}
-
-document.getElementById('relay-origin').textContent = window.location.origin
-document.querySelectorAll('[data-command]').forEach(button => {
-  button.addEventListener('click', () => {
-    sendCommand(button.dataset.command).catch(error => {
-      setStatus(String(error))
-      setSocketState('Error')
-    })
-  })
-})
-
-document.getElementById('goto-form').addEventListener('submit', event => {
-  event.preventDefault()
-  const input = document.getElementById('goto-slide')
-  const value = Number.parseInt(input.value, 10)
-  if(Number.isNaN(value) || value < 1){
+async function connectRelay(){
+  closeSocket()
+  relayState.codec = null
+  if(!relayState.session || !relayState.pairingSecret){
+    showPlaceholderMessage('Open the full relay pairing link from LibreOffice.')
+    setConnectionPhase('offline')
     return
   }
-  sendCommand('goto_slide', {index: value - 1}).catch(error => {
-    setStatus(String(error))
-    setSocketState('Error')
-  })
-})
-
-document.getElementById('session-form').addEventListener('submit', event => {
-  event.preventDefault()
-  const parsed = parseSessionInput(document.getElementById('session-input').value)
-  if(!parsed.session){
+  if(!window.crypto || !window.crypto.subtle){
+    showPlaceholderMessage('This browser does not support secure relay mode.')
+    setConnectionPhase('offline')
     return
   }
-  state.session = parsed.session
-  state.pairingSecret = parsed.pairingSecret
-  document.getElementById('session-display').textContent = parsed.session
-  updateHash(parsed.session, parsed.pairingSecret)
-  connectRelay().catch(error => {
-    setStatus(String(error))
-    setSocketState('Error')
-  })
-})
 
-const initialParams = hashParams()
-state.session = initialParams.get('s') || ''
-state.pairingSecret = initialParams.get('k') || ''
-document.getElementById('session-input').value = state.session ? window.location.href : ''
-document.getElementById('session-display').textContent = state.session || '----------'
-connectRelay().catch(error => {
-  setStatus(String(error))
-  setSocketState('Error')
-})
+  if(relayState.reconnectTimer){
+    window.clearTimeout(relayState.reconnectTimer)
+    relayState.reconnectTimer = null
+  }
+
+  showPlaceholderMessage('Connecting to the encrypted relay...')
+  setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
+  const socket = new WebSocket(relaySocketUrl(relayState.session))
+  relayState.socket = socket
+
+  socket.addEventListener('open', () => {
+    renderBanner()
+  })
+
+  socket.addEventListener('message', event => {
+    handleIncoming(event.data).catch(showTransportError)
+  })
+
+  socket.addEventListener('close', () => {
+    relayState.codec = null
+    setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
+    scheduleReconnect()
+  })
+
+  socket.addEventListener('error', () => {
+    showTransportError('Relay connection failed.')
+  })
+}
+
+function bootstrap(){
+  const params = hashParams()
+  relayState.session = params.get('s') || ''
+  relayState.pairingSecret = params.get('k') || ''
+  setConnectionPhase('connecting')
+  connectRelay().catch(showTransportError)
+}
+
+bootstrap()

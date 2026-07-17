@@ -3,7 +3,7 @@
 
 # Protocol
 
-This document describes the current encrypted transport protocol implemented in `0.3.3`.
+This document describes the current encrypted transport protocol implemented in `0.3.5`.
 
 It is intentionally small and versioned so that the reference relay server can remain replaceable and the same message contract can be reused by other transports.
 
@@ -110,7 +110,7 @@ Example:
 
 ## Key Derivation
 
-The current `0.3.3` bootstrap is pre-shared-secret based.
+The current `0.3.5` bootstrap is pre-shared-secret based.
 
 Inputs:
 
@@ -155,10 +155,10 @@ The relay server:
 - matches websocket peers by session id
 - forwards plaintext `hello`
 - forwards opaque encrypted `frame` messages
-- may replay the latest `hello` and latest encrypted `state` to a newly joined phone while the plugin remains connected
+- may replay the latest `hello` and a bounded window of recent encrypted plugin frames to a newly joined phone while the plugin remains connected
 - clears cached secure state when the plugin disconnects
 
-The relay server must not decrypt frames, inspect presenter notes, or persist slide previews.
+The relay server must not decrypt frames, inspect presenter notes, or persist slide previews. It should validate only the outer envelope enough to reject malformed or legacy traffic and then forward or replay opaque ciphertext.
 
 ## Direct IPv6 HTTP Behavior
 

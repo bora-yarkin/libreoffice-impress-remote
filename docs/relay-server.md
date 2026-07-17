@@ -18,7 +18,8 @@ Current relay transport note:
 
 - `hello` messages are plaintext metadata used to derive or rotate relay keys
 - `frame` messages for relay state, commands, and errors are AES-GCM encrypted and opaque to the relay
-- newly joined phones can receive the latest `hello` and latest encrypted state while the plugin remains connected
+- relay-hosted phones now decrypt slide asset frames in the browser to render the same lightweight current-slide remote as local mode
+- newly joined phones can receive the latest `hello` and a bounded window of recent encrypted plugin frames while the plugin remains connected
 
 It must not:
 

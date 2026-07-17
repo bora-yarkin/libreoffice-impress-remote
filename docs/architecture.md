@@ -20,7 +20,7 @@ The extension owns slideshow control, notes extraction, state generation, local 
 
 The relay server owns session matching, hosted relay phone UI, plaintext relay-key negotiation messages, and opaque encrypted frame forwarding.
 
-As of `0.3.3`, relay and direct-IPv6 state, command, and asset flows are encrypted and session-bound. The local-only route still needs to adopt the same protocol profile.
+As of `0.3.5`, relay and direct-IPv6 state, command, and asset flows are encrypted and session-bound. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, and the local-only route still needs to adopt the same protocol profile.
 
 ## Non-goals
 

@@ -29,13 +29,13 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups should work wit
 
 ## Current Status
 
-Version `0.3.3` is a usable pre-1.0 build with:
+Version `0.3.5` is a usable pre-1.0 build with:
 
 - QR-first local pairing
 - live current-slide rendering
 - presenter notes on the phone
 - LibreOffice-native remote controls and settings
-- encrypted relay and direct IPv6 transport for fallback networking
+- encrypted relay and direct IPv6 transport for fallback networking, including relay-hosted slide previews
 
 Still in progress:
 

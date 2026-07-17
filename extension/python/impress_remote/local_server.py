@@ -224,7 +224,32 @@ class RemoteServer:
 
     def state_payload(self) -> dict[str, object]:
         state = self.controller.state()
-        payload = {
+        payload = self._state_payload(
+            state,
+            current_slide_image_url=self.current_slide_image_url(state),
+            next_slide_image_url=self.next_slide_image_url(state),
+        )
+        payload.update(self.connection_info())
+        return payload
+
+    def relay_state_payload(self) -> dict[str, object]:
+        state = self.controller.state()
+        payload = self._state_payload(
+            state,
+            current_slide_image_url="",
+            next_slide_image_url="",
+        )
+        payload.update(self.connection_info())
+        return payload
+
+    def _state_payload(
+        self,
+        state,
+        *,
+        current_slide_image_url: str,
+        next_slide_image_url: str,
+    ) -> dict[str, object]:
+        return {
             "running": state.running,
             "presentationActive": state.active,
             "presentationPaused": state.paused,
@@ -243,11 +268,11 @@ class RemoteServer:
             "remainingSlides": state.remaining_slides,
             "atEndOfDeck": state.at_end_of_deck,
             "elapsedSeconds": state.elapsed_seconds,
-            "currentSlideImageUrl": self.current_slide_image_url(state),
-            "nextSlideImageUrl": self.next_slide_image_url(state),
+            "currentSlideImageRevision": getattr(state, "current_render_token", ""),
+            "nextSlideImageRevision": getattr(state, "next_render_token", ""),
+            "currentSlideImageUrl": current_slide_image_url,
+            "nextSlideImageUrl": next_slide_image_url,
         }
-        payload.update(self.connection_info())
-        return payload
 
     def current_slide_image_url(self, state=None) -> str:
         if state is None:
@@ -302,9 +327,12 @@ class RemoteServer:
 
     def secure_direct_state_payload(self) -> dict[str, object]:
         state = self.controller.state()
-        payload = self.state_payload()
-        payload["currentSlideImageUrl"] = self.secure_current_slide_image_url(state)
-        payload["nextSlideImageUrl"] = self.secure_next_slide_image_url(state)
+        payload = self._state_payload(
+            state,
+            current_slide_image_url=self.secure_current_slide_image_url(state),
+            next_slide_image_url=self.secure_next_slide_image_url(state),
+        )
+        payload.update(self.connection_info())
         return payload
 
     def secure_direct_state_response(self) -> dict[str, object]:
@@ -330,6 +358,41 @@ class RemoteServer:
             slot=slot,
             revision=revision,
         )
+
+    def relay_asset_payload(self, slot: str, revision: str) -> dict[str, object] | None:
+        expected_revision = str(revision).strip()
+        if not expected_revision:
+            return None
+
+        before = self.controller.state()
+        if slot == "current":
+            if (
+                before.document_kind != "impress"
+                or before.slide_count <= 0
+                or before.current_render_token != expected_revision
+            ):
+                return None
+            data = self.controller.current_slide_png_bytes()
+            after = self.controller.state()
+            if after.current_render_token != expected_revision:
+                return None
+        elif slot == "next":
+            if before.next_slide is None or before.next_render_token != expected_revision:
+                return None
+            data = self.controller.next_slide_png_bytes()
+            after = self.controller.state()
+            if after.next_render_token != expected_revision:
+                return None
+        else:
+            return None
+
+        return {
+            "contentType": "image/png",
+            "encoding": "base64url",
+            "data": base64url_encode(data),
+            "slot": slot,
+            "revision": expected_revision,
+        }
 
     def connection_info(self) -> dict[str, object]:
         relay_status = {"state": "disabled", "lastError": ""}
@@ -672,7 +735,8 @@ class RemoteServer:
             relay_url=desired_url,
             session_id=self.session_id,
             pairing_secret=self.pairing_secret,
-            state_provider=self.state_payload,
+            state_provider=self.relay_state_payload,
+            asset_provider=self.relay_asset_payload,
             command_handler=self.controller.command,
             activity_callback=self.mark_client_activity,
         )

@@ -5,71 +5,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LibreOffice Impress Remote Relay</title>
+  <title>LibreOffice Impress Remote</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <p class="visually-hidden" id="status" aria-live="polite">Connecting...</p>
   <main>
-    <header class="hero">
-      <div>
-        <p class="eyebrow">LibreOffice Impress Remote</p>
-        <h1>Relay Presenter</h1>
-      </div>
-      <p class="status" id="status">Enter a session code to connect.</p>
-    </header>
-    <form class="connection-card session-form" id="session-form">
-      <div>
-        <h2>Pairing Link</h2>
-        <p class="helper">Open the full relay pairing link from LibreOffice, or paste it here.</p>
-      </div>
-      <div class="session-row">
-        <input id="session-input" placeholder="Paste relay pairing link" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <button type="submit">Connect</button>
-      </div>
-    </form>
-    <section class="connection-card">
-      <div>
-        <h2>Connected Session</h2>
-        <p class="session" id="session-display">----------</p>
-      </div>
-      <div>
-        <h2>Relay</h2>
-        <p class="detail" id="relay-origin"></p>
-      </div>
-      <div>
-        <h2>Socket State</h2>
-        <p class="detail" id="socket-state">Idle</p>
+    <section class="stage-card">
+      <div class="slide-frame" id="slide-frame" role="button" tabindex="0" aria-label="Current slide. Tap to go to the next slide.">
+        <img id="slide-image" alt="Current slide preview" hidden>
+        <p class="slide-chip slide-label slide-chip-overlay">-- / --</p>
+        <div class="slide-placeholder" id="slide-placeholder">
+          <p class="placeholder-title" id="current-title"></p>
+        </div>
       </div>
     </section>
-    <section class="slide-grid">
-      <section class="slide-card">
-        <p class="card-label">Current Slide</p>
-        <div id="slide">Slide -- / --</div>
-        <p class="slide-title" id="current-title">Waiting for presentation data...</p>
-        <pre id="notes"></pre>
-      </section>
-      <section class="slide-card next-card">
-        <p class="card-label">Next Slide</p>
-        <div id="next-slide">Slide --</div>
-        <p class="slide-title" id="next-title">No next slide</p>
-        <p class="preview" id="next-preview"></p>
-      </section>
+    <section class="notes-card">
+      <pre id="notes"></pre>
     </section>
-    <section class="controls">
-      <button data-command="start_presentation">Start Show</button>
-      <button data-command="end_presentation">End Show</button>
-      <button data-command="previous_slide">Prev Slide</button>
-      <button data-command="next_slide">Next Slide</button>
-      <button data-command="previous_effect">Prev Effect</button>
-      <button data-command="next_effect">Next Effect</button>
-    </section>
-    <form class="goto-form" id="goto-form">
-      <label for="goto-slide">Jump to slide</label>
-      <div class="goto-row">
-        <input id="goto-slide" min="1" step="1" inputmode="numeric" type="number" placeholder="1">
-        <button type="submit">Go</button>
-      </div>
-    </form>
+    <nav class="primary-controls">
+      <button class="nav-button" id="prev-button" data-command="previous_slide" type="button" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M14.5 5.5 8 12l6.5 6.5"/>
+        </svg>
+      </button>
+      <button class="nav-button nav-button-primary" id="next-button" data-command="next_slide" type="button" aria-label="Next slide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9.5 5.5 16 12l-6.5 6.5"/>
+        </svg>
+      </button>
+    </nav>
   </main>
   <script src="/app.js"></script>
 </body>

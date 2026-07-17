@@ -102,9 +102,15 @@ def _install_uno_stubs() -> None:
 
 
 class FakeUrl:
-    def __init__(self, path: str, protocol: str = "vnd.org.borayarkin.impressremote:"):
+    def __init__(
+        self,
+        path: str,
+        protocol: str = "vnd.org.borayarkin.impressremote:",
+        complete: str | None = None,
+    ):
         self.Path = path
         self.Protocol = protocol
+        self.Complete = complete if complete is not None else f"{protocol}{path}"
 
 
 class FakeMergedConfig:
@@ -283,6 +289,23 @@ class ComponentRuntimeTests(unittest.TestCase):
                 labels.append(event.FeatureDescriptor)
 
         handler.addStatusListener(Listener(), FakeUrl("toggle"))
+        handler.start()
+
+        self.assertEqual(labels, ["Start Remote", "Stop Remote"])
+
+    def test_status_listener_uses_complete_url_when_path_is_missing(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        handler.server = FakeServer(running=False)
+        labels: list[str] = []
+
+        class Listener:
+            def statusChanged(self, event) -> None:
+                labels.append(event.State)
+
+        handler.addStatusListener(
+            Listener(),
+            FakeUrl("", complete="vnd.org.borayarkin.impressremote:toggle"),
+        )
         handler.start()
 
         self.assertEqual(labels, ["Start Remote", "Stop Remote"])

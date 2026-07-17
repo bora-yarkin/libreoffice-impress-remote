@@ -158,7 +158,48 @@ def _compose_status_line(remote_running: bool, presentation: dict[str, object]) 
 
 
 def _feature_url(path: str) -> object:
-    return SimpleNamespace(Protocol=PROTOCOL, Path=path)
+    complete = f"{PROTOCOL}{path}"
+    try:
+        import uno  # pyright: ignore[reportMissingImports]
+
+        url = uno.createUnoStruct("com.sun.star.util.URL")
+    except Exception:
+        url = SimpleNamespace()
+
+    for name, value in (
+        ("Protocol", PROTOCOL),
+        ("Path", path),
+        ("Name", path),
+        ("Complete", complete),
+        ("Arguments", ""),
+        ("Mark", ""),
+    ):
+        try:
+            setattr(url, name, value)
+        except Exception:
+            continue
+    return url
+
+
+def _matches_protocol(url: object) -> bool:
+    protocol = getattr(url, "Protocol", "")
+    if protocol == PROTOCOL:
+        return True
+    complete = getattr(url, "Complete", "")
+    return isinstance(complete, str) and complete.startswith(PROTOCOL)
+
+
+def _command_path(url: object) -> str:
+    path = getattr(url, "Path", "")
+    if isinstance(path, str) and path:
+        return path
+
+    complete = getattr(url, "Complete", "")
+    if not isinstance(complete, str) or not complete:
+        return ""
+    if complete.startswith(PROTOCOL):
+        complete = complete[len(PROTOCOL) :]
+    return complete.split("?", 1)[0].split("#", 1)[0].lstrip("/")
 
 
 try:
@@ -200,7 +241,7 @@ try:
             return SERVICE_NAMES
 
         def queryDispatch(self, url, _target_frame_name, _search_flags):
-            if getattr(url, "Protocol", "") == PROTOCOL:
+            if _matches_protocol(url):
                 return self
             return None
 
@@ -211,7 +252,7 @@ try:
             )
 
         def dispatch(self, url, _args):
-            command = getattr(url, "Path", "")
+            command = _command_path(url)
             try:
                 if command == "toggle":
                     self.toggle_remote()
@@ -238,15 +279,16 @@ try:
                 traceback.print_exc()
 
         def addStatusListener(self, listener, url):
-            if getattr(url, "Protocol", "") != PROTOCOL:
+            if not _matches_protocol(url):
                 return None
+            path = _command_path(url)
             self.removeStatusListener(listener, url)
-            self._status_listeners.append((listener, getattr(url, "Path", "")))
-            self._notify_status_listener(listener, getattr(url, "Path", ""))
+            self._status_listeners.append((listener, path))
+            self._notify_status_listener(listener, path)
             return None
 
         def removeStatusListener(self, listener, url):
-            path = getattr(url, "Path", "")
+            path = _command_path(url)
             self._status_listeners = [
                 (registered_listener, registered_path)
                 for registered_listener, registered_path in self._status_listeners
