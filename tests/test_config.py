@@ -83,6 +83,12 @@ class ConfigTests(unittest.TestCase):
             "https://relay.example.com/base#mode=relay&s=demo",
         )
 
+    def test_relay_join_url_can_embed_pairing_secret_in_fragment(self) -> None:
+        self.assertEqual(
+            relay_join_url("wss://relay.example.com/base/ws", "demo", "pairsecret"),
+            "https://relay.example.com/base#mode=relay&s=demo&k=pairsecret",
+        )
+
     def test_remote_config_round_trips_to_disk(self) -> None:
         config = RemoteConfig(
             local_port=19001,

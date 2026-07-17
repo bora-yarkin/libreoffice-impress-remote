@@ -87,3 +87,57 @@ async def test_root_serves_relay_ui() -> None:
         assert "Relay Presenter" in body
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_new_phone_receives_cached_hello_and_latest_state_frame() -> None:
+    server = TestServer(create_app(RelayState()))
+    client = TestClient(server)
+    await client.start_server()
+    try:
+        plugin = await client.ws_connect("/ws?role=plugin&session=demo")
+        await plugin.send_str(
+            '{"type":"hello","v":1,"s":"demo","k":"kid123","nonce":"nonce123"}'
+        )
+        await plugin.send_str(
+            '{"type":"frame","v":1,"s":"demo","k":"kid123","kind":"state","n":"nonce456","ct":"ciphertext"}'
+        )
+
+        phone = await client.ws_connect("/ws?role=phone&session=demo")
+        first = await phone.receive(timeout=1)
+        second = await phone.receive(timeout=1)
+
+        assert first.type == WSMsgType.TEXT
+        assert second.type == WSMsgType.TEXT
+        assert first.data == '{"type":"hello","v":1,"s":"demo","k":"kid123","nonce":"nonce123"}'
+        assert second.data == '{"type":"frame","v":1,"s":"demo","k":"kid123","kind":"state","n":"nonce456","ct":"ciphertext"}'
+        await plugin.close()
+        await phone.close()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_plugin_disconnect_clears_cached_secure_state() -> None:
+    state = RelayState()
+    server = TestServer(create_app(state))
+    client = TestClient(server)
+    await client.start_server()
+    try:
+        plugin = await client.ws_connect("/ws?role=plugin&session=demo")
+        phone = await client.ws_connect("/ws?role=phone&session=demo")
+        await plugin.send_str(
+            '{"type":"hello","v":1,"s":"demo","k":"kid123","nonce":"nonce123"}'
+        )
+        await plugin.send_str(
+            '{"type":"frame","v":1,"s":"demo","k":"kid123","kind":"state","n":"nonce456","ct":"ciphertext"}'
+        )
+        await phone.receive(timeout=1)
+        await phone.receive(timeout=1)
+        await plugin.close()
+        session = state.sessions["demo"]
+        assert session.latest_plugin_hello == ""
+        assert session.latest_state_frame == ""
+        await phone.close()
+    finally:
+        await client.close()

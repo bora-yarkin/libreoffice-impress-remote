@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 from importlib import resources
+import json
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -118,8 +119,14 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
         if session.plugin is not None:
             await session.plugin.close(code=4000, message=b"plugin replaced")
         session.plugin = ws
+        session.latest_plugin_hello = ""
+        session.latest_state_frame = ""
     else:
         session.phones.add(ws)
+        if session.latest_plugin_hello:
+            await ws.send_str(session.latest_plugin_hello)
+        if session.latest_state_frame:
+            await ws.send_str(session.latest_state_frame)
     try:
         async for message in ws:
             session.touch()
@@ -130,6 +137,8 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     finally:
         if role == "plugin" and session.plugin is ws:
             session.plugin = None
+            session.latest_plugin_hello = ""
+            session.latest_state_frame = ""
         if role == "phone":
             session.phones.discard(ws)
         state.cleanup()
@@ -137,6 +146,7 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
 
 
 async def relay_message(session: RelaySession, role: str, message: Any) -> None:
+    _record_plugin_metadata(session, role, message)
     targets = []
     if role == "plugin":
         targets.extend(phone for phone in session.phones if not phone.closed)
@@ -153,6 +163,36 @@ async def send_message(target: Any, message: Any) -> None:
         await target.send_str(message.data)
     elif message.type == WSMsgType.BINARY:
         await target.send_bytes(message.data)
+
+
+def _record_plugin_metadata(session: RelaySession, role: str, message: Any) -> None:
+    if role != "plugin" or message.type != WSMsgType.TEXT:
+        return
+    try:
+        payload = json.loads(message.data)
+    except (TypeError, json.JSONDecodeError):
+        return
+    if not isinstance(payload, dict):
+        return
+    message_type = payload.get("type")
+    if message_type == "hello":
+        session.latest_plugin_hello = message.data
+        session.latest_state_frame = ""
+        return
+    if message_type == "frame" and payload.get("kind") == "state":
+        if session.latest_plugin_hello and payload.get("k") == _hello_key_id(session.latest_plugin_hello):
+            session.latest_state_frame = message.data
+
+
+def _hello_key_id(raw_hello: str) -> str:
+    try:
+        payload = json.loads(raw_hello)
+    except (TypeError, json.JSONDecodeError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    key_id = payload.get("k")
+    return key_id if isinstance(key_id, str) else ""
 
 
 def _read_web_asset(name: str) -> str:

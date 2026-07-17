@@ -167,7 +167,22 @@ class ImpressController:
             and hasattr(presentation, "start")
         ):
             self._reset_runtime_tracking()
-            presentation.start()
+            if self._dispatch_presentation_command(
+                document,
+                ".uno:PresentationCurrentSlide",
+            ):
+                return
+            self._start_presentation(document, presentation)
+            return
+        if (
+            name == "start_presentation_from_first_slide"
+            and presentation is not None
+            and hasattr(presentation, "start")
+        ):
+            self._reset_runtime_tracking()
+            if self._dispatch_presentation_command(document, ".uno:Presentation"):
+                return
+            self._start_presentation(document, presentation, first_slide_index=0)
             return
         if name == "end_presentation" and presentation is not None and hasattr(presentation, "end"):
             presentation.end()
@@ -393,6 +408,96 @@ class ImpressController:
         if target_slide is None:
             return
         controller.setCurrentPage(target_slide)
+
+    def _dispatch_presentation_command(self, document, command: str) -> bool:
+        frame = self._dispatch_frame(document)
+        if frame is None:
+            return False
+        helper = self._dispatch_helper()
+        if helper is None or not hasattr(helper, "executeDispatch"):
+            return False
+        try:
+            helper.executeDispatch(frame, command, "", 0, tuple())
+        except Exception:
+            return False
+        return True
+
+    def _dispatch_frame(self, document):
+        if document is None or not hasattr(document, "getCurrentController"):
+            return None
+        controller = document.getCurrentController()
+        if controller is None or not hasattr(controller, "getFrame"):
+            return None
+        try:
+            return controller.getFrame()
+        except Exception:
+            return None
+
+    def _dispatch_helper(self):
+        service_manager = self.ctx.getServiceManager()
+        try:
+            return service_manager.createInstanceWithContext(
+                "com.sun.star.frame.DispatchHelper",
+                self.ctx,
+            )
+        except Exception:
+            return None
+
+    def _start_presentation(
+        self,
+        document,
+        presentation,
+        first_slide_index: int | None = None,
+    ) -> None:
+        options = self._presentation_start_options(document, first_slide_index)
+        self._apply_presentation_options(presentation, options)
+        presentation.start()
+
+    def _presentation_start_options(
+        self,
+        document,
+        first_slide_index: int | None = None,
+    ) -> list[tuple[str, object]]:
+        options: list[tuple[str, object]] = [
+            ("IsFullScreen", True),
+            ("IsAlwaysOnTop", True),
+            ("StartWithNavigator", False),
+            ("Pause", 0),
+            ("FirstPage", ""),
+        ]
+        if first_slide_index is None:
+            return options
+
+        first_slide = self._slide_for_index(document, first_slide_index)
+        self._set_editing_slide(document, first_slide_index)
+        first_page_name = self._slide_name(first_slide)
+        if first_page_name:
+            options[-1] = ("FirstPage", first_page_name)
+        return options
+
+    def _slide_name(self, slide) -> str:
+        if slide is None or not hasattr(slide, "getName"):
+            return ""
+        try:
+            name = slide.getName()
+        except Exception:
+            return ""
+        return name if isinstance(name, str) else ""
+
+    def _apply_presentation_options(
+        self,
+        presentation,
+        options: list[tuple[str, object]],
+    ) -> None:
+        setter = getattr(presentation, "setPropertyValue", None)
+        for name, value in options:
+            try:
+                if setter is not None:
+                    setter(name, value)
+                else:
+                    setattr(presentation, name, value)
+            except Exception:
+                continue
 
     def _slide_index(self, document, target_slide) -> int | None:
         if document is None or target_slide is None or not hasattr(document, "getDrawPages"):

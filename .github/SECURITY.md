@@ -3,7 +3,7 @@
 
 # Security Policy
 
-This project is pre-1.0 and must not be used for sensitive presentations until production E2E encryption is completed, reviewed, and tested.
+This project is pre-1.0 and should still be treated as security-sensitive software under active development.
 
 ## Supported Versions
 
@@ -20,5 +20,5 @@ Report vulnerabilities privately to the project maintainer. Do not disclose slid
 - Pairing tokens must be random and session-scoped.
 - Local mode must bind only to configured interfaces.
 - Relay mode must assume the server is honest-but-curious at minimum.
-- The current relay prototype still sends plaintext JSON state and command frames, so it must not be treated as confidential on untrusted relays or networks.
+- Relay transport currently protects state and commands from passive or honest-but-curious relay operators, but the relay-served frontend is not yet pinned against malicious JavaScript delivery.
 - Browser-hosted E2E must document the malicious-JavaScript limitation.

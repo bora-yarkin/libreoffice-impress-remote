@@ -4,6 +4,29 @@
 from __future__ import annotations
 
 
+def _is_placeholder_text(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    if not normalized:
+        return True
+    if normalized in {
+        "<number>",
+        "<date>",
+        "<time>",
+        "<date/time>",
+        "<header>",
+        "<footer>",
+        "<slide number>",
+    }:
+        return True
+    if normalized.startswith("<") and normalized.endswith(">"):
+        inner = normalized[1:-1]
+        return bool(inner) and all(
+            character.isalnum() or character in {" ", "/", "-", "_"}
+            for character in inner
+        )
+    return False
+
+
 def extract_notes_for_slide(slide) -> str:
     if slide is None or not hasattr(slide, "getNotesPage"):
         return ""
@@ -13,6 +36,6 @@ def extract_notes_for_slide(slide) -> str:
         shape = notes_page.getByIndex(index)
         if hasattr(shape, "getString"):
             text = shape.getString().strip()
-            if text:
+            if text and not _is_placeholder_text(text):
                 parts.append(text)
     return "\n\n".join(parts)

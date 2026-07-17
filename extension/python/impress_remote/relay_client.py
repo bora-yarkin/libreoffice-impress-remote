@@ -14,7 +14,15 @@ from collections.abc import Callable
 from urllib.parse import urlparse
 
 from impress_remote.config import relay_websocket_url
-from impress_remote.protocol import decode_command_message, encode_state_message
+from impress_remote.protocol import (
+    RelayProtocolFailure,
+    SecureRelayCodec,
+    decode_command_payload,
+    decode_error_message,
+    decode_hello_message,
+    encode_hello_message,
+    encode_state_message,
+)
 
 StateProvider = Callable[[], dict[str, object]]
 CommandHandler = Callable[[str, int | None], None]
@@ -164,12 +172,14 @@ class RelayClient:
         self,
         relay_url: str,
         session_id: str,
+        pairing_secret: str,
         state_provider: StateProvider,
         command_handler: CommandHandler,
         activity_callback: ActivityCallback | None = None,
     ):
         self.relay_url = relay_url
         self.session_id = session_id
+        self.pairing_secret = pairing_secret
         self.state_provider = state_provider
         self.command_handler = command_handler
         self.activity_callback = activity_callback
@@ -179,6 +189,11 @@ class RelayClient:
         self._websocket: RelayWebSocket | None = None
         self._connected = False
         self._last_error = ""
+        self._codec = SecureRelayCodec(
+            role="plugin",
+            session_id=session_id,
+            pairing_secret=pairing_secret,
+        )
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -222,14 +237,18 @@ class RelayClient:
                 websocket.connect()
                 with self._lock:
                     self._websocket = websocket
+                websocket.send_text(encode_hello_message(self._codec.rotate_send_key()))
                 self._set_status(True, "")
                 last_state_message = ""
                 last_state_sent_at = 0.0
                 while not self._stop_event.is_set():
                     now = time.monotonic()
-                    state_message = self._build_state_message()
+                    state = self.state_provider()
+                    state_message = encode_state_message(state)
+                    if self._codec.should_rotate_send_key():
+                        websocket.send_text(encode_hello_message(self._codec.rotate_send_key()))
                     if state_message != last_state_message or now - last_state_sent_at >= 1.0:
-                        websocket.send_text(state_message)
+                        websocket.send_text(self._codec.encode_state_frame(state))
                         last_state_message = state_message
                         last_state_sent_at = now
                     incoming = websocket.receive_text(timeout=0.5)
@@ -245,12 +264,21 @@ class RelayClient:
                 websocket.close()
                 self._set_status(False, self._last_error)
 
-    def _build_state_message(self) -> str:
-        payload = self.state_provider()
-        return encode_state_message(payload)
-
     def _handle_message(self, raw: str) -> None:
-        command = decode_command_message(raw)
+        if decode_hello_message(raw) is not None:
+            return
+        error_message = decode_error_message(raw)
+        if error_message is not None:
+            self._set_status(self._connected, error_message.message)
+            return
+        try:
+            frame = self._codec.decode_frame(raw)
+        except RelayProtocolFailure as exc:
+            self._set_status(self._connected, exc.message)
+            return
+        if frame is None or frame.kind != "command":
+            return
+        command = decode_command_payload(frame.payload)
         if command is None:
             return
         if self.activity_callback is not None:

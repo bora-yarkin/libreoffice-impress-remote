@@ -19,9 +19,22 @@ from impress_remote.config import (
     route_label,
 )
 from impress_remote.controller import ImpressController
-from impress_remote.crypto import random_token
-from impress_remote.network import discover_direct_ipv6_urls, discover_local_urls
+from impress_remote.crypto import base64url_encode, random_token
+from impress_remote.network import (
+    discover_direct_ipv6_addresses,
+    discover_local_urls,
+    format_http_url,
+    probe_ipv6_listener,
+)
 from impress_remote.paths import module_file_path
+from impress_remote.protocol import (
+    RELAY_KIND_ASSET,
+    RELAY_KIND_COMMAND,
+    RelayProtocolFailure,
+    SecureRelayCodec,
+    decode_command_payload,
+    encode_hello_message,
+)
 from impress_remote.relay_client import RelayClient
 
 WEB_ROOT = module_file_path(__file__).parents[2] / "web"
@@ -35,6 +48,78 @@ def _url_with_fragment_params(url: str, **params: str) -> str:
         values[key] = value
     fragment = urlencode(values)
     return urlunparse(parsed._replace(fragment=fragment))
+
+
+def _json_object(raw: str) -> dict[str, object]:
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError("Expected a JSON object.")
+    return payload
+
+
+class SecureDirectSession:
+    def __init__(self, session_id: str, pairing_secret: str):
+        self.session_id = session_id
+        self._lock = threading.Lock()
+        self._codec = SecureRelayCodec(
+            role="plugin",
+            session_id=session_id,
+            pairing_secret=pairing_secret,
+        )
+        self._hello = self._codec.rotate_send_key()
+
+    def current_hello_payload(self) -> dict[str, object]:
+        with self._lock:
+            return _json_object(encode_hello_message(self._hello))
+
+    def state_response(self, payload: dict[str, object]) -> dict[str, object]:
+        with self._lock:
+            hello = self._rotate_if_needed()
+            frame = _json_object(self._codec.encode_state_frame(payload))
+        return {"hello": hello, "frame": frame}
+
+    def asset_response(
+        self,
+        *,
+        content_type: str,
+        data: bytes,
+        slot: str,
+        revision: str = "",
+    ) -> dict[str, object]:
+        asset_payload: dict[str, object] = {
+            "contentType": content_type,
+            "encoding": "base64url",
+            "data": base64url_encode(data),
+            "slot": slot,
+        }
+        if revision:
+            asset_payload["revision"] = revision
+        with self._lock:
+            hello = self._rotate_if_needed()
+            frame = _json_object(self._codec.encode_asset_frame(asset_payload))
+        return {"hello": hello, "frame": frame}
+
+    def decode_command(self, payload: dict[str, object]):
+        with self._lock:
+            frame = self._codec.decode_frame(json.dumps(payload, separators=(",", ":")))
+        if frame is None or frame.kind != RELAY_KIND_COMMAND:
+            raise RelayProtocolFailure(
+                "invalid-command",
+                "Direct IPv6 command payload is not a command frame.",
+            )
+        command = decode_command_payload(frame.payload)
+        if command is None:
+            raise RelayProtocolFailure(
+                "invalid-command",
+                "Direct IPv6 command payload is missing a valid command.",
+            )
+        return command
+
+    def _rotate_if_needed(self) -> dict[str, object] | None:
+        if not self._codec.should_rotate_send_key():
+            return None
+        self._hello = self._codec.rotate_send_key()
+        return _json_object(encode_hello_message(self._hello))
 
 
 class IPv6ThreadingHTTPServer(ThreadingHTTPServer):
@@ -51,12 +136,16 @@ class RemoteServer:
         self.ctx = ctx
         self.config = config or RemoteConfig.load(ctx=ctx)
         self.session_id = random_token(12)
+        self.pairing_secret = random_token(32)
+        self.direct_session = SecureDirectSession(self.session_id, self.pairing_secret)
         self.controller = ImpressController(ctx)
         self.http_servers: list[ThreadingHTTPServer] = []
         self.threads: list[threading.Thread] = []
         self.url = ""
         self.local_urls: list[str] = []
         self.direct_urls: list[str] = []
+        self.direct_ipv6_addresses: list[str] = []
+        self.direct_ipv6_ready_addresses: list[str] = []
         self.listener_warnings: list[str] = []
         self.bound_port = self.config.local_port
         self._active_network_settings = (
@@ -86,6 +175,8 @@ class RemoteServer:
         self.listener_warnings = []
         self.http_servers = []
         self.threads = []
+        self.direct_ipv6_addresses = []
+        self.direct_ipv6_ready_addresses = []
         self._runtime_requested = True
         try:
             self.http_servers = self._start_http_servers(Handler)
@@ -122,6 +213,8 @@ class RemoteServer:
         self.threads = []
         self.local_urls = []
         self.direct_urls = []
+        self.direct_ipv6_addresses = []
+        self.direct_ipv6_ready_addresses = []
         self.url = ""
         self.pending_restart = False
         self.bound_port = self.config.local_port
@@ -174,6 +267,24 @@ class RemoteServer:
             return ""
         return f"/api/slide/next?rev={state.next_render_token}"
 
+    def secure_current_slide_image_url(self, state=None) -> str:
+        if state is None:
+            state = self.controller.state()
+        if (
+            state.document_kind != "impress"
+            or state.slide_count <= 0
+            or not state.current_render_token
+        ):
+            return ""
+        return f"/api/direct/slide/current?rev={state.current_render_token}"
+
+    def secure_next_slide_image_url(self, state=None) -> str:
+        if state is None:
+            state = self.controller.state()
+        if state.next_slide is None or not state.next_render_token:
+            return ""
+        return f"/api/direct/slide/next?rev={state.next_render_token}"
+
     def console_url(self) -> str:
         preferred = self.pairing_target(self.config.preferred_route)
         if preferred["selectedUrl"]:
@@ -188,6 +299,37 @@ class RemoteServer:
         if not console_url:
             return ""
         return _url_with_fragment_params(console_url, view="settings")
+
+    def secure_direct_state_payload(self) -> dict[str, object]:
+        state = self.controller.state()
+        payload = self.state_payload()
+        payload["currentSlideImageUrl"] = self.secure_current_slide_image_url(state)
+        payload["nextSlideImageUrl"] = self.secure_next_slide_image_url(state)
+        return payload
+
+    def secure_direct_state_response(self) -> dict[str, object]:
+        return self.direct_session.state_response(self.secure_direct_state_payload())
+
+    def secure_direct_command(self, payload: dict[str, object]) -> tuple[str, int | None]:
+        command = self.direct_session.decode_command(payload)
+        return command.command, command.index
+
+    def secure_direct_slide_response(
+        self,
+        *,
+        slot: str,
+        revision: str = "",
+    ) -> dict[str, object]:
+        if slot == "current":
+            data = self.controller.current_slide_png_bytes()
+        else:
+            data = self.controller.next_slide_png_bytes()
+        return self.direct_session.asset_response(
+            content_type="image/png",
+            data=data,
+            slot=slot,
+            revision=revision,
+        )
 
     def connection_info(self) -> dict[str, object]:
         relay_status = {"state": "disabled", "lastError": ""}
@@ -205,6 +347,10 @@ class RemoteServer:
             "enableIpv6Direct": self.config.enable_ipv6_direct,
             "localUrls": list(self.local_urls),
             "directUrls": list(self.direct_urls),
+            "ipv6GlobalAddresses": list(self.direct_ipv6_addresses),
+            "ipv6ReachableAddresses": list(self.direct_ipv6_ready_addresses),
+            "ipv6Status": self._direct_ipv6_status(),
+            "ipv6Hint": self._direct_ipv6_hint(),
             "listenerWarnings": list(self.listener_warnings),
             "configPendingRestart": self.pending_restart,
             "relayEnabled": self.config.enable_relay,
@@ -252,7 +398,7 @@ class RemoteServer:
         listeners_match = self._network_settings(config) == self._active_network_settings
         relay_url = ""
         if config.enable_relay and config.relay_url:
-            relay_url = relay_join_url(config.relay_url, self.session_id)
+            relay_url = relay_join_url(config.relay_url, self.session_id, self.pairing_secret)
         return {
             "local": (
                 self.local_urls[0]
@@ -316,13 +462,24 @@ class RemoteServer:
 
     def _refresh_urls(self) -> None:
         self.local_urls = (
-            discover_local_urls(self.bound_port, self.session_id)
+            [
+                _url_with_fragment_params(url, mode="local", k=self.pairing_secret)
+                for url in discover_local_urls(self.bound_port, self.session_id)
+            ]
             if any(server.address_family == socket.AF_INET for server in self.http_servers)
             else []
         )
+        self._refresh_direct_ipv6_status()
         self.direct_urls = (
-            discover_direct_ipv6_urls(self.bound_port, self.session_id)
-            if any(server.address_family == socket.AF_INET6 for server in self.http_servers)
+            [
+                _url_with_fragment_params(
+                    format_http_url(address, self.bound_port, self.session_id),
+                    mode="ipv6",
+                    k=self.pairing_secret,
+                )
+                for address in self.direct_ipv6_ready_addresses
+            ]
+            if self.direct_ipv6_ready_addresses
             else []
         )
         route_urls = self.route_urls()
@@ -333,16 +490,45 @@ class RemoteServer:
         elif route_urls["relay"]:
             self.url = route_urls["relay"]
         elif self.http_servers:
-            self.url = f"http://127.0.0.1:{self.bound_port}/#s={self.session_id}"
+            self.url = _url_with_fragment_params(
+                f"http://127.0.0.1:{self.bound_port}/#s={self.session_id}",
+                mode="local",
+                k=self.pairing_secret,
+            )
         else:
             self.url = ""
+
+    def _refresh_direct_ipv6_status(self) -> None:
+        has_ipv6_listener = any(server.address_family == socket.AF_INET6 for server in self.http_servers)
+        if not has_ipv6_listener:
+            self.direct_ipv6_addresses = []
+            self.direct_ipv6_ready_addresses = []
+            return
+        self.direct_ipv6_addresses = discover_direct_ipv6_addresses()
+        self.direct_ipv6_ready_addresses = [
+            address
+            for address in self.direct_ipv6_addresses
+            if probe_ipv6_listener(address, self.bound_port)
+        ]
 
     def mark_client_activity(self, source: str, client_host: str | None = None) -> None:
         if client_host is not None and client_host in {"127.0.0.1", "::1", "localhost"}:
             return
+        first_client_connection = not self.client_connected
         self.client_connected = True
         self.client_connection_source = source
         self.last_client_seen_at = time.monotonic()
+        if first_client_connection:
+            self._start_presentation_for_client()
+
+    def _start_presentation_for_client(self) -> None:
+        state = self.controller.state()
+        if state.document_kind != "impress" or state.running or state.slide_count <= 0:
+            return
+        try:
+            self.controller.command("start_presentation_from_first_slide")
+        except Exception:
+            return
 
     def _pairing_hint(
         self,
@@ -354,6 +540,11 @@ class RemoteServer:
         if not self.is_running():
             return "Start the remote from LibreOffice to generate a QR code."
         if selected_route and route_urls.get(selected_route):
+            if selected_route == "ipv6":
+                return (
+                    "Scan the QR code to pair over direct ipv6. Both the phone and this "
+                    "computer need working public ipv6, and firewalls must allow the chosen port."
+                )
             if requested_route == "auto" and selected_route != "local":
                 return f"Auto selected {route_label(selected_route).lower()}."
             return f"Scan the QR code to pair over {route_label(selected_route).lower()}."
@@ -366,12 +557,49 @@ class RemoteServer:
         if requested_route == "ipv6":
             if not config.enable_ipv6_direct:
                 return "Direct IPv6 pairing is disabled in LibreOffice settings."
-            return "Direct IPv6 is unavailable on this network right now."
+            return self._direct_ipv6_hint(config)
         if requested_route == "local":
             if not config.enable_local_listener:
                 return "Local network pairing is disabled in LibreOffice settings."
             return "A local network address is not available right now."
         return "No pairing route is currently available."
+
+    def _direct_ipv6_status(self, config: RemoteConfig | None = None) -> str:
+        candidate = config or self.config
+        if not candidate.enable_ipv6_direct:
+            return "disabled"
+        if not any(server.address_family == socket.AF_INET6 for server in self.http_servers):
+            return "listener-unavailable"
+        if not self.direct_ipv6_addresses:
+            return "no-global-address"
+        if not self.direct_ipv6_ready_addresses:
+            return "self-test-failed"
+        return "ready"
+
+    def _direct_ipv6_hint(self, config: RemoteConfig | None = None) -> str:
+        status = self._direct_ipv6_status(config)
+        if status == "disabled":
+            return "Direct IPv6 pairing is disabled in LibreOffice settings."
+        if status == "listener-unavailable":
+            return (
+                "LibreOffice could not start a direct ipv6 listener. Check whether the desktop "
+                "ipv6 stack or firewall is blocking inbound connections."
+            )
+        if status == "no-global-address":
+            return (
+                "No globally reachable ipv6 address was detected. Link-local and unique-local "
+                "ipv6 addresses are ignored, and many hotspots or routers do not provide public ipv6."
+            )
+        if status == "self-test-failed":
+            return (
+                f"Public ipv6 addresses were found, but LibreOffice could not reach its own ipv6 "
+                f"listener on port {self.bound_port}. Check the desktop firewall, router ipv6 "
+                "firewall, or hotspot restrictions."
+            )
+        return (
+            "Direct IPv6 is ready. Phones must also have working public ipv6 to reach this "
+            "computer from the internet."
+        )
 
     def _start_http_servers(self, handler_cls) -> list[ThreadingHTTPServer]:
         started_servers: list[ThreadingHTTPServer] = []
@@ -443,6 +671,7 @@ class RemoteServer:
         self.relay_client = RelayClient(
             relay_url=desired_url,
             session_id=self.session_id,
+            pairing_secret=self.pairing_secret,
             state_provider=self.state_payload,
             command_handler=self.controller.command,
             activity_callback=self.mark_client_activity,
@@ -474,6 +703,16 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._json(self.server_ref.state_payload())
         elif parsed.path == "/api/config":
             self._json(self.server_ref.config_payload())
+        elif parsed.path == "/api/direct/handshake":
+            self._json(self.server_ref.direct_session.current_hello_payload())
+        elif parsed.path == "/api/direct/state":
+            self._json(self.server_ref.secure_direct_state_response())
+        elif parsed.path == "/api/direct/events":
+            self._event_stream_secure()
+        elif parsed.path == "/api/direct/slide/current":
+            self._current_slide_image_secure(parsed)
+        elif parsed.path == "/api/direct/slide/next":
+            self._next_slide_image_secure(parsed)
         elif parsed.path == "/api/events":
             self._event_stream()
         elif parsed.path == "/api/slide/current":
@@ -488,6 +727,9 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self._track_client_activity(parsed.path)
         if parsed.path == "/api/command":
             self._handle_command()
+            return
+        if parsed.path == "/api/direct/command":
+            self._handle_direct_command()
             return
         if parsed.path == "/api/config":
             self._handle_config_update()
@@ -523,6 +765,20 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             return
         self._json(response)
 
+    def _handle_direct_command(self) -> None:
+        try:
+            payload = self._read_json()
+            command, index = self.server_ref.secure_direct_command(payload)
+        except RelayProtocolFailure as exc:
+            self._json({"ok": False, "error": exc.message}, HTTPStatus.BAD_REQUEST)
+            return
+        except (ValueError, json.JSONDecodeError):
+            self.send_error(HTTPStatus.BAD_REQUEST)
+            return
+
+        self.server_ref.controller.command(command, index)
+        self._json({"ok": True})
+
     def _track_client_activity(self, path: str) -> None:
         if path not in {
             "/",
@@ -530,6 +786,12 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             "/app.css",
             "/app.js",
             "/api/state",
+            "/api/direct/handshake",
+            "/api/direct/state",
+            "/api/direct/events",
+            "/api/direct/command",
+            "/api/direct/slide/current",
+            "/api/direct/slide/next",
             "/api/events",
             "/api/command",
             "/api/slide/current",
@@ -537,7 +799,8 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         }:
             return
         client_host = self.client_address[0] if self.client_address else None
-        self.server_ref.mark_client_activity("local", client_host)
+        source = "ipv6" if client_host and ":" in client_host else "local"
+        self.server_ref.mark_client_activity(source, client_host)
 
     def _read_json(self) -> dict[str, object]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -593,6 +856,52 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
+    def _event_stream_secure(self) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+
+        last_payload = ""
+        last_heartbeat = time.monotonic()
+        hello_payload = json.dumps(
+            self.server_ref.direct_session.current_hello_payload(),
+            separators=(",", ":"),
+        )
+        try:
+            self.wfile.write(b"event: hello\n")
+            self.wfile.write(f"data: {hello_payload}\n\n".encode())
+            self.wfile.flush()
+            while True:
+                plain_state = self.server_ref.secure_direct_state_payload()
+                state_fingerprint = json.dumps(plain_state, separators=(",", ":"))
+                now = time.monotonic()
+                if state_fingerprint != last_payload:
+                    secure_payload = self.server_ref.direct_session.state_response(plain_state)
+                    next_hello = secure_payload.get("hello")
+                    if isinstance(next_hello, dict):
+                        self.wfile.write(b"event: hello\n")
+                        self.wfile.write(
+                            f"data: {json.dumps(next_hello, separators=(',', ':'))}\n\n".encode()
+                        )
+                        self.wfile.flush()
+
+                    frame_payload = json.dumps(secure_payload["frame"], separators=(",", ":"))
+                    self.wfile.write(b"event: state\n")
+                    self.wfile.write(f"data: {frame_payload}\n\n".encode())
+                    self.wfile.flush()
+                    last_payload = state_fingerprint
+                    last_heartbeat = now
+                elif now - last_heartbeat >= 10:
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+                    last_heartbeat = now
+                time.sleep(0.35)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
     def _current_slide_image(self) -> None:
         try:
             data = self.server_ref.controller.current_slide_png_bytes()
@@ -610,6 +919,21 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _current_slide_image_secure(self, parsed) -> None:
+        revision = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("rev", "")
+        try:
+            payload = self.server_ref.secure_direct_slide_response(
+                slot="current",
+                revision=revision,
+            )
+        except RuntimeError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        except Exception as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        self._json(payload)
+
     def _next_slide_image(self) -> None:
         try:
             data = self.server_ref.controller.next_slide_png_bytes()
@@ -626,6 +950,21 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _next_slide_image_secure(self, parsed) -> None:
+        revision = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("rev", "")
+        try:
+            payload = self.server_ref.secure_direct_slide_response(
+                slot="next",
+                revision=revision,
+            )
+        except RuntimeError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        except Exception as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        self._json(payload)
 
     def _json(self, payload: dict[str, object], status: HTTPStatus = HTTPStatus.OK) -> None:
         data = json.dumps(payload).encode("utf-8")

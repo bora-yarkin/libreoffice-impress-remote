@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-16` and the current `0.2.0` snapshot.
+It reflects the repository state as of `2026-07-17` and the current `0.3.3` snapshot.
 
 ## Product Direction
 
@@ -136,20 +136,27 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
+Status: in progress after `0.3.3`
+
 Target outcome:
 
 - the transport protocol is versioned and no longer implicit
 - local, direct, and relay paths can share one protocol contract
 - plaintext relay forwarding is removed from the production path
 
-Main work:
+Current baseline:
 
-- define a versioned protocol for commands, state, previews, errors, and negotiation
-- implement ECDH P-256 key exchange
-- implement HKDF-SHA256 session derivation
-- implement AES-GCM encrypted frames
-- add replay protection, session binding, and key rotation rules
-- update the threat model and operational guidance
+- relay transport now uses versioned `hello`, `frame`, and `error` messages
+- relay state, command, and error frames now use HKDF-SHA256 plus AES-GCM
+- relay sessions now enforce replay protection, session binding, and plugin-driven key rotation
+- the current relay protocol is documented tightly enough for compatible implementations to start from it
+
+Remaining work:
+
+- replace the current pairing-secret bootstrap with ECDH P-256
+- extend the same encrypted protocol contract to the local-only route
+- document previews and richer future frame kinds without fragmenting interoperability
+- update the threat model and operational guidance around trusted frontend delivery
 
 Repository focus:
 
@@ -166,17 +173,19 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
+Status: completed in the current repository snapshot after `0.3.3`
+
 Target outcome:
 
 - direct IPv6 becomes a reliable fallback when local mode does not work
 
-Main work:
+Current baseline:
 
-- detect globally reachable IPv6 addresses instead of only non-link-local candidates
-- add reachability checks and route health hints
-- teach auto mode to prefer usable routes, not merely configured routes
-- document IPv6 caveats for routers, hotspots, captive portals, and firewalls
-- secure direct IPv6 with the same protocol profile used elsewhere
+- only globally reachable IPv6 addresses are advertised for direct pairing
+- the direct IPv6 listener self-tests its own advertised addresses before the route is offered
+- Auto mode only chooses direct IPv6 when the route is actually usable
+- the LibreOffice dialog now surfaces router, firewall, and hotspot guidance for direct IPv6 failures
+- the direct IPv6 phone route now uses the same encrypted session profile as relay transport
 
 Repository focus:
 
@@ -297,11 +306,10 @@ The next practical order for this repo should be:
 
 1. Finish local mode polish and local endpoint coverage.
 2. Improve LibreOffice-side guidance, localization plumbing, and accessibility around the local-first workflow.
-3. Freeze a versioned protocol document.
-4. Implement encrypted transport for relay and direct paths.
-5. Make direct IPv6 route detection trustworthy as an optional fallback.
-6. Harden self-hosted relay lifecycle and deployment docs as an optional fallback.
-7. Write the upstream design note before attempting a large core port.
+3. Extend the encrypted relay protocol to direct and local transports, starting with ECDH P-256 bootstrap.
+4. Make direct IPv6 route detection trustworthy as an optional fallback.
+5. Harden self-hosted relay lifecycle and deployment docs as an optional fallback.
+6. Write the upstream design note before attempting a large core port.
 
 ## Decision Policy For Public Tunnel Services
 

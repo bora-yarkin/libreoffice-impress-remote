@@ -177,7 +177,7 @@ def relay_websocket_url(relay_url: str, session_id: str) -> str:
     return urlunparse((scheme, parsed.netloc, path, "", query, ""))
 
 
-def relay_join_url(relay_url: str, session_id: str) -> str:
+def relay_join_url(relay_url: str, session_id: str, pairing_secret: str = "") -> str:
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -185,7 +185,10 @@ def relay_join_url(relay_url: str, session_id: str) -> str:
         path = path[:-3]
     if not path:
         path = "/"
-    fragment = urlencode({"mode": "relay", "s": session_id})
+    fragment_values = {"mode": "relay", "s": session_id}
+    if pairing_secret:
+        fragment_values["k"] = pairing_secret
+    fragment = urlencode(fragment_values)
     return urlunparse((scheme, parsed.netloc, path, "", "", fragment))
 
 

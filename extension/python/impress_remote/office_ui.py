@@ -679,6 +679,12 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
     def _pairing_hint_text(self, pairing: dict[str, str], connection: dict[str, Any]) -> str:
         if self.preview_error:
             return f"{pairing['hint']} Draft settings error: {self.preview_error}"
+        if (
+            pairing["selectedRoute"] == "ipv6"
+            and connection.get("ipv6Status") == "ready"
+            and connection.get("ipv6Hint")
+        ):
+            return f"{pairing['hint']} {connection['ipv6Hint']}"
         if pairing["selectedUrl"]:
             return pairing["hint"]
         if connection["relayStatus"] == "error" and connection["relayLastError"]:
@@ -698,8 +704,10 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             )
         if pairing["selectedRoute"] == "ipv6":
             return (
-                "Direct IPv6 is active because local mode is unavailable. Keep local mode "
-                "enabled so Auto can prefer it whenever the network allows it."
+                "Direct IPv6 is active because local mode is unavailable. Both the phone and "
+                "the computer need public IPv6, and desktop or router firewalls must allow "
+                "the selected port. Keep local mode enabled so Auto can prefer it whenever "
+                "the network allows it."
             )
         if pairing["selectedRoute"] == "relay":
             return (
@@ -719,6 +727,14 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         warnings = cast(list[str], connection["listenerWarnings"])
         if warnings:
             issues.append(str(warnings[0]))
+        ipv6_status = str(connection.get("ipv6Status", ""))
+        ipv6_hint = str(connection.get("ipv6Hint", "")).strip()
+        if (
+            bool(connection.get("enableIpv6Direct"))
+            and ipv6_hint
+            and ipv6_status not in {"", "disabled", "ready"}
+        ):
+            issues.append(ipv6_hint)
         if bool(connection.get("configPendingRestart")):
             issues.append("Restart the remote to apply the saved listener changes.")
         return " ".join(issues) if issues else "No current issues."

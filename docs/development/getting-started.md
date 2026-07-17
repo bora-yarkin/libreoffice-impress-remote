@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.2.0` release line.
+This guide matches the `0.3.3` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -45,7 +45,7 @@ Then:
 2. Enable relay mode, enter the relay base URL, and save.
 3. Start the remote from the same dialog.
 4. Change the route dropdown to `Relay server only` if you want to force relay mode during testing.
-5. Scan the QR code on the phone.
+5. Scan the QR code on the phone, or open the full pairing link with its `#...` fragment intact if you are testing the hosted relay page manually.
 
 The relay host now serves the phone UI at `/` and the relay WebSocket transport at `/ws`.
 

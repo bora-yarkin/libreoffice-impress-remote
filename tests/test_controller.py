@@ -149,9 +149,70 @@ class FakePresentation:
         self.controller = controller
         self.started = False
         self.ended = False
+        self.properties: dict[str, object] = {}
 
     def getController(self):
         return self.controller
+
+    def setPropertyValue(self, name: str, value: object) -> None:
+        self.properties[name] = value
+
+    def start(self) -> None:
+        self.started = True
+        if self.controller is not None:
+            self.controller.running = True
+
+    def end(self) -> None:
+        self.ended = True
+        if self.controller is not None:
+            self.controller.running = False
+
+    def isRunning(self) -> bool:
+        return bool(self.controller is not None and self.controller.running)
+
+
+class FakeFrame:
+    pass
+
+
+class FakeDispatchHelper:
+    def __init__(self, should_fail: bool = False):
+        self.should_fail = should_fail
+        self.calls: list[tuple[object, str, str, int, tuple[object, ...]]] = []
+
+    def executeDispatch(
+        self,
+        dispatch_provider,
+        url: str,
+        target_frame_name: str,
+        search_flags: int,
+        arguments,
+    ) -> None:
+        if self.should_fail:
+            raise RuntimeError("Dispatch failed")
+        self.calls.append(
+            (
+                dispatch_provider,
+                url,
+                target_frame_name,
+                search_flags,
+                tuple(arguments),
+            )
+        )
+
+
+class FakeLegacyPresentation:
+    def __init__(self, controller):
+        self.controller = controller
+        self.started = False
+        self.ended = False
+        self.properties: dict[str, object] = {}
+
+    def getController(self):
+        return self.controller
+
+    def setPropertyValue(self, name: str, value: object) -> None:
+        self.properties[name] = value
 
     def start(self) -> None:
         self.started = True
@@ -168,8 +229,9 @@ class FakePresentation:
 
 
 class FakeCurrentController:
-    def __init__(self, slide):
+    def __init__(self, slide, frame=None):
         self.slide = slide
+        self.frame = frame or FakeFrame()
         self.selected_pages = []
 
     def getCurrentPage(self):
@@ -179,12 +241,15 @@ class FakeCurrentController:
         self.slide = slide
         self.selected_pages.append(slide)
 
+    def getFrame(self):
+        return self.frame
+
 
 class FakeDocument:
-    def __init__(self, slides: list[FakeSlide], presentation, current_page):
+    def __init__(self, slides: list[FakeSlide], presentation, current_page, frame=None):
         self.draw_pages = FakeDrawPages(slides)
         self.presentation = presentation
-        self.current_controller = FakeCurrentController(current_page)
+        self.current_controller = FakeCurrentController(current_page, frame=frame)
 
     def getDrawPages(self):
         return self.draw_pages
@@ -209,19 +274,23 @@ class FakeDesktop:
 
 
 class FakeServiceManager:
-    def __init__(self, document):
+    def __init__(self, document, dispatch_helper=None):
         self.document = document
+        self.dispatch_helper = dispatch_helper
 
     def createInstanceWithContext(self, _service_name: str, _ctx):
+        if _service_name == "com.sun.star.frame.DispatchHelper":
+            return self.dispatch_helper
         return FakeDesktop(self.document)
 
 
 class FakeContext:
-    def __init__(self, document):
+    def __init__(self, document, dispatch_helper=None):
         self.document = document
+        self.dispatch_helper = dispatch_helper
 
     def getServiceManager(self):
-        return FakeServiceManager(self.document)
+        return FakeServiceManager(self.document, dispatch_helper=self.dispatch_helper)
 
 
 class ControllerTests(unittest.TestCase):
@@ -293,7 +362,8 @@ class ControllerTests(unittest.TestCase):
         slideshow = FakeSlideShowController(current_index=0, slides=self.slides)
         presentation = FakePresentation(slideshow)
         document = FakeDocument(self.slides, presentation, self.slides[0])
-        controller = ImpressController(FakeContext(document))
+        dispatch_helper = FakeDispatchHelper()
+        controller = ImpressController(FakeContext(document, dispatch_helper=dispatch_helper))
 
         controller.command("start_presentation")
         controller.command("pause_presentation")
@@ -304,8 +374,11 @@ class ControllerTests(unittest.TestCase):
         controller.command("goto_slide", 2)
         controller.command("end_presentation")
 
-        self.assertTrue(presentation.started)
+        self.assertFalse(presentation.started)
         self.assertTrue(presentation.ended)
+        self.assertEqual(presentation.properties, {})
+        self.assertEqual(len(dispatch_helper.calls), 1)
+        self.assertEqual(dispatch_helper.calls[0][1], ".uno:PresentationCurrentSlide")
         self.assertEqual(
             slideshow.commands,
             [
@@ -317,6 +390,77 @@ class ControllerTests(unittest.TestCase):
                 ("goto_slide", 2),
             ],
         )
+
+    def test_start_presentation_falls_back_to_direct_properties_without_argument_support(self) -> None:
+        slideshow = FakeSlideShowController(current_index=0, slides=self.slides)
+        presentation = FakeLegacyPresentation(slideshow)
+        document = FakeDocument(self.slides, presentation, self.slides[0])
+        controller = ImpressController(FakeContext(document, dispatch_helper=None))
+
+        controller.command("start_presentation")
+
+        self.assertTrue(presentation.started)
+        self.assertEqual(
+            presentation.properties,
+            {
+                "IsFullScreen": True,
+                "IsAlwaysOnTop": True,
+                "StartWithNavigator": False,
+                "Pause": 0,
+                "FirstPage": "",
+            },
+        )
+
+    def test_start_presentation_from_first_slide_selects_slide_zero_before_start(self) -> None:
+        slideshow = FakeSlideShowController(current_index=2, slides=self.slides, running=False)
+        presentation = FakePresentation(slideshow)
+        document = FakeDocument(self.slides, presentation, self.slides[2])
+        dispatch_helper = FakeDispatchHelper()
+        controller = ImpressController(FakeContext(document, dispatch_helper=dispatch_helper))
+
+        controller.command("start_presentation_from_first_slide")
+
+        self.assertFalse(presentation.started)
+        self.assertEqual(document.current_controller.selected_pages, [])
+        self.assertEqual(presentation.properties, {})
+        self.assertEqual(len(dispatch_helper.calls), 1)
+        self.assertEqual(dispatch_helper.calls[0][1], ".uno:Presentation")
+
+    def test_start_presentation_from_first_slide_falls_back_when_dispatch_fails(self) -> None:
+        slideshow = FakeSlideShowController(current_index=2, slides=self.slides, running=False)
+        presentation = FakePresentation(slideshow)
+        document = FakeDocument(self.slides, presentation, self.slides[2])
+        dispatch_helper = FakeDispatchHelper(should_fail=True)
+        controller = ImpressController(FakeContext(document, dispatch_helper=dispatch_helper))
+
+        controller.command("start_presentation_from_first_slide")
+
+        self.assertTrue(presentation.started)
+        self.assertEqual(document.current_controller.selected_pages, [self.slides[0]])
+        self.assertEqual(
+            presentation.properties,
+            {
+                "IsFullScreen": True,
+                "IsAlwaysOnTop": True,
+                "StartWithNavigator": False,
+                "Pause": 0,
+                "FirstPage": "Agenda",
+            },
+        )
+
+    def test_state_ignores_placeholder_text_from_notes_page(self) -> None:
+        slide = FakeSlide(
+            "Agenda",
+            ["Agenda"],
+            ["Real presenter note", "<number>", "<date/time>", "<footer>"],
+        )
+        slideshow = FakeSlideShowController(current_index=0, slides=[slide])
+        document = FakeDocument([slide], FakePresentation(slideshow), slide)
+        controller = ImpressController(FakeContext(document))
+
+        state = controller.state()
+
+        self.assertEqual(state.notes, "Real presenter note")
 
     def test_slide_navigation_falls_back_to_editing_view(self) -> None:
         document = FakeDocument(self.slides, FakePresentation(None), self.slides[1])

@@ -9,8 +9,43 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-17
+
+### Changed
+
+- Expanded the README and TODO roadmap notes to include planned GitHub release automation that publishes the extension package and a stripped relay-server release artifact after the standard workflows pass.
+
+## [0.3.2] - 2026-07-17
+
+### Changed
+
+- Expanded the README roadmap to spell out the planned localization workflow: converting all user-facing strings to stable keys and adding importable i18n support for LibreOffice-language translation packs.
+
+## [0.3.1] - 2026-07-17
+
 ### Added
 
+- Added encrypted direct-IPv6 transport for presenter state, commands, and slide assets on the LibreOffice-served phone route.
+- Added direct-IPv6 listener self-tests and LibreOffice-facing diagnostics for public-address detection and firewall or hotspot caveats.
+
+### Changed
+
+- Direct IPv6 route selection now advertises only globally reachable IPv6 addresses and only when the listener can reach its own advertised endpoint.
+- The direct phone route now uses route-specific pairing fragments so the web app can distinguish local and direct IPv6 behavior.
+
+### Fixed
+
+- Fixed the IPv6 listener self-test helper typing so `network.py` no longer triggers the Pylance tuple-size error on `socket.create_connection`.
+
+## [0.3.0] - 2026-07-17
+
+### Added
+
+- Added a LibreOffice-generated relay pairing secret that is embedded in QR and manual-link fragments for secure relay pairing.
+- Added a versioned relay protocol with `hello`, `frame`, and `error` message types plus a protocol reference document.
+- Added HKDF-SHA256 plus AES-256-GCM encrypted relay transport for state, command, and error frames.
+- Added replay protection, session-bound authenticated metadata, plugin-driven key rotation, and secure relay state replay for newly joined phones during an active session.
+- Added tests for AES-GCM helpers, encrypted relay codec flows, and secure relay state caching behavior.
 - Added a LibreOffice-native configuration schema so transport settings persist in LibreOffice user settings instead of only in the extension fallback file.
 - Added a LibreOffice dialog toggle for disabling the local listener during relay-only or direct-IPv6-only testing.
 - Added richer presenter-state API fields for pause, blank-screen, timer, remaining-slides, and end-of-deck status.
@@ -20,6 +55,8 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ### Changed
 
+- Relay pairing now expects the full pairing link when using the hosted relay UI, because the fragment carries the relay session key material.
+- Relay servers now cache only the latest key advertisement and latest encrypted state for active plugin sessions and never need decrypted presenter data.
 - Improved the LibreOffice settings dialog with draft-aware pairing previews, clearer issue reporting, and live QR/manual-link updates while route settings change.
 - Improved runtime lifecycle handling so LibreOffice shutdown tears down local listeners and relay sessions cleanly.
 - Improved slide-state tracking so controller fallbacks and render revisions stay synchronized when the presenter changes slides outside the phone UI.
@@ -30,6 +67,13 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 - Fixed stopped runtimes from accidentally starting the relay client while only saving settings.
 - Fixed LibreOffice-side route previews to handle incomplete relay URLs without breaking the settings dialog.
+- Fixed relay-session teardown to clear cached secure state when the plugin disconnects.
+- Fixed relay-state pushes to reuse a single presenter snapshot per send cycle and surface protocol failures in runtime status output.
+
+### Security
+
+- Relay mode no longer forwards plaintext slide state or presenter commands through the relay server.
+- Documented the remaining relay limitations: relay-served UI trust still needs a pinning or trusted-distribution story, and the current bootstrap still uses a pairing secret rather than ECDH P-256.
 
 ## [0.2.0] - 2026-07-15
 
@@ -77,4 +121,3 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 ### Security
 
 - Documented the planned E2E protocol and the browser-hosted frontend trust limitation.
-- Documented that the current relay prototype still forwards plaintext JSON frames until E2E encryption lands.

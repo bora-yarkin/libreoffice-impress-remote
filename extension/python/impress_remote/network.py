@@ -23,7 +23,11 @@ def discover_local_urls(port: int, session_id: str) -> list[str]:
 
 
 def discover_direct_ipv6_urls(port: int, session_id: str) -> list[str]:
-    return [format_http_url(address, port, session_id) for address in _discover_ipv6_addresses()]
+    return [format_http_url(address, port, session_id) for address in discover_direct_ipv6_addresses()]
+
+
+def discover_direct_ipv6_addresses() -> list[str]:
+    return _discover_ipv6_addresses()
 
 
 def _discover_ipv4_addresses() -> list[str]:
@@ -36,6 +40,15 @@ def _discover_ipv6_addresses() -> list[str]:
     discovered = _preferred_source_addresses(socket.AF_INET6, ("2001:db8::1", 80, 0, 0))
     discovered.extend(_hostname_addresses(socket.AF_INET6))
     return _filter_unique_ipv6(discovered)
+
+
+def probe_ipv6_listener(address: str, port: int, timeout: float = 0.35) -> bool:
+    target = _normalize_ipv6(address)
+    try:
+        with socket.create_connection((target, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def _preferred_source_addresses(family: int, remote) -> list[str]:
@@ -107,6 +120,7 @@ def _filter_unique_ipv6(addresses: Iterable[str]) -> list[str]:
             or parsed.is_unspecified
             or parsed.is_multicast
             or parsed.is_link_local
+            or not parsed.is_global
         ):
             continue
         value = str(parsed)

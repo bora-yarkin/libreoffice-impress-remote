@@ -13,6 +13,8 @@ class RelaySession:
     last_seen: float = field(default_factory=time.time)
     plugin: Any | None = None
     phones: set[Any] = field(default_factory=set)
+    latest_plugin_hello: str = ""
+    latest_state_frame: str = ""
 
     def touch(self) -> None:
         self.last_seen = time.time()
@@ -29,4 +31,6 @@ class RelaySession:
             "hasPlugin": self.plugin is not None and not getattr(self.plugin, "closed", False),
             "phones": self.phone_count(),
             "ageSeconds": round(time.time() - self.created_at, 3),
+            "hasHello": bool(self.latest_plugin_hello),
+            "hasStateFrame": bool(self.latest_state_frame),
         }

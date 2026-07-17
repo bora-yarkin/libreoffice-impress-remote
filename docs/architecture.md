@@ -18,9 +18,9 @@ Phone browser -> laptop global IPv6 -> LibreOffice extension
 
 The extension owns slideshow control, notes extraction, state generation, local HTTP service, transport configuration, pairing, and relay-client behavior.
 
-The relay server owns session matching, hosted relay phone UI, and frame forwarding.
+The relay server owns session matching, hosted relay phone UI, plaintext relay-key negotiation messages, and opaque encrypted frame forwarding.
 
-Today, relay forwarding is a plaintext prototype. End-to-end encryption is still a planned protocol milestone.
+As of `0.3.3`, relay and direct-IPv6 state, command, and asset flows are encrypted and session-bound. The local-only route still needs to adopt the same protocol profile.
 
 ## Non-goals
 

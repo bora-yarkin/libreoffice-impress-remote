@@ -9,8 +9,8 @@ from impress_remote.network import _filter_unique_ipv4, _filter_unique_ipv6, for
 class NetworkTests(unittest.TestCase):
     def test_format_http_url_wraps_ipv6_literals(self) -> None:
         self.assertEqual(
-            format_http_url("2001:db8::12", 17865, "demo"),
-            "http://[2001:db8::12]:17865/#s=demo",
+            format_http_url("2606:4700:4700::1111", 17865, "demo"),
+            "http://[2606:4700:4700::1111]:17865/#s=demo",
         )
 
     def test_filter_unique_ipv4_keeps_private_non_loopback_addresses(self) -> None:
@@ -19,8 +19,16 @@ class NetworkTests(unittest.TestCase):
             ["192.168.1.22", "10.0.0.7"],
         )
 
-    def test_filter_unique_ipv6_removes_loopback_and_link_local(self) -> None:
+    def test_filter_unique_ipv6_keeps_only_global_ipv6_addresses(self) -> None:
         self.assertEqual(
-            _filter_unique_ipv6(["::1", "fe80::1%en0", "2001:db8::44", "2001:db8::44"]),
-            ["2001:db8::44"],
+            _filter_unique_ipv6(
+                [
+                    "::1",
+                    "fe80::1%en0",
+                    "fd12:3456:789a::12",
+                    "2606:4700:4700::1111",
+                    "2606:4700:4700::1111",
+                ]
+            ),
+            ["2606:4700:4700::1111"],
         )

@@ -9,29 +9,31 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <p class="visually-hidden" id="status" aria-live="polite">Connecting...</p>
   <main>
-    <header class="topbar">
-      <p class="status" id="status">Connecting...</p>
-    </header>
     <section class="stage-card">
-      <div class="slide-frame">
+      <div class="slide-frame" id="slide-frame" role="button" tabindex="0" aria-label="Current slide. Tap to go to the next slide.">
         <img id="slide-image" alt="Current slide preview" hidden>
+        <p class="slide-chip slide-label slide-chip-overlay">-- / --</p>
         <div class="slide-placeholder" id="slide-placeholder">
-          <p class="placeholder-title" id="current-title">Waiting for slide preview...</p>
-          <p class="placeholder-copy slide-label">Slide -- / --</p>
+          <p class="placeholder-title" id="current-title"></p>
         </div>
       </div>
     </section>
     <section class="notes-card">
-      <div class="notes-header">
-        <p class="notes-label">Presenter Notes</p>
-        <p class="slide-chip slide-label">Slide -- / --</p>
-      </div>
-      <pre id="notes">No presenter notes detected.</pre>
+      <pre id="notes"></pre>
     </section>
     <nav class="primary-controls">
-      <button class="nav-button" id="prev-button" data-command="previous_slide" type="button">Previous</button>
-      <button class="nav-button nav-button-primary" id="next-button" data-command="next_slide" type="button">Next</button>
+      <button class="nav-button" id="prev-button" data-command="previous_slide" type="button" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M14.5 5.5 8 12l6.5 6.5"/>
+        </svg>
+      </button>
+      <button class="nav-button nav-button-primary" id="next-button" data-command="next_slide" type="button" aria-label="Next slide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9.5 5.5 16 12l-6.5 6.5"/>
+        </svg>
+      </button>
     </nav>
   </main>
   <script src="/app.js"></script>

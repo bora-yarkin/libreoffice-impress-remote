@@ -1,12 +1,15 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+import json
+import socket
 import unittest
 from typing import cast
 
 from types import SimpleNamespace
 
-from impress_remote.local_server import RemoteServer, _url_with_fragment_params
+from impress_remote.local_server import RemoteServer, SecureDirectSession, _url_with_fragment_params
+from impress_remote.protocol import SecureRelayCodec, decode_hello_message
 
 
 class PairingServerStub:
@@ -16,7 +19,10 @@ class PairingServerStub:
     preview_pairing_target = RemoteServer.preview_pairing_target
     console_url = RemoteServer.console_url
     mark_client_activity = RemoteServer.mark_client_activity
+    _start_presentation_for_client = RemoteServer._start_presentation_for_client
     _pairing_hint = RemoteServer._pairing_hint
+    _direct_ipv6_status = RemoteServer._direct_ipv6_status
+    _direct_ipv6_hint = RemoteServer._direct_ipv6_hint
     _network_settings = RemoteServer._network_settings
 
     def __init__(
@@ -33,11 +39,20 @@ class PairingServerStub:
         local_port: int = 17865,
     ) -> None:
         self._running = running
-        self.http_servers = [object()] if running else []
+        self.http_servers = []
+        if running and enable_local_listener:
+            self.http_servers.append(SimpleNamespace(address_family=socket.AF_INET))
+        if running and enable_ipv6_direct:
+            self.http_servers.append(SimpleNamespace(address_family=socket.AF_INET6))
         self.local_urls = local_urls or []
         self.direct_urls = direct_urls or []
+        self.direct_ipv6_addresses = ["2606:4700:4700::1111"] if direct_urls else []
+        self.direct_ipv6_ready_addresses = ["2606:4700:4700::1111"] if direct_urls else []
         self.session_id = "demo123"
+        self.pairing_secret = "pairsecret"
         self.url = ""
+        self.bound_port = local_port
+        self.commands: list[tuple[str, int | None]] = []
         self.config = SimpleNamespace(
             local_port=local_port,
             enable_relay=enable_relay,
@@ -45,6 +60,14 @@ class PairingServerStub:
             preferred_route=preferred_route,
             enable_local_listener=enable_local_listener,
             enable_ipv6_direct=enable_ipv6_direct,
+        )
+        self.controller = SimpleNamespace(
+            state=lambda: SimpleNamespace(
+                document_kind="impress",
+                running=False,
+                slide_count=len(self.local_urls) or 3,
+            ),
+            command=lambda name, index=None: self.commands.append((name, index)),
         )
         self._active_network_settings = (
             local_port,
@@ -63,19 +86,19 @@ class LocalServerTests(unittest.TestCase):
     def test_url_with_fragment_params_preserves_existing_fragment_values(self) -> None:
         self.assertEqual(
             _url_with_fragment_params(
-                "http://127.0.0.1:17865/#s=demo123",
+                "http://127.0.0.1:17865/#mode=local&s=demo123&k=pairsecret",
                 view="settings",
             ),
-            "http://127.0.0.1:17865/#s=demo123&view=settings",
+            "http://127.0.0.1:17865/#mode=local&s=demo123&k=pairsecret&view=settings",
         )
 
     def test_url_with_fragment_params_replaces_existing_values(self) -> None:
         self.assertEqual(
             _url_with_fragment_params(
-                "http://127.0.0.1:17865/#s=demo123&view=console",
+                "http://127.0.0.1:17865/#mode=local&s=demo123&k=pairsecret&view=console",
                 view="settings",
             ),
-            "http://127.0.0.1:17865/#s=demo123&view=settings",
+            "http://127.0.0.1:17865/#mode=local&s=demo123&k=pairsecret&view=settings",
         )
 
     def test_current_slide_image_url_is_empty_without_an_impress_slide(self) -> None:
@@ -120,8 +143,8 @@ class LocalServerTests(unittest.TestCase):
 
     def test_pairing_target_prefers_local_route_for_auto_mode(self) -> None:
         server = PairingServerStub(
-            local_urls=["http://192.168.1.20:17865/#s=demo123"],
-            direct_urls=["http://[2001:db8::1]:17865/#s=demo123"],
+            local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],
+            direct_urls=["http://[2606:4700:4700::1111]:17865/#mode=ipv6&s=demo123&k=pairsecret"],
             enable_relay=True,
             relay_url="https://relay.example.com",
         )
@@ -130,7 +153,10 @@ class LocalServerTests(unittest.TestCase):
 
         self.assertEqual(pairing["requestedRoute"], "auto")
         self.assertEqual(pairing["selectedRoute"], "local")
-        self.assertEqual(pairing["selectedUrl"], "http://192.168.1.20:17865/#s=demo123")
+        self.assertEqual(
+            pairing["selectedUrl"],
+            "http://192.168.1.20:17865/#s=demo123&k=pairsecret",
+        )
 
     def test_pairing_target_falls_back_to_relay_in_auto_mode(self) -> None:
         server = PairingServerStub(
@@ -143,12 +169,15 @@ class LocalServerTests(unittest.TestCase):
         pairing = server.pairing_target("auto")
 
         self.assertEqual(pairing["selectedRoute"], "relay")
-        self.assertEqual(pairing["selectedUrl"], "https://relay.example.com/base#mode=relay&s=demo123")
+        self.assertEqual(
+            pairing["selectedUrl"],
+            "https://relay.example.com/base#mode=relay&s=demo123&k=pairsecret",
+        )
 
     def test_pairing_target_hides_local_route_when_local_listener_is_disabled(self) -> None:
         server = PairingServerStub(
-            local_urls=["http://192.168.1.20:17865/#s=demo123"],
-            direct_urls=["http://[2001:db8::1]:17865/#s=demo123"],
+            local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],
+            direct_urls=["http://[2606:4700:4700::1111]:17865/#mode=ipv6&s=demo123&k=pairsecret"],
             enable_relay=True,
             relay_url="https://relay.example.com/base",
             enable_local_listener=False,
@@ -161,14 +190,17 @@ class LocalServerTests(unittest.TestCase):
 
     def test_console_url_falls_back_to_auto_when_manual_route_is_unavailable(self) -> None:
         server = PairingServerStub(
-            local_urls=["http://192.168.1.20:17865/#s=demo123"],
+            local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],
             direct_urls=[],
             enable_relay=False,
             relay_url="",
             preferred_route="ipv6",
         )
 
-        self.assertEqual(server.console_url(), "http://192.168.1.20:17865/#s=demo123")
+        self.assertEqual(
+            server.console_url(),
+            "http://192.168.1.20:17865/#s=demo123&k=pairsecret",
+        )
 
     def test_mark_client_activity_ignores_loopback_requests(self) -> None:
         server = PairingServerStub()
@@ -176,6 +208,7 @@ class LocalServerTests(unittest.TestCase):
         server.mark_client_activity("local", "127.0.0.1")
 
         self.assertFalse(server.client_connected)
+        self.assertEqual(server.commands, [])
 
     def test_mark_client_activity_records_non_loopback_clients(self) -> None:
         server = PairingServerStub()
@@ -184,6 +217,65 @@ class LocalServerTests(unittest.TestCase):
 
         self.assertTrue(server.client_connected)
         self.assertEqual(server.client_connection_source, "local")
+        self.assertEqual(server.commands, [("start_presentation_from_first_slide", None)])
+
+    def test_mark_client_activity_only_auto_starts_on_first_client_connection(self) -> None:
+        server = PairingServerStub()
+
+        server.mark_client_activity("local", "192.168.1.20")
+        server.mark_client_activity("local", "192.168.1.20")
+
+        self.assertEqual(server.commands, [("start_presentation_from_first_slide", None)])
+
+    def test_direct_ipv6_hint_reports_missing_public_ipv6(self) -> None:
+        server = PairingServerStub(direct_urls=[])
+        server.direct_ipv6_addresses = []
+        server.direct_ipv6_ready_addresses = []
+
+        hint = server._direct_ipv6_hint()
+
+        self.assertIn("globally reachable ipv6 address", hint.lower())
+
+    def test_direct_ipv6_hint_reports_self_test_failures(self) -> None:
+        server = PairingServerStub(direct_urls=[])
+        server.direct_ipv6_addresses = ["2606:4700:4700::1111"]
+        server.direct_ipv6_ready_addresses = []
+
+        hint = server._direct_ipv6_hint()
+
+        self.assertIn("could not reach its own ipv6 listener", hint.lower())
+
+    def test_secure_direct_session_round_trips_commands_and_assets(self) -> None:
+        session = SecureDirectSession("demo", "6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ")
+
+        hello = session.current_hello_payload()
+        self.assertEqual(hello["type"], "hello")
+
+        state_response = session.state_response({"running": True, "slideCount": 4})
+        self.assertIsNone(state_response["hello"])
+        self.assertEqual(cast(dict[str, object], state_response["frame"])["type"], "frame")
+
+        asset_response = session.asset_response(
+            content_type="image/png",
+            data=b"png-bytes",
+            slot="current",
+            revision="rev123",
+        )
+        self.assertEqual(cast(dict[str, object], asset_response["frame"])["kind"], "asset")
+
+        phone = SecureRelayCodec(
+            role="phone",
+            session_id="demo",
+            pairing_secret="6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ",
+        )
+        decoded_hello = decode_hello_message(json.dumps(hello))
+        self.assertIsNotNone(decoded_hello)
+        assert decoded_hello is not None
+        phone.apply_hello(decoded_hello)
+
+        frame = phone.encode_command_frame("next_slide")
+        command = session.decode_command(cast(dict[str, object], json.loads(frame)))
+        self.assertEqual(command.command, "next_slide")
 
 
 if __name__ == "__main__":

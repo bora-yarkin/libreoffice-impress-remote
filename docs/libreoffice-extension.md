@@ -5,7 +5,7 @@
 
 The extension is packaged as an `.oxt` archive. It should remain as self-contained as possible.
 
-As of `0.2.0`, the extension owns pairing, route selection, QR generation, transport settings, and runtime issue reporting. The phone UI is intentionally lightweight and settings-free.
+As of `0.3.3`, the extension owns pairing, route selection, QR generation, transport settings, relay pairing secrets, and runtime issue reporting. The phone UI is intentionally lightweight and settings-free.
 
 ## Rules
 
