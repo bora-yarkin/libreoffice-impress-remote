@@ -27,9 +27,9 @@ from impress_remote.network import (
     format_http_url,
     probe_ipv6_listener,
 )
+from impress_remote.localization import localization_root, translate
 from impress_remote.paths import resolve_packaged_or_shared_dir
 from impress_remote.protocol import (
-    RELAY_KIND_ASSET,
     RELAY_KIND_COMMAND,
     RelayProtocolFailure,
     SecureRelayCodec,
@@ -43,6 +43,7 @@ WEB_ROOT = resolve_packaged_or_shared_dir(
     ("web",),
     ("shared", "webui"),
 )
+LOCALIZATION_ROOT = localization_root()
 AUTO_ROUTE_PRIORITY = ("local", "ipv6", "relay")
 
 
@@ -58,7 +59,7 @@ def _url_with_fragment_params(url: str, **params: str) -> str:
 def _json_object(raw: str) -> dict[str, object]:
     payload = json.loads(raw)
     if not isinstance(payload, dict):
-        raise ValueError("Expected a JSON object.")
+        raise ValueError(translate("error.configJson"))
     return payload
 
 
@@ -110,13 +111,13 @@ class SecureDirectSession:
         if frame is None or frame.kind != RELAY_KIND_COMMAND:
             raise RelayProtocolFailure(
                 "invalid-command",
-                "Direct IPv6 command payload is not a command frame.",
+                translate("error.directCommandFrame"),
             )
         command = decode_command_payload(frame.payload)
         if command is None:
             raise RelayProtocolFailure(
                 "invalid-command",
-                "Direct IPv6 command payload is missing a valid command.",
+                translate("error.directCommandMissing"),
             )
         return command
 
@@ -202,7 +203,7 @@ class RemoteServer:
             self._sync_relay_client()
             self._refresh_urls()
             if not self.is_running():
-                raise RuntimeError("Enable at least one pairing route before starting the remote.")
+                raise RuntimeError(translate("error.remoteRouteRequired"))
         except Exception:
             self.stop()
             raise
@@ -582,7 +583,9 @@ class RemoteServer:
             self.url = ""
 
     def _refresh_direct_ipv6_status(self) -> None:
-        has_ipv6_listener = any(server.address_family == socket.AF_INET6 for server in self.http_servers)
+        has_ipv6_listener = any(
+            server.address_family == socket.AF_INET6 for server in self.http_servers
+        )
         if not has_ipv6_listener:
             self.direct_ipv6_addresses = []
             self.direct_ipv6_ready_addresses = []
@@ -621,31 +624,31 @@ class RemoteServer:
         config: RemoteConfig,
     ) -> str:
         if not self.is_running():
-            return "Start the remote from LibreOffice to generate a QR code."
+            return translate("localServer.hint.start")
         if selected_route and route_urls.get(selected_route):
             if selected_route == "ipv6":
-                return (
-                    "Scan the QR code to pair over direct ipv6. Both the phone and this "
-                    "computer need working public ipv6, and firewalls must allow the chosen port."
-                )
+                return translate("localServer.hint.directIPv6")
             if requested_route == "auto" and selected_route != "local":
-                return f"Auto selected {route_label(selected_route).lower()}."
-            return f"Scan the QR code to pair over {route_label(selected_route).lower()}."
+                return translate(
+                    "localServer.hint.autoSelected",
+                    route=route_label(selected_route).lower(),
+                )
+            return translate("localServer.hint.route", route=route_label(selected_route).lower())
         if self._network_settings(config) != self._active_network_settings:
-            return "Save and restart the remote to apply the new listener settings."
+            return translate("localServer.hint.restart")
         if requested_route == "relay":
             if not config.enable_relay:
-                return "Relay pairing is disabled in LibreOffice settings."
-            return "Set a relay server address to pair over the relay."
+                return translate("localServer.hint.relayDisabled")
+            return translate("localServer.hint.relayMissing")
         if requested_route == "ipv6":
             if not config.enable_ipv6_direct:
-                return "Direct IPv6 pairing is disabled in LibreOffice settings."
+                return translate("localServer.directIPv6.disabled")
             return self._direct_ipv6_hint(config)
         if requested_route == "local":
             if not config.enable_local_listener:
-                return "Local network pairing is disabled in LibreOffice settings."
-            return "A local network address is not available right now."
-        return "No pairing route is currently available."
+                return translate("localServer.hint.localDisabled")
+            return translate("localServer.hint.localUnavailable")
+        return translate("localServer.hint.noRoute")
 
     def _direct_ipv6_status(self, config: RemoteConfig | None = None) -> str:
         candidate = config or self.config
@@ -662,27 +665,14 @@ class RemoteServer:
     def _direct_ipv6_hint(self, config: RemoteConfig | None = None) -> str:
         status = self._direct_ipv6_status(config)
         if status == "disabled":
-            return "Direct IPv6 pairing is disabled in LibreOffice settings."
+            return translate("localServer.directIPv6.disabled")
         if status == "listener-unavailable":
-            return (
-                "LibreOffice could not start a direct ipv6 listener. Check whether the desktop "
-                "ipv6 stack or firewall is blocking inbound connections."
-            )
+            return translate("localServer.directIPv6.listenerUnavailable")
         if status == "no-global-address":
-            return (
-                "No globally reachable ipv6 address was detected. Link-local and unique-local "
-                "ipv6 addresses are ignored, and many hotspots or routers do not provide public ipv6."
-            )
+            return translate("localServer.directIPv6.noGlobalAddress")
         if status == "self-test-failed":
-            return (
-                f"Public ipv6 addresses were found, but LibreOffice could not reach its own ipv6 "
-                f"listener on port {self.bound_port}. Check the desktop firewall, router ipv6 "
-                "firewall, or hotspot restrictions."
-            )
-        return (
-            "Direct IPv6 is ready. Phones must also have working public ipv6 to reach this "
-            "computer from the internet."
-        )
+            return translate("localServer.directIPv6.selfTestFailed", port=self.bound_port)
+        return translate("localServer.directIPv6.ready")
 
     def _start_http_servers(self, handler_cls) -> list[ThreadingHTTPServer]:
         started_servers: list[ThreadingHTTPServer] = []
@@ -701,7 +691,9 @@ class RemoteServer:
                     )
                 )
             except OSError as exc:
-                self.listener_warnings.append(f"Direct IPv6 listener is unavailable: {exc}")
+                self.listener_warnings.append(
+                    translate("localServer.listener.ipv6Unavailable", error=exc)
+                )
         return started_servers
 
     def _bind_ipv4_server(self, handler_cls) -> ThreadingHTTPServer:
@@ -712,12 +704,19 @@ class RemoteServer:
                 continue
             if candidate_port != self.config.local_port:
                 self.listener_warnings.append(
-                    f"Port {self.config.local_port} was busy. Using {candidate_port} instead."
+                    translate(
+                        "localServer.listener.portBusy",
+                        requested=self.config.local_port,
+                        actual=candidate_port,
+                    )
                 )
             return server
         raise RuntimeError(
-            f"Could not start the remote server on ports {self.config.local_port}-"
-            f"{self.config.local_port + 9}"
+            translate(
+                "localServer.listener.startFailed",
+                start=self.config.local_port,
+                end=self.config.local_port + 9,
+            )
         )
 
     def _bind_ipv6_server(self, handler_cls) -> ThreadingHTTPServer:
@@ -728,12 +727,19 @@ class RemoteServer:
                 continue
             if candidate_port != self.config.local_port:
                 self.listener_warnings.append(
-                    f"Port {self.config.local_port} was busy. Using {candidate_port} instead."
+                    translate(
+                        "localServer.listener.portBusy",
+                        requested=self.config.local_port,
+                        actual=candidate_port,
+                    )
                 )
             return server
         raise RuntimeError(
-            f"Could not start the remote server on ports {self.config.local_port}-"
-            f"{self.config.local_port + 9}"
+            translate(
+                "localServer.listener.startFailed",
+                start=self.config.local_port,
+                end=self.config.local_port + 9,
+            )
         )
 
     def _sync_relay_client(self) -> None:
@@ -784,6 +790,8 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._send_file(WEB_ROOT / "app.css", "text/css; charset=utf-8")
         elif parsed.path == "/app.js":
             self._send_file(WEB_ROOT / "app.js", "application/javascript; charset=utf-8")
+        elif parsed.path.startswith("/localizations/"):
+            self._localization_file(parsed.path)
         elif parsed.path == "/api/state":
             self._json(self.server_ref.state_payload())
         elif parsed.path == "/api/config":
@@ -838,7 +846,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json()
         except json.JSONDecodeError:
             self._json(
-                {"ok": False, "error": "Configuration payload must be valid JSON."},
+                {"ok": False, "error": translate("error.configJson")},
                 HTTPStatus.BAD_REQUEST,
             )
             return
@@ -870,6 +878,8 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             "/index.html",
             "/app.css",
             "/app.js",
+            "/localizations/en.json",
+            "/localizations/tr.json",
             "/api/state",
             "/api/direct/handshake",
             "/api/direct/state",
@@ -887,12 +897,22 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         source = "ipv6" if client_host and ":" in client_host else "local"
         self.server_ref.mark_client_activity(source, client_host)
 
+    def _localization_file(self, path: str) -> None:
+        name = Path(path).name
+        if name not in {"en.json", "tr.json"}:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        self._send_file(
+            LOCALIZATION_ROOT / name,
+            "application/json; charset=utf-8",
+        )
+
     def _read_json(self) -> dict[str, object]:
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length) or b"{}"
         payload = json.loads(raw)
         if not isinstance(payload, dict):
-            raise ValueError("Payload must be a JSON object.")
+            raise ValueError(translate("error.payloadJson"))
         return payload
 
     def _command_index(self, payload: dict[str, object]) -> int | None:
@@ -905,12 +925,12 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             return index_value
         if isinstance(index_value, str):
             return int(index_value)
-        raise ValueError("Command index must be an integer.")
+        raise ValueError(translate("error.commandIndex"))
 
     def _command_name(self, payload: dict[str, object]) -> str:
         command = payload.get("command", "")
         if not isinstance(command, str):
-            raise ValueError("Command name must be a string.")
+            raise ValueError(translate("error.commandName"))
         return command
 
     def _event_stream(self) -> None:

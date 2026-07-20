@@ -20,7 +20,7 @@ The extension owns slideshow control, notes extraction, state generation, local 
 
 The relay server owns session matching, hosted relay phone UI delivery, plaintext relay-key negotiation messages, admission-controlled session status, and opaque encrypted frame forwarding.
 
-As of `0.5.0`, relay and direct-IPv6 state, command, and asset flows are encrypted and session-bound. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and the local-only route still needs to adopt the same protocol profile.
+As of `0.6.4`, relay and direct-IPv6 state, command, and asset flows are encrypted and session-bound. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and the local-only route still needs to adopt the same protocol profile.
 
 ## Non-goals
 

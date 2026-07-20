@@ -9,6 +9,50 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-07-20
+
+### Fixed
+
+- Fixed LibreOffice extension registration by making `component.py` load localization lazily after the bundled extension `python/` directory has been added to `sys.path`.
+- Bumped the extension, relay package, and project version to `0.6.4`.
+
+## [0.6.3] - 2026-07-20
+
+### Fixed
+
+- Fixed remaining Pylance diagnostics in the vendored QR-code image helpers by replacing missing external drawer imports with local protocols and clarifying the dynamic PNG writer export.
+- Bumped the extension, relay package, and project version to `0.6.3`.
+
+## [0.6.2] - 2026-07-20
+
+### Fixed
+
+- Converted remaining vendored QR-code exception strings to localization keys.
+- Fixed QR-code `make_image` typing so `None` defaults, missing PIL imports, and contextual drawer calls no longer trigger Pylance diagnostics.
+- Bumped the extension, relay package, and project version to `0.6.2`.
+
+## [0.6.1] - 2026-07-20
+
+### Changed
+
+- Converted remaining user/client-visible extension, relay, protocol, and mobile HTML fallback text to localization keys.
+- Updated relay protocol errors so Python and Cloudflare relay deployments emit message keys that the phone UI can localize.
+- Bumped the extension, relay package, and project version to `0.6.1`.
+
+## [0.6.0] - 2026-07-20
+
+### Added
+
+- Added shared English and Turkish localization catalogs under `localizations/`.
+- Added a Python localization loader for LibreOffice-side menu labels, dialogs, status text, and surfaced errors.
+- Added phone UI localization loading with browser-language detection plus `?lang=` and `#lang=` testing overrides.
+
+### Changed
+
+- Converted user-facing LibreOffice and phone-remote strings to stable localization keys.
+- Updated OXT, Python relay, and Cloudflare bundle packaging so shared localization files ship with the shared phone UI.
+- Bumped the extension, relay package, and project version to `0.6.0`.
+
 ## [0.5.0] - 2026-07-17
 
 ### Added

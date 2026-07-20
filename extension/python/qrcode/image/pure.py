@@ -2,6 +2,7 @@ from itertools import chain
 
 from qrcode.compat.png import PngWriter
 from qrcode.image.base import BaseImage
+from impress_remote.localization import translate
 
 
 class PyPNGImage(BaseImage):
@@ -15,7 +16,7 @@ class PyPNGImage(BaseImage):
 
     def new_image(self, **kwargs):
         if not PngWriter:
-            raise ImportError("PyPNG library not installed.")
+            raise ImportError(translate("qrcode.error.pypngMissing"))
 
         return PngWriter(self.pixel_size, self.pixel_size, greyscale=True, bitdepth=1)
 

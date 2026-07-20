@@ -5,6 +5,11 @@ const RELAY_KIND_ERROR = 'error'
 const RELAY_KIND_ASSET = 'asset'
 const REPLAY_CACHE_SIZE = 1024
 
+const DEFAULT_LOCALE = 'en'
+const SUPPORTED_LOCALES = new Set(['en', 'tr'])
+let activeLocale = DEFAULT_LOCALE
+let messages = {}
+
 let lastState = null
 let connectionPhase = 'connecting'
 let hasEverConnected = false
@@ -38,6 +43,68 @@ const relayState = {
     current: {revision: '', url: ''},
     next: {revision: '', url: ''},
   },
+}
+
+function normalizeLocale(value){
+  const language = String(value || '').trim().replace('-', '_').split(/[._]/)[0].toLowerCase()
+  return SUPPORTED_LOCALES.has(language) ? language : ''
+}
+
+function preferredLocale(){
+  const params = new URLSearchParams(window.location.search)
+  return normalizeLocale(params.get('lang'))
+    || normalizeLocale(routeParams.get('lang'))
+    || normalizeLocale(navigator.language)
+    || DEFAULT_LOCALE
+}
+
+async function loadLocalization(){
+  activeLocale = preferredLocale()
+  messages = await fetchLocalization(DEFAULT_LOCALE)
+  if(activeLocale !== DEFAULT_LOCALE){
+    messages = {...messages, ...await fetchLocalization(activeLocale)}
+  }
+  document.documentElement.lang = activeLocale
+  applyDocumentLocalization()
+}
+
+async function fetchLocalization(locale){
+  try{
+    const response = await fetch(`/localizations/${locale}.json`, {cache: 'no-store'})
+    if(!response.ok){
+      return {}
+    }
+    const payload = await response.json()
+    return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}
+  }catch(_error){
+    return {}
+  }
+}
+
+function t(key, values = {}){
+  const template = typeof messages[key] === 'string' ? messages[key] : key
+  return template.replace(/\{([A-Za-z0-9_]+)\}/g, (_match, name) => {
+    return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : `{${name}}`
+  })
+}
+
+function localizedMessage(message){
+  return typeof messages[message] === 'string' ? t(message) : message
+}
+
+function applyDocumentLocalization(){
+  document.querySelectorAll('[data-i18n]').forEach(node => {
+    node.textContent = t(node.dataset.i18n)
+  })
+  document.querySelectorAll('[data-i18n-attr]').forEach(node => {
+    node.dataset.i18nAttr.split(',').forEach(pair => {
+      const [attribute, key] = pair.split(':').map(value => value.trim())
+      if(attribute && key){
+        node.setAttribute(attribute, t(key))
+      }
+    })
+  })
+  document.title = t('app.title')
 }
 
 function hashParams(){
@@ -89,27 +156,27 @@ function renderBanner(){
   }
   if(connectionPhase === 'connecting'){
     target.textContent = isRelayMode()
-      ? 'Connecting to LibreOffice through the relay...'
-      : 'Connecting to LibreOffice...'
+      ? t('web.connectingRelay')
+      : t('web.connecting')
     return
   }
   if(connectionPhase === 'reconnecting'){
     target.textContent = isRelayMode()
-      ? 'Relay connection lost. Reconnecting...'
-      : 'Connection lost. Reconnecting to LibreOffice...'
+      ? t('web.reconnectingRelay')
+      : t('web.reconnecting')
     return
   }
   if(connectionPhase === 'offline'){
     target.textContent = isRelayMode()
-      ? 'Remote is offline. Open the full relay pairing link from LibreOffice again.'
-      : 'Remote is offline. Start it again from LibreOffice.'
+      ? t('web.offlineRelay')
+      : t('web.offline')
     return
   }
   if(!lastState){
-    target.textContent = 'Connected. Waiting for presenter state...'
+    target.textContent = t('web.connectedWaiting')
     return
   }
-  target.textContent = lastState.statusMessage || (lastState.running ? 'Presentation running' : 'Waiting for slideshow')
+  target.textContent = lastState.statusMessage || (lastState.running ? t('web.presentationRunning') : t('web.waitingSlideshow'))
 }
 
 function slideLabel(currentSlide, slideCount){
@@ -532,17 +599,17 @@ function parseHello(payload){
 async function applySecureHelloPayload(payload){
   const hello = parseHello(payload)
   if(!hello){
-    throw new Error('Direct IPv6 handshake is invalid.')
+    throw new Error(t('web.directHandshakeInvalid'))
   }
   if(hello.sessionId !== routeSession){
-    throw new Error('Direct IPv6 handshake belongs to another session.')
+    throw new Error(t('web.directHandshakeMismatch'))
   }
   secureState.codec = await deriveRelayCodec(routeSession, pairingSecret, hello)
 }
 
 async function decryptSecureFramePayload(payload){
   if(!secureState.codec){
-    throw new Error('Waiting for secure direct handshake.')
+    throw new Error(t('web.secureDirectHandshakeWaiting'))
   }
   if(
     payload.type !== 'frame'
@@ -556,11 +623,11 @@ async function decryptSecureFramePayload(payload){
     return null
   }
   if(!rememberReplay(secureState.codec.pluginReplay, payload.n)){
-    throw new Error('Secure direct replay detected.')
+    throw new Error(t('web.secureDirectReplay'))
   }
   const blob = base64UrlToBytes(payload.ct)
   if(blob.length < 16){
-    throw new Error('Encrypted direct payload is truncated.')
+    throw new Error(t('web.directPayloadTruncated'))
   }
   const ciphertext = blob.slice(0, blob.length - 16)
   const tag = blob.slice(blob.length - 16)
@@ -590,7 +657,7 @@ async function refreshSecureDirectStateSnapshot(){
   }
   const decrypted = await decryptSecureFramePayload(payload.frame)
   if(!decrypted || decrypted.kind !== RELAY_KIND_STATE){
-    throw new Error('Direct IPv6 state payload is invalid.')
+    throw new Error(t('web.directStateInvalid'))
   }
   hasEverConnected = true
   setConnectionPhase('live')
@@ -599,10 +666,10 @@ async function refreshSecureDirectStateSnapshot(){
 
 function connectSecureDirectEvents(){
   if(!pairingSecret || !routeSession){
-    throw new Error('Direct IPv6 mode requires the full pairing link from LibreOffice.')
+    throw new Error(t('web.directLinkRequired'))
   }
   if(!window.crypto || !window.crypto.subtle){
-    throw new Error('This browser does not expose Web Crypto required for direct IPv6 mode.')
+    throw new Error(t('web.webCryptoDirectUnsupported'))
   }
   if(!('EventSource' in window)){
     startPollingFallback()
@@ -690,7 +757,7 @@ async function fetchSecureSlideObjectUrl(url){
   }
   const decrypted = await decryptSecureFramePayload(payload.frame)
   if(!decrypted || decrypted.kind !== RELAY_KIND_ASSET){
-    throw new Error('Direct IPv6 slide payload is invalid.')
+    throw new Error(t('web.directSlideInvalid'))
   }
   const contentType = decrypted.payload.contentType
   const encoding = decrypted.payload.encoding
@@ -701,7 +768,7 @@ async function fetchSecureSlideObjectUrl(url){
     || typeof data !== 'string'
     || encoding !== 'base64url'
   ){
-    throw new Error('Direct IPv6 slide payload is malformed.')
+    throw new Error(t('web.directPayloadMalformed'))
   }
   const blob = new Blob([base64UrlToBytes(data)], {type: contentType})
   return URL.createObjectURL(blob)
@@ -709,7 +776,7 @@ async function fetchSecureSlideObjectUrl(url){
 
 async function decryptRelayFrame(payload){
   if(!relayState.codec){
-    throw new Error('Waiting for secure relay handshake.')
+    throw new Error(t('web.relayHandshakeWaiting'))
   }
   if(
     payload.type !== 'frame'
@@ -723,11 +790,11 @@ async function decryptRelayFrame(payload){
     return null
   }
   if(!rememberReplay(relayState.codec.pluginReplay, payload.n)){
-    throw new Error('Relay replay detected.')
+    throw new Error(t('web.relayReplay'))
   }
   const blob = base64UrlToBytes(payload.ct)
   if(blob.length < 16){
-    throw new Error('Encrypted relay frame is truncated.')
+    throw new Error(t('web.relayFrameTruncated'))
   }
   const ciphertext = blob.slice(0, blob.length - 16)
   const tag = blob.slice(blob.length - 16)
@@ -765,7 +832,7 @@ async function applyAssetPayload(payload){
     || encoding !== 'base64url'
     || !['current', 'next'].includes(slot)
   ){
-    throw new Error('Relay asset payload is malformed.')
+    throw new Error(t('web.relayAssetMalformed'))
   }
   const blob = new Blob([base64UrlToBytes(data)], {type: contentType})
   const objectUrl = URL.createObjectURL(blob)
@@ -789,7 +856,7 @@ async function handleIncoming(raw){
     return
   }
   if(payload.type === 'error' && typeof payload.message === 'string'){
-    throw new Error(payload.message)
+    throw new Error(localizedMessage(payload.message))
   }
   const decrypted = await decryptRelayFrame(payload)
   if(!decrypted){
@@ -809,13 +876,13 @@ async function handleIncoming(raw){
     decrypted.kind === RELAY_KIND_ERROR
     && typeof decrypted.payload.message === 'string'
   ){
-    throw new Error(decrypted.payload.message)
+    throw new Error(localizedMessage(decrypted.payload.message))
   }
 }
 
 async function sendRelayCommand(commandName, payload = {}){
   if(!relayState.socket || relayState.socket.readyState !== WebSocket.OPEN || !relayState.codec){
-    throw new Error('Relay connection is not ready yet.')
+    throw new Error(t('web.relayNotReady'))
   }
   const nonce = crypto.getRandomValues(new Uint8Array(12))
   const nonceText = bytesToBase64Url(nonce)
@@ -845,12 +912,12 @@ async function connectRelay(){
   closeSocket()
   relayState.codec = null
   if(!relayState.session || !relayState.pairingSecret || !relayState.admissionToken){
-    showPlaceholderMessage('Open the full relay pairing link from LibreOffice.')
+    showPlaceholderMessage(t('web.relayOpenFullLink'))
     setConnectionPhase('offline')
     return
   }
   if(!window.crypto || !window.crypto.subtle){
-    showPlaceholderMessage('This browser does not support secure relay mode.')
+    showPlaceholderMessage(t('web.secureRelayUnsupported'))
     setConnectionPhase('offline')
     return
   }
@@ -859,7 +926,7 @@ async function connectRelay(){
     relayState.reconnectTimer = null
   }
 
-  showPlaceholderMessage('Connecting to the encrypted relay...')
+  showPlaceholderMessage(t('web.relayConnecting'))
   setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
   const socket = new WebSocket(relaySocketUrl(relayState.session, relayState.admissionToken))
   relayState.socket = socket
@@ -879,25 +946,26 @@ async function connectRelay(){
   })
 
   socket.addEventListener('error', () => {
-    showTransportError('Relay connection failed.')
+    showTransportError(t('web.relayConnectionFailed'))
   })
 }
 
 async function bootstrap(){
+  await loadLocalization()
   setConnectionPhase('connecting')
   if(isRelayMode() || isSecureDirectMode()){
     if(!pairingSecret || !routeSession){
       throw new Error(
         isRelayMode()
-          ? 'Relay mode requires the full pairing link from LibreOffice.'
-          : 'Direct IPv6 mode requires the full pairing link from LibreOffice.'
+          ? t('web.relayLinkRequired')
+          : t('web.directLinkRequired')
       )
     }
     if(!window.crypto || !window.crypto.subtle){
-      throw new Error('This browser does not expose Web Crypto required for encrypted remote transport.')
+      throw new Error(t('web.webCryptoTransportUnsupported'))
     }
     if(isRelayMode() && !relayAdmissionToken){
-      throw new Error('Relay mode requires the full pairing link from LibreOffice.')
+      throw new Error(t('web.relayLinkRequired'))
     }
   }
   connectEvents()

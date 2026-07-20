@@ -108,6 +108,21 @@ def _ensure_python_root():
         sys.path.insert(0, python_root)
 
 
+def _translate(key: str, **values: Any) -> str:
+    _ensure_python_root()
+    try:
+        from impress_remote.localization import translate
+
+        return translate(key, **values)
+    except Exception:
+        if values:
+            try:
+                return key.format(**values)
+            except Exception:
+                return key
+        return key
+
+
 def _service_manager(ctx):
     if hasattr(ctx, "ServiceManager"):
         return ctx.ServiceManager
@@ -140,19 +155,24 @@ def _coerce_int(value: object, default: int = 0) -> int:
 
 def _compose_status_line(remote_running: bool, presentation: dict[str, object]) -> str:
     if not remote_running:
-        return "Remote is stopped."
+        return _translate("component.status.remoteStopped")
 
     message = str(presentation.get("statusMessage", "")).strip().rstrip(".")
     if not message:
-        message = "Remote is running"
+        message = _translate("component.status.remoteRunning")
 
     slide_count = _coerce_int(presentation.get("slideCount", 0))
     if presentation.get("documentKind") == "impress" and slide_count > 0:
         current_slide = _coerce_int(presentation.get("currentSlide", 0))
-        status_line = f"{message}. Slide {current_slide + 1} of {slide_count}."
+        status_line = _translate(
+            "component.status.slideOf",
+            message=message,
+            current=current_slide + 1,
+            total=slide_count,
+        )
         if presentation.get("running"):
             timer = _format_elapsed(_coerce_int(presentation.get("elapsedSeconds", 0)))
-            return f"{status_line} Timer {timer}."
+            return _translate("component.status.slideOfTimer", status=status_line, timer=timer)
         return status_line
     return f"{message}."
 
@@ -265,15 +285,17 @@ try:
                 elif command == "stop":
                     self.stop()
             except Exception as exc:
-                self.report_runtime_error(f"{command or 'remote action'} failed: {exc}")
+                message = _translate(
+                    "component.actionFailed",
+                    action=command or _translate("component.actionFallback"),
+                    error=exc,
+                )
+                self.report_runtime_error(message)
                 try:
                     _ensure_python_root()
                     from impress_remote.office_ui import show_error_message
 
-                    show_error_message(
-                        self.ctx,
-                        f"{command or 'remote action'} failed: {exc}",
-                    )
+                    show_error_message(self.ctx, message)
                 except Exception:
                     pass
                 traceback.print_exc()
@@ -303,9 +325,9 @@ try:
             self._notify_status_listeners()
             server_url = str(getattr(server, "url", "")).strip()
             if server_url:
-                print(f"LibreOffice Impress Remote started at {server_url}")
+                print(_translate("component.remoteStartedAt", url=server_url))
             else:
-                print("LibreOffice Impress Remote started.")
+                print(_translate("component.remoteStarted"))
 
         def stop(self):
             if self.server is not None:
@@ -331,9 +353,9 @@ try:
 
             target = server.settings_url() if view == "settings" else server.console_url()
             if not target:
-                raise RuntimeError("No pairing route is available yet.")
+                raise RuntimeError(_translate("error.noPairingRoute"))
             if not open_external_url(self.ctx, target):
-                raise RuntimeError("LibreOffice could not open the remote preview.")
+                raise RuntimeError(_translate("error.openPreviewFailed"))
             self.clear_runtime_error()
 
         def show_pairing(self):
@@ -388,7 +410,7 @@ try:
             server.update_config(updated, restart_runtime=restart_runtime)
             self.clear_runtime_error()
             snapshot = self.runtime_snapshot()
-            snapshot["statusLine"] = "Settings saved."
+            snapshot["statusLine"] = _translate("component.settingsSaved")
             return snapshot
 
         def pairing_target(self, route_mode: str | None = None) -> dict[str, str]:
@@ -462,15 +484,15 @@ try:
         def _menu_label(self, path: str) -> str:
             if path == "toggle":
                 if self.server is not None and self.server.is_running():
-                    return "Stop Remote"
-                return "Start Remote"
+                    return _translate("component.menu.stopRemote")
+                return _translate("component.menu.startRemote")
             if path == "settings":
-                return "Advanced Options"
+                return _translate("component.menu.advancedOptions")
             if path == "open":
-                return "Open Remote"
+                return _translate("component.menu.openRemote")
             if path == "stop":
-                return "Stop Remote"
-            return "Start Remote"
+                return _translate("component.menu.stopRemote")
+            return _translate("component.menu.startRemote")
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise

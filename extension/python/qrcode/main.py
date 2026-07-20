@@ -1,9 +1,9 @@
 import sys
 from bisect import bisect_left
 from typing import (
+    Any,
     Generic,
     NamedTuple,
-    Optional,
     TypeVar,
     cast,
     overload,
@@ -13,8 +13,9 @@ from typing import (
 from qrcode import constants, exceptions, util
 from qrcode.image.base import BaseImage
 from qrcode.image.pure import PyPNGImage
+from impress_remote.localization import translate
 
-ModulesType = list[list[Optional[bool]]]
+ModulesType = list[list[bool | None]]
 # Cache modules generated just based on the QR Code version
 precomputed_qr_blanks: dict[int, ModulesType] = {}
 
@@ -27,14 +28,12 @@ def make(data=None, **kwargs):
 
 def _check_box_size(size):
     if int(size) <= 0:
-        raise ValueError(f"Invalid box size (was {size}, expected larger than 0)")
+        raise ValueError(translate("qrcode.error.boxSize", size=size))
 
 
 def _check_border(size):
     if int(size) < 0:
-        raise ValueError(
-            "Invalid border value (was %s, expected 0 or larger than that)" % size
-        )
+        raise ValueError(translate("qrcode.error.border", size=size))
 
 
 def _check_mask_pattern(mask_pattern):
@@ -42,10 +41,10 @@ def _check_mask_pattern(mask_pattern):
         return
     if not isinstance(mask_pattern, int):
         raise TypeError(
-            f"Invalid mask pattern (was {type(mask_pattern)}, expected int)"
+            translate("qrcode.error.maskPatternType", type=type(mask_pattern))
         )
     if mask_pattern < 0 or mask_pattern > 7:
-        raise ValueError(f"Mask pattern should be in range(8) (got {mask_pattern})")
+        raise ValueError(translate("qrcode.error.maskPatternRange", pattern=mask_pattern))
 
 
 def copy_2d_array(x):
@@ -73,7 +72,7 @@ GenericImageLocal = TypeVar("GenericImageLocal", bound=BaseImage)
 
 class QRCode(Generic[GenericImage]):
     modules: ModulesType
-    _version: Optional[int] = None
+    _version: int | None = None
 
     def __init__(
         self,
@@ -81,7 +80,7 @@ class QRCode(Generic[GenericImage]):
         error_correction=constants.ERROR_CORRECT_M,
         box_size=10,
         border=4,
-        image_factory: Optional[type[GenericImage]] = None,
+        image_factory: type[GenericImage] | None = None,
         mask_pattern=None,
     ):
         _check_box_size(box_size)
@@ -265,7 +264,7 @@ class QRCode(Generic[GenericImage]):
             out = sys.stdout
 
         if not out.isatty():
-            raise OSError("Not a tty")
+            raise OSError(translate("qrcode.error.notTty"))
 
         if self.data_cache is None:
             self.make()
@@ -294,7 +293,7 @@ class QRCode(Generic[GenericImage]):
             out = sys.stdout
 
         if tty and not out.isatty():
-            raise OSError("Not a tty")
+            raise OSError(translate("qrcode.error.notTty"))
 
         if self.data_cache is None:
             self.make()
@@ -333,10 +332,14 @@ class QRCode(Generic[GenericImage]):
 
     @overload
     def make_image(
-        self, image_factory: type[GenericImageLocal] = None, **kwargs
+        self, image_factory: type[GenericImageLocal], **kwargs
     ) -> GenericImageLocal: ...
 
-    def make_image(self, image_factory=None, **kwargs):
+    def make_image(
+        self,
+        image_factory: type[BaseImage] | None = None,
+        **kwargs,
+    ) -> BaseImage:
         """
         Make an image from the QR Code data.
 
@@ -350,7 +353,7 @@ class QRCode(Generic[GenericImage]):
             or kwargs.get("embeded_image")
         ) and self.error_correction != constants.ERROR_CORRECT_H:
             raise ValueError(
-                "Error correction level must be ERROR_CORRECT_H if an embedded image is provided"
+                translate("qrcode.error.embeddedImageCorrection")
             )
         _check_box_size(self.box_size)
         if self.data_cache is None:
@@ -361,10 +364,7 @@ class QRCode(Generic[GenericImage]):
         else:
             image_factory = self.image_factory
             if image_factory is None:
-                from qrcode.image.pil import Image, PilImage
-
-                # Use PIL by default if available, otherwise use PyPNG.
-                image_factory = PilImage if Image else PyPNGImage
+                image_factory = PyPNGImage
 
         im = image_factory(
             self.border,
@@ -378,7 +378,7 @@ class QRCode(Generic[GenericImage]):
             for r in range(self.modules_count):
                 for c in range(self.modules_count):
                     if im.needs_context:
-                        im.drawrect_context(r, c, qr=self)
+                        im.drawrect_context(r, c, qr=cast("QRCode[Any]", self))
                     elif self.modules[r][c]:
                         im.drawrect(r, c)
         if im.needs_processing:

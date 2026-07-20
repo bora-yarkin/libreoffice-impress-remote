@@ -10,6 +10,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from impress_remote_relay.localization import translate
 from impress_remote_relay.relay import RelayState, create_app
 from impress_remote_relay.runtime import (
     DEFAULT_HOST_V4,
@@ -68,12 +69,12 @@ async def run(argv: list[str] | None = None) -> None:
         try:
             await site.start()
         except OSError as exc:
-            print(f"Could not bind {host}:{config.port}: {exc}")
+            print(translate("relay.cli.bindFailed", host=host, port=config.port, error=exc))
             continue
         sites.append(site)
-        print(f"Listening on {host}:{config.port}")
+        print(translate("relay.cli.listening", host=host, port=config.port))
     if not sites:
-        raise SystemExit("No listen sockets could be opened")
+        raise SystemExit(translate("relay.error.noListenSockets"))
     await asyncio.Event().wait()
 
 

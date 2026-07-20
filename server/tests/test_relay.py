@@ -163,6 +163,21 @@ async def test_asset_manifest_is_served() -> None:
         payload = await response.json()
         assert "files" in payload
         assert "app.js" in payload["files"]
+        assert "localizations/en.json" in payload["files"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_localization_catalog_is_served() -> None:
+    server = TestServer(create_app(RelayState()))
+    client = TestClient(server)
+    await client.start_server()
+    try:
+        response = await client.get("/localizations/tr.json")
+        assert response.status == 200
+        payload = await response.json()
+        assert payload["component.menu.startRemote"] == "Kumandayi Baslat"
     finally:
         await client.close()
 

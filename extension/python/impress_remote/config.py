@@ -12,16 +12,21 @@ import sys
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
+from impress_remote.localization import translate
+
 APP_NAME = "libreoffice-impress-remote"
 CONFIG_NODE_PATH = "org.borayarkin.libreoffice.impressremote.Settings"
 DEFAULT_LOCAL_HOST = "0.0.0.0"
 DEFAULT_LOCAL_PORT = 17865
 DEFAULT_PREFERRED_ROUTE = "auto"
 ROUTE_LABELS = {
-    "auto": "Auto (Local -> IPv6 -> Relay)",
-    "local": "Local network",
-    "ipv6": "Direct IPv6",
-    "relay": "Relay server",
+    "auto": "route.auto",
+    "local": "route.local",
+    "ipv6": "route.ipv6",
+    "relay": "route.relay",
+}
+ROUTE_LABEL_KEYS = {
+    route: key for route, key in ROUTE_LABELS.items()
 }
 OFFICE_CONFIG_PROPERTIES = {
     "LocalHost": "local_host",
@@ -138,7 +143,7 @@ def normalize_preferred_route(value: Any, default: str = DEFAULT_PREFERRED_ROUTE
 
 
 def route_label(route: str) -> str:
-    return ROUTE_LABELS.get(route, ROUTE_LABELS[DEFAULT_PREFERRED_ROUTE])
+    return translate(ROUTE_LABEL_KEYS.get(route, ROUTE_LABEL_KEYS[DEFAULT_PREFERRED_ROUTE]))
 
 
 def _looks_local_host(host: str) -> bool:
@@ -157,9 +162,9 @@ def normalize_relay_url(value: str) -> str:
         parsed = urlparse(f"{scheme}://{text}")
 
     if parsed.scheme not in {"http", "https", "ws", "wss"}:
-        raise ValueError(f"Unsupported relay URL scheme: {parsed.scheme}")
+        raise ValueError(translate("error.relayUrlScheme", scheme=parsed.scheme))
     if not parsed.netloc:
-        raise ValueError("Relay URL must include a host")
+        raise ValueError(translate("error.relayUrlHost"))
 
     normalized_path = parsed.path.rstrip("/")
     return urlunparse((parsed.scheme, parsed.netloc, normalized_path, "", "", ""))

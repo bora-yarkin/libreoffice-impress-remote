@@ -1,5 +1,6 @@
 from typing import NamedTuple
 from qrcode import constants
+from impress_remote.localization import translate
 
 EXP_TABLE = list(range(256))
 
@@ -233,7 +234,7 @@ RS_BLOCK_TABLE = (
 
 def glog(n):
     if n < 1:  # pragma: no cover
-        raise ValueError(f"glog({n})")
+        raise ValueError(translate("qrcode.error.glog", value=n))
     return LOG_TABLE[n]
 
 
@@ -244,7 +245,7 @@ def gexp(n):
 class Polynomial:
     def __init__(self, num, shift):
         if not num:  # pragma: no cover
-            raise Exception(f"{len(num)}/{shift}")
+            raise Exception(translate("qrcode.error.polynomial", length=len(num), shift=shift))
 
         offset = 0
         for offset in range(len(num)):
@@ -280,7 +281,7 @@ class Polynomial:
 
         num = [
             item ^ gexp(glog(other_item) + ratio)
-            for item, other_item in zip(self, other)
+            for item, other_item in zip(self, other, strict=False)
         ]
         if difference:
             num.extend(self[-difference:])
@@ -297,8 +298,11 @@ class RSBlock(NamedTuple):
 def rs_blocks(version, error_correction):
     if error_correction not in RS_BLOCK_OFFSET:  # pragma: no cover
         raise Exception(
-            "bad rs block @ version: %s / error_correction: %s"
-            % (version, error_correction)
+            translate(
+                "qrcode.error.rsBlock",
+                version=version,
+                error_correction=error_correction,
+            )
         )
     offset = RS_BLOCK_OFFSET[error_correction]
     rs_block = RS_BLOCK_TABLE[(version - 1) * 4 + offset]

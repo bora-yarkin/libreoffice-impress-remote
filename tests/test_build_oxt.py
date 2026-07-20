@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.build_oxt import build_oxt
+from tools.build_oxt import build_oxt  # noqa: E402
 
 
 def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
@@ -23,3 +23,5 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
     assert "web/index.html" in names
     assert "web/app.css" in names
     assert "web/app.js" in names
+    assert "web/localizations/en.json" in names
+    assert "web/localizations/tr.json" in names

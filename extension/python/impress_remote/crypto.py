@@ -8,6 +8,8 @@ import hashlib
 import hmac
 import secrets
 
+from impress_remote.localization import translate
+
 _SBOX = (
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB,
     0x76, 0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4,
@@ -85,21 +87,21 @@ def aes_gcm_decrypt(
 ) -> bytes:
     _validate_aes_gcm_inputs(key, nonce)
     if len(tag) != 16:
-        raise ValueError("AES-GCM tags must be 16 bytes long.")
+        raise ValueError(translate("crypto.error.tagLength"))
     cipher = _AesCipher(key)
     h = int.from_bytes(cipher.encrypt_block(b"\0" * 16), "big")
     j0 = nonce + b"\0\0\0\1"
     expected_tag = _gcm_tag(cipher, h, j0, aad, ciphertext)
     if not hmac.compare_digest(expected_tag, tag):
-        raise ValueError("AES-GCM authentication failed.")
+        raise ValueError(translate("crypto.error.authenticationFailed"))
     return _gctr(cipher, _inc32(j0), ciphertext)
 
 
 def _validate_aes_gcm_inputs(key: bytes, nonce: bytes) -> None:
     if len(key) not in {16, 24, 32}:
-        raise ValueError("AES-GCM keys must be 16, 24, or 32 bytes long.")
+        raise ValueError(translate("crypto.error.keyLength"))
     if len(nonce) != 12:
-        raise ValueError("AES-GCM nonces must be 12 bytes long.")
+        raise ValueError(translate("crypto.error.nonceLength"))
 
 
 class _AesCipher:
@@ -108,7 +110,7 @@ class _AesCipher:
 
     def encrypt_block(self, block: bytes) -> bytes:
         if len(block) != 16:
-            raise ValueError("AES blocks must be 16 bytes long.")
+            raise ValueError(translate("crypto.error.blockLength"))
         state = list(block)
         _add_round_key(state, self._round_keys[0:16])
         for round_index in range(1, self._rounds):
@@ -193,7 +195,7 @@ def _gctr(cipher: _AesCipher, counter_block: bytes, data: bytes) -> bytes:
     for offset in range(0, len(data), 16):
         block = data[offset : offset + 16]
         keystream = cipher.encrypt_block(counter)
-        output.extend(left ^ right for left, right in zip(block, keystream))
+        output.extend(left ^ right for left, right in zip(block, keystream, strict=False))
         counter = _inc32(counter)
     return bytes(output)
 

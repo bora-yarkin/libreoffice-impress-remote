@@ -29,7 +29,7 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups should work wit
 
 ## Current Status
 
-Version `0.5.0` is a usable pre-1.0 build with:
+Version `0.6.4` is a usable pre-1.0 build with:
 
 - QR-first local pairing
 - live current-slide rendering
@@ -37,6 +37,7 @@ Version `0.5.0` is a usable pre-1.0 build with:
 - LibreOffice-native remote controls and settings
 - encrypted relay and direct IPv6 transport for fallback networking, including relay-hosted slide previews and relay admission control
 - one shared phone-remote web UI source reused by the LibreOffice extension, the Python relay, and the Cloudflare relay bundle
+- keyed user-facing strings with English and Turkish localization catalogs shared by LibreOffice and the phone UI
 - build tooling for the `.oxt`, a stripped standalone Python relay bundle with service installers, and the separate Cloudflare relay deployment bundle
 - relay session-status, reconnect replay, structured logs, and published self-hosting docs for testing relay mode as a real fallback path
 
@@ -45,7 +46,7 @@ Still in progress:
 - ECDH-based key exchange
 - encrypted transport parity for local mode
 - phone-side presentation timer
-- converting all user-facing strings to stable keys, then adding importable i18n support so translations can be generated for LibreOffice-supported languages and loaded back into the extension
+- expanding localization beyond the initial English and Turkish catalogs toward LibreOffice-wide language coverage
 - GitHub release support that runs the standard workflows and, after they pass, publishes a GitHub release with the extension package and a stripped relay-server release artifact without bundled documentation
 - broader LibreOffice UX polish and accessibility work
 

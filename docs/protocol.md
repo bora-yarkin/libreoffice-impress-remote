@@ -3,7 +3,7 @@
 
 # Protocol
 
-This document describes the current encrypted transport protocol implemented in `0.5.0`.
+This document describes the current encrypted transport protocol implemented in `0.6.4`.
 
 It is intentionally small and versioned so that the reference relay server can remain replaceable and the same message contract can be reused by other transports.
 
@@ -118,7 +118,7 @@ Example:
 
 ## Key Derivation
 
-The current `0.5.0` bootstrap is pre-shared-secret based.
+The current `0.6.4` bootstrap is pre-shared-secret based.
 
 Inputs:
 

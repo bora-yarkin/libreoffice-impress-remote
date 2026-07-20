@@ -5,15 +5,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LibreOffice Impress Remote</title>
+  <title data-i18n="app.title"></title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <p class="visually-hidden" id="status" aria-live="polite">Connecting...</p>
+  <p class="visually-hidden" id="status" aria-live="polite" data-i18n="web.connecting"></p>
   <main>
     <section class="stage-card">
-      <div class="slide-frame" id="slide-frame" role="button" tabindex="0" aria-label="Current slide. Tap to go to the next slide.">
-        <img id="slide-image" alt="Current slide preview" hidden>
+      <div class="slide-frame" id="slide-frame" role="button" tabindex="0" aria-label="" data-i18n-attr="aria-label:aria.currentSlideTap">
+        <img id="slide-image" alt="" data-i18n-attr="alt:aria.currentSlidePreview" hidden>
         <p class="slide-chip slide-label slide-chip-overlay">-- / --</p>
         <div class="slide-placeholder" id="slide-placeholder">
           <p class="placeholder-title" id="current-title"></p>
@@ -24,12 +24,12 @@
       <pre id="notes"></pre>
     </section>
     <nav class="primary-controls">
-      <button class="nav-button" id="prev-button" data-command="previous_slide" type="button" aria-label="Previous slide">
+      <button class="nav-button" id="prev-button" data-command="previous_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousSlide">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M14.5 5.5 8 12l6.5 6.5"/>
         </svg>
       </button>
-      <button class="nav-button nav-button-primary" id="next-button" data-command="next_slide" type="button" aria-label="Next slide">
+      <button class="nav-button nav-button-primary" id="next-button" data-command="next_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.nextSlide">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M9.5 5.5 16 12l-6.5 6.5"/>
         </svg>

@@ -5,7 +5,7 @@
 
 The extension is packaged as an `.oxt` archive. It should remain as self-contained as possible.
 
-As of `0.5.0`, the extension owns pairing, route selection, QR generation, transport settings, relay pairing secrets, encrypted relay asset publishing, relay session-status probing, and runtime issue reporting. The phone UI is intentionally lightweight and settings-free, but now comes from the shared `shared/webui/` source during development and is vendored into the `.oxt` at build time.
+As of `0.6.4`, the extension owns pairing, route selection, QR generation, transport settings, relay pairing secrets, encrypted relay asset publishing, relay session-status probing, runtime issue reporting, and English/Turkish localization plumbing. The phone UI is intentionally lightweight and settings-free, but now comes from the shared `shared/webui/` source during development and is vendored into the `.oxt` at build time.
 
 ## Rules
 

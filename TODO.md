@@ -3,7 +3,7 @@
 
 # TODO
 
-This file tracks the `0.5.0` project snapshot: what already ships today and what is still planned next.
+This file tracks the `0.6.4` project snapshot: what already ships today and what is still planned next.
 
 For milestone order and upstream strategy, see `docs/roadmap.md`.
 
@@ -33,6 +33,7 @@ Current product direction: local mode is the primary path, including same-Wi-Fi 
 - Relay reconnect: Active relay sessions replay the latest key advertisement plus a bounded window of recent encrypted plugin frames to newly joined phones without server-side decryption, and cached secure state is cleared when the plugin disconnects.
 - Crypto foundation: Random session token generation, base64url helpers, HKDF-SHA256 helpers, and pure-Python AES-GCM helpers exist.
 - Config persistence: Transport settings are stored in LibreOffice configuration data with migration/fallback support for the earlier extension-owned config file.
+- Localization: User-facing LibreOffice menu labels, dialogs, status text, surfaced errors, and phone UI copy now use stable keys backed by shared English and Turkish JSON catalogs under `localizations/`.
 - Runtime flexibility: Users can disable the local listener for relay-only or direct-IPv6-only testing, and LibreOffice shutdown now tears down listeners and relay sessions cleanly.
 - Editor support: Workspace analysis config, import roots, and UNO stubs are in place to keep Pylance usable in this repo.
 - Tests: Unit and integration coverage exists for bootstrap/import behavior, SDK resolution logic, config and protocol helpers, controller state extraction, network URL helpers, crypto helpers, encrypted relay protocol flows, relay admission control and reconnect handling, manifest presence, and relay message forwarding.
@@ -44,7 +45,7 @@ Current product direction: local mode is the primary path, including same-Wi-Fi 
 - Local mode: Add a low-latency mode that pre-renders and preloads the full deck before the remote opens so slide changes avoid export-time stalls.
 - Phone UI: Add stronger error presentation, retry flows, and accessibility polish for mobile use.
 - Phone UI: Add installable PWA behavior if offline launch or homescreen install is desired.
-- Localization: Move LibreOffice dialog strings, menu labels, status text, errors, and phone UI copy into a translation-friendly workflow that can scale to LibreOffice's language coverage.
+- Localization: Expand the initial English and Turkish catalogs into importable translation packs that can scale to LibreOffice's language coverage.
 - Security and protocol: Replace the current pairing-secret bootstrap with the planned ECDH P-256 key exchange.
 - Security and protocol: Extend the versioned encrypted protocol to the local transport.
 - Testing: Add local HTTP endpoint tests for the embedded extension server.

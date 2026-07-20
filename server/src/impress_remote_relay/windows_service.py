@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from impress_remote_relay.localization import translate
 from impress_remote_relay.relay import RelayState, create_app
 from impress_remote_relay.runtime import ensure_runtime_config
 
@@ -71,7 +72,7 @@ def create_windows_service_class(
                     await site.start()
                     sites.append(site)
                 if not sites:
-                    raise RuntimeError("No listen sockets could be opened")
+                    raise RuntimeError(translate("relay.error.noListenSockets"))
                 await self._shutdown_event.wait()
             finally:
                 await runner.cleanup()

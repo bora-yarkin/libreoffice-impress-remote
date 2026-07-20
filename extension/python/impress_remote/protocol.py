@@ -17,6 +17,7 @@ from impress_remote.crypto import (
     random_bytes,
     random_token,
 )
+from impress_remote.localization import translate
 
 RELAY_PROTOCOL_VERSION = 1
 RELAY_CIPHER_SUITE = "HKDF-SHA256+AES-256-GCM+PSK"
@@ -112,7 +113,7 @@ class SecureRelayCodec:
         replay_cache_size: int = 1024,
     ):
         if role not in {"plugin", "phone"}:
-            raise ValueError(f"Unsupported relay role: {role}")
+            raise ValueError(translate("protocol.error.unsupportedRole", role=role))
         self.role = role
         self.session_id = session_id
         self._secret = base64url_decode(pairing_secret)
@@ -131,7 +132,7 @@ class SecureRelayCodec:
 
     def rotate_send_key(self) -> RelayHello:
         if self.role != "plugin":
-            raise ValueError("Only the plugin role can rotate relay send keys.")
+            raise ValueError(translate("protocol.error.rotatePluginOnly"))
         key_id = random_token(9)
         plugin_nonce = base64url_encode(random_bytes(16))
         key_set = _derive_key_set(
@@ -154,9 +155,15 @@ class SecureRelayCodec:
 
     def apply_hello(self, hello: RelayHello) -> None:
         if hello.version != RELAY_PROTOCOL_VERSION:
-            raise RelayProtocolFailure("unsupported-version", "Unsupported relay protocol version.")
+            raise RelayProtocolFailure(
+                "unsupported-version",
+                translate("protocol.error.unsupportedVersion"),
+            )
         if hello.session_id != self.session_id:
-            raise RelayProtocolFailure("session-mismatch", "Relay hello is bound to another session.")
+            raise RelayProtocolFailure(
+                "session-mismatch",
+                translate("protocol.error.helloSessionMismatch"),
+            )
         key_set = _derive_key_set(
             self._secret,
             hello.session_id,
@@ -194,31 +201,58 @@ class SecureRelayCodec:
         nonce_text = payload.get("n")
         ciphertext_text = payload.get("ct")
         if version != RELAY_PROTOCOL_VERSION:
-            raise RelayProtocolFailure("unsupported-version", "Unsupported relay protocol version.")
+            raise RelayProtocolFailure(
+                "unsupported-version",
+                translate("protocol.error.unsupportedVersion"),
+            )
         if session_id != self.session_id:
-            raise RelayProtocolFailure("session-mismatch", "Encrypted relay frame is bound elsewhere.")
+            raise RelayProtocolFailure(
+                "session-mismatch",
+                translate("protocol.error.frameSessionMismatch"),
+            )
         if not isinstance(key_id, str) or not key_id:
-            raise RelayProtocolFailure("invalid-key", "Encrypted relay frame is missing a key id.")
+            raise RelayProtocolFailure(
+                "invalid-key",
+                translate("protocol.error.frameMissingKey"),
+            )
         if not isinstance(kind, str) or kind not in {
             RELAY_KIND_STATE,
             RELAY_KIND_COMMAND,
             RELAY_KIND_ERROR,
             RELAY_KIND_ASSET,
         }:
-            raise RelayProtocolFailure("invalid-kind", "Encrypted relay frame has an unknown kind.")
+            raise RelayProtocolFailure(
+                "invalid-kind",
+                translate("protocol.error.frameUnknownKind"),
+            )
         if not isinstance(nonce_text, str) or not nonce_text:
-            raise RelayProtocolFailure("invalid-nonce", "Encrypted relay frame is missing a nonce.")
+            raise RelayProtocolFailure(
+                "invalid-nonce",
+                translate("protocol.error.frameMissingNonce"),
+            )
         if not isinstance(ciphertext_text, str) or not ciphertext_text:
-            raise RelayProtocolFailure("invalid-ciphertext", "Encrypted relay frame is empty.")
+            raise RelayProtocolFailure(
+                "invalid-ciphertext",
+                translate("protocol.error.frameEmptyCiphertext"),
+            )
         key_set = self._keys.get(key_id)
         if key_set is None:
-            raise RelayProtocolFailure("unknown-key", "No relay key is available for this frame.")
+            raise RelayProtocolFailure(
+                "unknown-key",
+                translate("protocol.error.frameUnknownKey"),
+            )
         replay_cache = key_set.phone_replay if self.role == "plugin" else key_set.plugin_replay
         if replay_cache.seen(nonce_text):
-            raise RelayProtocolFailure("replay-detected", "Relay frame replay detected.")
+            raise RelayProtocolFailure(
+                "replay-detected",
+                translate("protocol.error.frameReplay"),
+            )
         blob = base64url_decode(ciphertext_text)
         if len(blob) < 16:
-            raise RelayProtocolFailure("invalid-ciphertext", "Encrypted relay frame is truncated.")
+            raise RelayProtocolFailure(
+                "invalid-ciphertext",
+                translate("protocol.error.frameTruncated"),
+            )
         ciphertext = blob[:-16]
         tag = blob[-16:]
         nonce = base64url_decode(nonce_text)
@@ -228,14 +262,20 @@ class SecureRelayCodec:
         replay_cache.remember(nonce_text)
         decoded = _parse_json_bytes(plaintext)
         if not isinstance(decoded, dict):
-            raise RelayProtocolFailure("invalid-payload", "Relay frame payload must be a JSON object.")
+            raise RelayProtocolFailure(
+                "invalid-payload",
+                translate("protocol.error.framePayloadObject"),
+            )
         return RelayDecryptedFrame(kind=kind, payload=decoded, key_id=key_id)
 
     def _encode_frame(self, kind: str, payload: dict[str, object]) -> str:
         if kind not in {RELAY_KIND_STATE, RELAY_KIND_COMMAND, RELAY_KIND_ERROR, RELAY_KIND_ASSET}:
-            raise ValueError(f"Unsupported relay frame kind: {kind}")
+            raise ValueError(translate("protocol.error.unsupportedFrameKind", kind=kind))
         if not self._active_key_id:
-            raise RelayProtocolFailure("missing-hello", "No relay key has been negotiated yet.")
+            raise RelayProtocolFailure(
+                "missing-hello",
+                translate("protocol.error.missingNegotiatedKey"),
+            )
         key_set = self._keys[self._active_key_id]
         key = _send_key_for_kind(self.role, key_set, kind)
         nonce = random_bytes(12)
@@ -421,7 +461,10 @@ def _send_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
         return key_set.state_key
     if role == "phone" and kind == RELAY_KIND_COMMAND:
         return key_set.command_key
-    raise RelayProtocolFailure("invalid-direction", f"{role} cannot send {kind} frames.")
+    raise RelayProtocolFailure(
+        "invalid-direction",
+        translate("protocol.error.invalidSendDirection", role=role, kind=kind),
+    )
 
 
 def _receive_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
@@ -429,7 +472,10 @@ def _receive_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
         return key_set.command_key
     if role == "phone" and kind in {RELAY_KIND_STATE, RELAY_KIND_ERROR, RELAY_KIND_ASSET}:
         return key_set.state_key
-    raise RelayProtocolFailure("invalid-direction", f"{role} cannot receive {kind} frames.")
+    raise RelayProtocolFailure(
+        "invalid-direction",
+        translate("protocol.error.invalidReceiveDirection", role=role, kind=kind),
+    )
 
 
 def _frame_aad(session_id: str, key_id: str, kind: str, nonce_text: str) -> bytes:
@@ -449,9 +495,15 @@ def _parse_json(raw: str) -> dict[str, object]:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise RelayProtocolFailure("invalid-json", "Relay message is not valid JSON.") from exc
+        raise RelayProtocolFailure(
+            "invalid-json",
+            translate("protocol.error.messageJson"),
+        ) from exc
     if not isinstance(payload, dict):
-        raise RelayProtocolFailure("invalid-json", "Relay message must be a JSON object.")
+        raise RelayProtocolFailure(
+            "invalid-json",
+            translate("protocol.error.messageObject"),
+        )
     return payload
 
 
@@ -461,5 +513,5 @@ def _parse_json_bytes(raw: bytes) -> object:
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise RelayProtocolFailure(
             "invalid-payload",
-            "Decrypted relay payload is not valid UTF-8 JSON.",
+            translate("protocol.error.payloadJson"),
         ) from exc

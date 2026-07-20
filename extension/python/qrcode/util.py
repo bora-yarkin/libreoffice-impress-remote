@@ -3,6 +3,7 @@ import re
 
 from qrcode import LUT, base, exceptions
 from qrcode.base import RSBlock
+from impress_remote.localization import translate
 
 # QR encoding modes.
 MODE_NUMBER = 1 << 0
@@ -158,7 +159,7 @@ def mask_func(pattern):
         return lambda i, j: ((i * j) % 2 + (i * j) % 3) % 2 == 0
     if pattern == 7:  # 111
         return lambda i, j: ((i * j) % 3 + (i + j) % 2) % 2 == 0
-    raise TypeError("Bad mask pattern: " + pattern)  # pragma: no cover
+    raise TypeError(translate("qrcode.error.badMaskPattern", pattern=pattern))  # pragma: no cover
 
 
 def mode_sizes_for_version(version):
@@ -172,7 +173,7 @@ def mode_sizes_for_version(version):
 
 def length_in_bits(mode, version):
     if mode not in (MODE_NUMBER, MODE_ALPHA_NUM, MODE_8BIT_BYTE, MODE_KANJI):
-        raise TypeError(f"Invalid mode ({mode})")  # pragma: no cover
+        raise TypeError(translate("qrcode.error.mode", mode=mode))  # pragma: no cover
 
     check_version(version)
 
@@ -181,7 +182,7 @@ def length_in_bits(mode, version):
 
 def check_version(version):
     if version < 1 or version > 40:
-        raise ValueError(f"Invalid version (was {version}, expected 1 to 40)")
+        raise ValueError(translate("qrcode.error.version", version=version))
 
 
 def lost_point(modules):
@@ -432,9 +433,9 @@ class QRData:
         else:
             self.mode = mode
             if mode not in (MODE_NUMBER, MODE_ALPHA_NUM, MODE_8BIT_BYTE):
-                raise TypeError(f"Invalid mode ({mode})")  # pragma: no cover
+                raise TypeError(translate("qrcode.error.mode", mode=mode))  # pragma: no cover
             if check_data and mode < optimal_mode(data):  # pragma: no cover
-                raise ValueError(f"Provided data can not be represented in mode {mode}")
+                raise ValueError(translate("qrcode.error.dataMode", mode=mode))
 
         self.data = data
 
@@ -559,8 +560,7 @@ def create_data(version, error_correction, data_list):
     bit_limit = sum(block.data_count * 8 for block in rs_blocks)
     if len(buffer) > bit_limit:
         raise exceptions.DataOverflowError(
-            "Code length overflow. Data size (%s) > size available (%s)"
-            % (len(buffer), bit_limit)
+            translate("qrcode.error.codeLengthOverflow", size=len(buffer), available=bit_limit)
         )
 
     # Terminate the bits (add up to four 0s).

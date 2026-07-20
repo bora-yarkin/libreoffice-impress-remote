@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-17` and the current `0.5.0` snapshot.
+It reflects the repository state as of `2026-07-20` and the current `0.6.4` snapshot.
 
 ## Product Direction
 
@@ -114,8 +114,8 @@ Target outcome:
 
 Main work:
 
-- move strings into a localization-friendly workflow
-- align menu labels, dialog copy, status text, errors, and help text for translation
+- expand the initial English and Turkish catalogs into importable translation packs
+- keep menu labels, dialog copy, status text, errors, and help text aligned with translation keys
 - improve keyboard behavior, focus order, and readable status feedback
 - add LibreOffice help and troubleshooting content
 - confirm package behavior and UI quality across supported desktop platforms
@@ -136,7 +136,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.5.0`
+Status: in progress after `0.6.4`
 
 Target outcome:
 
@@ -173,7 +173,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.5.0`
+Status: completed in the current repository snapshot after `0.6.4`
 
 Target outcome:
 

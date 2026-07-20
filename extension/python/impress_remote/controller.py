@@ -9,6 +9,7 @@ import time
 
 from impress_remote.notes import extract_notes_for_slide
 from impress_remote.preview import export_slide_png_bytes, extract_slide_title, render_slide_preview
+from impress_remote.localization import translate
 
 
 @dataclass
@@ -65,13 +66,13 @@ class ImpressController:
             self._reset_runtime_tracking()
             return self._empty_state(
                 document_kind="none",
-                status_message="Open an Impress presentation to use the remote.",
+                status_message=translate("state.noDocument"),
             )
         if not self._is_impress_document(document):
             self._reset_runtime_tracking()
             return self._empty_state(
                 document_kind="other",
-                status_message="The active LibreOffice document is not an Impress presentation.",
+                status_message=translate("state.notImpress"),
             )
 
         resolved = self._resolve_presentation(document)
@@ -251,7 +252,7 @@ class ImpressController:
         document = self._require_impress_document()
         resolved = self._resolve_presentation(document)
         if resolved.next_index is None:
-            raise RuntimeError("No next slide is available to export.")
+            raise RuntimeError(translate("error.noNextSlideExport"))
         slide = self._slide_for_index(document, resolved.next_index)
         return export_slide_png_bytes(self.ctx, slide)
 
@@ -580,22 +581,22 @@ class ImpressController:
         at_end_of_deck: bool,
     ) -> str:
         if resolved.slide_count <= 0:
-            return "This Impress document does not contain any slides."
+            return translate("state.emptyDeck")
         if resolved.running:
             if blanked and resolved.paused:
-                return "Presentation paused with the projector blanked"
+                return translate("state.pausedBlank")
             if blanked:
-                return "Presentation blanked"
+                return translate("state.blank")
             if resolved.paused and at_end_of_deck:
-                return "Presentation paused on the last slide"
+                return translate("state.pausedLast")
             if resolved.paused:
-                return "Presentation paused"
+                return translate("state.paused")
             if at_end_of_deck:
-                return "Presentation running on the last slide"
+                return translate("state.runningLast")
             if not resolved.active:
-                return "Presentation connected"
-            return "Presentation running"
-        return "Ready in editing view"
+                return translate("state.connected")
+            return translate("state.running")
+        return translate("state.editing")
 
     def _render_token(
         self,
@@ -682,5 +683,5 @@ class ImpressController:
     def _require_impress_document(self):
         document = self._document()
         if not self._is_impress_document(document):
-            raise RuntimeError("The active LibreOffice document is not an Impress presentation.")
+            raise RuntimeError(translate("error.impressRequired"))
         return document

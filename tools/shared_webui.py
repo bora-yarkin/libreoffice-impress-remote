@@ -11,23 +11,24 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 SHARED_WEB_ROOT = ROOT / "shared" / "webui"
+LOCALIZATION_ROOT = ROOT / "localizations"
 
 
-def iter_webui_files() -> tuple[Path, ...]:
-    return tuple(
-        sorted(
-            path
-            for path in SHARED_WEB_ROOT.rglob("*")
-            if path.is_file() and "__pycache__" not in path.parts
-        )
-    )
+def iter_webui_files() -> tuple[tuple[Path, Path], ...]:
+    entries: list[tuple[Path, Path]] = []
+    for source in sorted(SHARED_WEB_ROOT.rglob("*")):
+        if source.is_file() and "__pycache__" not in source.parts:
+            entries.append((source, source.relative_to(SHARED_WEB_ROOT)))
+    for source in sorted(LOCALIZATION_ROOT.glob("*.json")):
+        entries.append((source, Path("localizations") / source.name))
+    return tuple(entries)
 
 
 def build_webui_manifest() -> dict[str, object]:
     file_entries: dict[str, dict[str, object]] = {}
     bundle_hash = hashlib.sha256()
-    for source in iter_webui_files():
-        relative_name = str(source.relative_to(SHARED_WEB_ROOT)).replace("\\", "/")
+    for source, relative_path in iter_webui_files():
+        relative_name = str(relative_path).replace("\\", "/")
         data = source.read_bytes()
         digest = hashlib.sha256(data).hexdigest()
         file_entries[relative_name] = {"sha256": digest, "bytes": len(data)}
@@ -48,8 +49,8 @@ def build_webui_manifest_text() -> str:
 def copy_webui(destination: Path) -> tuple[Path, ...]:
     copied: list[Path] = []
     destination.mkdir(parents=True, exist_ok=True)
-    for source in iter_webui_files():
-        target = destination / source.relative_to(SHARED_WEB_ROOT)
+    for source, relative_path in iter_webui_files():
+        target = destination / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         copied.append(target)
@@ -60,11 +61,8 @@ def copy_webui(destination: Path) -> tuple[Path, ...]:
 
 
 def add_webui_to_zip(package: ZipFile, destination_root: str) -> None:
-    for source in iter_webui_files():
-        package.write(
-            source,
-            Path(destination_root) / source.relative_to(SHARED_WEB_ROOT),
-        )
+    for source, relative_path in iter_webui_files():
+        package.write(source, Path(destination_root) / relative_path)
     package.writestr(
         str(Path(destination_root) / "asset-manifest.json"),
         build_webui_manifest_text(),

@@ -1,9 +1,17 @@
 import abc
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Protocol, cast
+
+from impress_remote.localization import translate
 
 if TYPE_CHECKING:
-    from qrcode.image.styles.moduledrawers.base import QRModuleDrawer
     from qrcode.main import ActiveWithNeighbors, QRCode
+
+    class QRModuleDrawer(Protocol):
+        needs_neighbors: bool
+
+        def initialize(self, img: "BaseImage") -> None: ...
+
+        def drawrect(self, box: Any, is_active: object) -> None: ...
 else:
     QRModuleDrawer = Any
 
@@ -16,8 +24,8 @@ class BaseImage:
     Base QRCode image output class.
     """
 
-    kind: Optional[str] = None
-    allowed_kinds: Optional[tuple[str]] = None
+    kind: str | None = None
+    allowed_kinds: tuple[str] | None = None
     needs_context = False
     needs_processing = False
     needs_drawrect = True
@@ -41,13 +49,13 @@ class BaseImage:
         """
         Draw a single rectangle of the QR code given the surrounding context
         """
-        raise NotImplementedError("BaseImage.drawrect_context")  # pragma: no cover
+        raise NotImplementedError(translate("qrcode.error.drawrectContext"))  # pragma: no cover
 
     def process(self):
         """
         Processes QR code after completion
         """
-        raise NotImplementedError("BaseImage.drawimage")  # pragma: no cover
+        raise NotImplementedError(translate("qrcode.error.drawimage"))  # pragma: no cover
 
     @abc.abstractmethod
     def save(self, stream, kind=None):
@@ -94,7 +102,9 @@ class BaseImage:
             if not allowed:
                 allowed = kind in self.allowed_kinds
         if not allowed:
-            raise ValueError(f"Cannot set {type(self).__name__} type to {kind}")
+            raise ValueError(
+                translate("qrcode.error.imageKind", type=type(self).__name__, kind=kind)
+            )
         return kind
 
     def is_eye(self, row: int, col: int):
@@ -126,8 +136,8 @@ class BaseImageWithDrawer(BaseImage):
     def __init__(
         self,
         *args,
-        module_drawer: Union[QRModuleDrawer, str, None] = None,
-        eye_drawer: Union[QRModuleDrawer, str, None] = None,
+        module_drawer: QRModuleDrawer | str | None = None,
+        eye_drawer: QRModuleDrawer | str | None = None,
         **kwargs,
     ):
         self.module_drawer = (
@@ -140,23 +150,24 @@ class BaseImageWithDrawer(BaseImage):
         super().__init__(*args, **kwargs)
 
     def get_drawer(
-        self, drawer: Union[QRModuleDrawer, str, None]
-    ) -> Optional[QRModuleDrawer]:
+        self, drawer: QRModuleDrawer | str | None
+    ) -> QRModuleDrawer | None:
         if not isinstance(drawer, str):
             return drawer
         drawer_cls, kwargs = self.drawer_aliases[drawer]
         return drawer_cls(**kwargs)
 
     def init_new_image(self):
-        self.module_drawer.initialize(img=self)
-        self.eye_drawer.initialize(img=self)
+        base_image = cast(BaseImage, self)
+        self.module_drawer.initialize(img=base_image)
+        self.eye_drawer.initialize(img=base_image)
 
         return super().init_new_image()
 
     def drawrect_context(self, row: int, col: int, qr: "QRCode"):
         box = self.pixel_box(row, col)
         drawer = self.eye_drawer if self.is_eye(row, col) else self.module_drawer
-        is_active: Union[bool, ActiveWithNeighbors] = (
+        is_active: bool | ActiveWithNeighbors = (
             qr.active_with_neighbors(row, col)
             if drawer.needs_neighbors
             else bool(qr.modules[row][col])

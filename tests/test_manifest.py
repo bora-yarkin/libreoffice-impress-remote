@@ -16,6 +16,8 @@ def test_extension_manifest_files_exist() -> None:
         "extension/Settings.xcu",
         "extension/python/impress_remote/component.py",
         "shared/webui/index.html",
+        "localizations/en.json",
+        "localizations/tr.json",
     ]
     missing = [path for path in required if not (ROOT / path).exists()]
     assert not missing

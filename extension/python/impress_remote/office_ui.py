@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, Any, cast
 
 import unohelper
 
-from impress_remote.config import DEFAULT_PREFERRED_ROUTE, ROUTE_LABELS, normalize_preferred_route
+from impress_remote.config import (
+    DEFAULT_PREFERRED_ROUTE,
+    ROUTE_LABELS,
+    normalize_preferred_route,
+    route_label,
+)
+from impress_remote.localization import translate
 
 if TYPE_CHECKING:
     from impress_remote.component import ImpressRemoteProtocolHandler
@@ -75,9 +81,10 @@ def open_external_url(ctx, url: str) -> bool:
         return bool(webbrowser.open(url, new=2))
 
 
-def show_error_message(ctx, message: str, title: str = "Impress Remote") -> None:
+def show_error_message(ctx, message: str, title: str | None = None) -> None:
     if not message:
         return
+    title = title or translate("app.title")
     try:
         desktop = _service_manager(ctx).createInstanceWithContext(
             "com.sun.star.frame.Desktop",
@@ -161,7 +168,7 @@ class RemoteDialogBase:
 
     def _dialog(self) -> Any:
         if self.dialog is None:
-            raise RuntimeError("Dialog is not initialized.")
+            raise RuntimeError(translate("error.dialogNotInitialized"))
         return self.dialog
 
     def _dialog_model(self) -> Any:
@@ -300,7 +307,7 @@ class RemoteDialogBase:
         control.Dropdown = True
         control.LineCount = len(ROUTE_LABELS)
         control.MultiSelection = False
-        control.StringItemList = tuple(ROUTE_LABELS.values())
+        control.StringItemList = tuple(route_label(key) for key in ROUTE_LABELS)
         control.SelectedItems = (tuple(ROUTE_LABELS).index(route),)
         dialog_model.insertByName(name, control)
 
@@ -335,7 +342,7 @@ class RemotePairingDialog(RemoteDialogBase):
         self._set_label("pairing_status", self._pairing_status_text(pairing, connection))
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(176, 194, "Start Remote")
+        dialog = self._create_dialog_shell(176, 194, translate("office.start.title"))
         dialog_model = dialog.getModel()
         self._add_image(dialog_model, "pairing_qr_value", 8, 8, 160, 160)
         self._add_fixed_text(
@@ -388,11 +395,11 @@ class RemotePairingDialog(RemoteDialogBase):
         connection: dict[str, Any],
     ) -> str:
         if connection.get("clientConnected"):
-            return "Phone connected."
+            return translate("office.pairing.telephoneConnected")
         if self.qr_error:
-            return f"QR unavailable: {self.qr_error}"
+            return translate("office.pairing.qrError", error=self.qr_error)
         if pairing["selectedUrl"]:
-            return "Scan with your phone."
+            return translate("office.pairing.qrScan")
         return pairing["hint"]
 
     def _start_monitor(self) -> None:
@@ -447,7 +454,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
                 self._save_settings()
                 return
         except Exception as exc:
-            message = f"Action failed: {exc}"
+            message = translate("error.dialogActionFailed", error=exc)
             self.handler.report_runtime_error(message)
             show_error_message(self.ctx, message)
             self.refresh(message)
@@ -487,13 +494,37 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         self._refresh_pairing_preview(snapshot)
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(346, 264, "Impress Remote Advanced Options")
+        dialog = self._create_dialog_shell(346, 264, translate("office.advanced.title"))
         dialog_model = dialog.getModel()
-        self._add_fixed_text(dialog_model, "status_title", "Status", 8, 8, 50, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "status_title",
+            translate("office.label.status"),
+            8,
+            8,
+            50,
+            10,
+        )
         self._add_fixed_text(dialog_model, "status_value", "", 8, 18, 330, 18, multiline=True)
-        self._add_fixed_text(dialog_model, "manual_link_title", "Manual Link", 8, 42, 58, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "manual_link_title",
+            translate("office.label.manualLink"),
+            8,
+            42,
+            58,
+            10,
+        )
         self._add_edit(dialog_model, "manual_link_value", "", 72, 40, 266, 12, readonly=True)
-        self._add_fixed_text(dialog_model, "pairing_title", "Current Route", 8, 60, 68, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "pairing_title",
+            translate("office.label.currentRoute"),
+            8,
+            60,
+            68,
+            10,
+        )
         self._add_fixed_text(
             dialog_model,
             "pairing_route_value",
@@ -513,7 +544,15 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             24,
             multiline=True,
         )
-        self._add_fixed_text(dialog_model, "howto_title", "How to Use", 8, 102, 60, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "howto_title",
+            translate("office.label.howToUse"),
+            8,
+            102,
+            60,
+            10,
+        )
         self._add_fixed_text(
             dialog_model,
             "howto_value",
@@ -524,7 +563,15 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             32,
             multiline=True,
         )
-        self._add_fixed_text(dialog_model, "route_title", "Pairing Route", 8, 150, 68, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "route_title",
+            translate("office.label.pairingRoute"),
+            8,
+            150,
+            68,
+            10,
+        )
         self._add_route_list_box(
             dialog_model,
             "route_value",
@@ -534,14 +581,62 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             156,
             14,
         )
-        self._add_fixed_text(dialog_model, "local_port_title", "Local Port", 246, 150, 40, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "local_port_title",
+            translate("office.label.localPort"),
+            246,
+            150,
+            40,
+            10,
+        )
         self._add_edit(dialog_model, "local_port_value", "", 292, 148, 46, 12)
-        self._add_checkbox(dialog_model, "local_value", "Enable local", 8, 170, 82, 10)
-        self._add_checkbox(dialog_model, "ipv6_value", "Enable direct IPv6", 96, 170, 108, 10)
-        self._add_checkbox(dialog_model, "relay_value", "Enable relay", 222, 170, 70, 10)
-        self._add_fixed_text(dialog_model, "relay_url_title", "Relay Server", 8, 188, 58, 10)
+        self._add_checkbox(
+            dialog_model,
+            "local_value",
+            translate("office.toggle.enableLocal"),
+            8,
+            170,
+            82,
+            10,
+        )
+        self._add_checkbox(
+            dialog_model,
+            "ipv6_value",
+            translate("office.toggle.enableDirectIPv6"),
+            96,
+            170,
+            108,
+            10,
+        )
+        self._add_checkbox(
+            dialog_model,
+            "relay_value",
+            translate("office.toggle.enableRelay"),
+            222,
+            170,
+            70,
+            10,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "relay_url_title",
+            translate("office.label.relayServer"),
+            8,
+            188,
+            58,
+            10,
+        )
         self._add_edit(dialog_model, "relay_url_value", "", 72, 186, 266, 12)
-        self._add_fixed_text(dialog_model, "warning_title", "Issues", 8, 206, 52, 10)
+        self._add_fixed_text(
+            dialog_model,
+            "warning_title",
+            translate("office.label.issues"),
+            8,
+            206,
+            52,
+            10,
+        )
         self._add_fixed_text(
             dialog_model,
             "warning_value",
@@ -552,8 +647,8 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             20,
             multiline=True,
         )
-        self._add_button(dialog_model, "save_button", "Save", 244, 240, 44, 14)
-        self._add_button(dialog_model, "close_button", "Close", 294, 240, 44, 14)
+        self._add_button(dialog_model, "save_button", translate("common.save"), 244, 240, 44, 14)
+        self._add_button(dialog_model, "close_button", translate("common.close"), 294, 240, 44, 14)
         return dialog
 
     def _add_listeners(self) -> None:
@@ -598,7 +693,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
     def _save_settings(self) -> None:
         local_port_text = self._get_text("local_port_value").strip()
         if not local_port_text.isdigit() or not 1 <= int(local_port_text) <= 65535:
-            self.refresh("Preferred local port must be a number from 1 to 65535.")
+            self.refresh(translate("error.localPortRange"))
             return
 
         payload = {
@@ -614,7 +709,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         except ValueError as exc:
             self.refresh(str(exc))
             return
-        self.refresh("Settings saved.")
+        self.refresh(translate("component.settingsSaved"))
 
     def _set_route_selection(self, name: str, route: str) -> None:
         route_keys = tuple(ROUTE_LABELS)
@@ -662,23 +757,27 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         )
         self._set_text(
             "manual_link_value",
-            pairing["selectedUrl"] or "Start the remote to generate a manual link.",
+            pairing["selectedUrl"] or translate("office.manualLink.start"),
         )
 
     def _pairing_route_text(self, pairing: dict[str, str], running: bool) -> str:
         if not running:
-            return "The QR popup will choose a route after you start the remote."
+            return translate("office.pairing.routeAfterStart")
         if pairing["selectedRoute"]:
             if pairing["requestedRoute"] == "auto":
-                return f"Auto is using {pairing['selectedLabel']}."
-            return f"Manual route: {pairing['selectedLabel']}."
+                return translate("office.pairing.autoUsing", route=pairing["selectedLabel"])
+            return translate("office.pairing.manualRoute", route=pairing["selectedLabel"])
         if pairing["requestedRoute"] == "auto":
-            return "Auto could not find a working route."
-        return "The selected route is unavailable right now."
+            return translate("office.pairing.autoNoRoute")
+        return translate("office.pairing.routeUnavailable")
 
     def _pairing_hint_text(self, pairing: dict[str, str], connection: dict[str, Any]) -> str:
         if self.preview_error:
-            return f"{pairing['hint']} Draft settings error: {self.preview_error}"
+            return translate(
+                "office.pairing.draftError",
+                hint=pairing["hint"],
+                error=self.preview_error,
+            )
         if (
             pairing["selectedRoute"] == "ipv6"
             and connection.get("ipv6Status") == "ready"
@@ -688,36 +787,23 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         if pairing["selectedUrl"]:
             return pairing["hint"]
         if connection["relayStatus"] == "error" and connection["relayLastError"]:
-            return f"{pairing['hint']} Relay error: {connection['relayLastError']}"
+            return translate(
+                "office.relayError",
+                hint=pairing["hint"],
+                error=connection["relayLastError"],
+            )
         return pairing["hint"]
 
     def _how_to_use_text(self, pairing: dict[str, str], running: bool) -> str:
         if not running:
-            return (
-                "Use Presentation Remote > Start Remote, keep the phone on the same Wi-Fi "
-                "or hotspot, then scan the QR code. Use the Manual Link only if scanning fails."
-            )
+            return translate("office.howTo.notRunning")
         if pairing["selectedRoute"] in {"", "local"} or pairing["requestedRoute"] == "auto":
-            return (
-                "Local mode is preferred. Reopen Start Remote to show the QR code again for "
-                "another phone. Use Direct IPv6 or Relay only when local mode does not work."
-            )
+            return translate("office.howTo.local")
         if pairing["selectedRoute"] == "ipv6":
-            return (
-                "Direct IPv6 is active because local mode is unavailable. Both the phone and "
-                "the computer need public IPv6, and desktop or router firewalls must allow "
-                "the selected port. Keep local mode enabled so Auto can prefer it whenever "
-                "the network allows it."
-            )
+            return translate("office.howTo.directIPv6")
         if pairing["selectedRoute"] == "relay":
-            return (
-                "Relay is active as a fallback route. Save the relay server here, then use "
-                "Start Remote to show the QR code that points the phone through the relay."
-            )
-        return (
-            "Use local mode first. If it does not work on your network, try Direct IPv6 or "
-            "Relay here, then start the remote again from the menu."
-        )
+            return translate("office.howTo.relay")
+        return translate("office.howTo.routeFallback")
 
     def _issues_text(self, snapshot: dict[str, Any], connection: dict[str, Any]) -> str:
         issues: list[str] = []
@@ -736,8 +822,8 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         ):
             issues.append(ipv6_hint)
         if bool(connection.get("configPendingRestart")):
-            issues.append("Restart the remote to apply the saved listener changes.")
-        return " ".join(issues) if issues else "No current issues."
+            issues.append(translate("office.issues.restart"))
+        return " ".join(issues) if issues else translate("office.issues.none")
 
     def _draft_payload(self) -> dict[str, object]:
         payload: dict[str, object] = {

@@ -37,18 +37,18 @@ export default {
     if(url.pathname === '/ws' || url.pathname === '/api/session'){
       const session = url.searchParams.get('session') || ''
       if(!session){
-        return new Response('session is required', {status: 400})
+        return new Response('relay.error.sessionRequired', {status: 400})
       }
       if(session.length > MAX_SESSION_ID_LENGTH){
-        return new Response('session id is too long', {status: 400})
+        return new Response('relay.error.sessionTooLong', {status: 400})
       }
       if(!isValidSessionId(session)){
-        return new Response('session id format is invalid', {status: 400})
+        return new Response('relay.error.sessionFormat', {status: 400})
       }
       if(url.pathname === '/ws'){
         const role = url.searchParams.get('role') || ''
         if(!['plugin', 'phone'].includes(role)){
-          return new Response('role and session are required', {status: 400})
+          return new Response('relay.error.roleAndSessionRequired', {status: 400})
         }
       }
       const id = env.RELAY_ROOMS.idFromName(session)
@@ -132,28 +132,28 @@ export class RelayRoom extends DurableObject {
       return this.sessionStatus(request)
     }
     if(url.pathname !== '/ws'){
-      return new Response('Not found', {status: 404})
+      return new Response('relay.error.notFound', {status: 404})
     }
     if(request.headers.get('Upgrade') !== 'websocket'){
-      return new Response('Expected websocket upgrade', {status: 426})
+      return new Response('relay.error.expectedWebsocket', {status: 426})
     }
     const role = url.searchParams.get('role') || ''
     const session = url.searchParams.get('session') || ''
     const admissionToken = url.searchParams.get('a') || ''
     if(!['plugin', 'phone'].includes(role) || !session){
-      return new Response('role and session are required', {status: 400})
+      return new Response('relay.error.roleAndSessionRequired', {status: 400})
     }
     if(this.sessionId && this.sessionId !== session){
-      return new Response('session mismatch', {status: 400})
+      return new Response('relay.error.sessionMismatch', {status: 400})
     }
     if(!this.authorizeAdmission(admissionToken)){
       this.countMetric('authRejects')
       logEvent('warn', 'relay.auth_reject', {role, session})
-      return new Response('session admission token is invalid', {status: 403})
+      return new Response('relay.error.admissionTokenInvalid', {status: 403})
     }
     if(role === 'phone' && this.phoneCount() >= MAX_PHONES_PER_SESSION){
       this.countMetric('rateLimitRejects')
-      return new Response('too many phones connected to this session', {status: 429})
+      return new Response('relay.error.tooManyPhones', {status: 429})
     }
 
     const [client, server] = Object.values(new WebSocketPair())
@@ -168,7 +168,7 @@ export class RelayRoom extends DurableObject {
 
     if(role === 'plugin'){
       if(this.plugin && this.plugin !== server){
-        safeCloseSocket(this.plugin, 4000, 'plugin replaced')
+        safeCloseSocket(this.plugin, 4000, 'relay.error.pluginReplaced')
       }
       this.plugin = server
       this.clearCachedPluginMessages()
@@ -194,11 +194,11 @@ export class RelayRoom extends DurableObject {
     const session = url.searchParams.get('session') || ''
     const admissionToken = url.searchParams.get('a') || ''
     if(!this.sessionId || this.sessionId !== session){
-      return new Response('session not found', {status: 404})
+      return new Response('relay.error.sessionNotFound', {status: 404})
     }
     if(!this.authorizeAdmission(admissionToken)){
       this.countMetric('authRejects')
-      return new Response('session admission token is invalid', {status: 403})
+      return new Response('relay.error.admissionTokenInvalid', {status: 403})
     }
     this.lastSeen = Date.now()
     await this.persistSnapshot()
@@ -216,17 +216,17 @@ export class RelayRoom extends DurableObject {
       return
     }
     if(typeof message !== 'string'){
-      await this.rejectProtocol(ws, 'binary-unsupported', 'Relay messages must be UTF-8 JSON text.')
+      await this.rejectProtocol(ws, 'binary-unsupported', 'relay.error.binaryUnsupported')
       return
     }
     if(utf8ByteLength(message) > MAX_MESSAGE_BYTES){
-      await this.rejectProtocol(ws, 'message-too-large', 'Relay message exceeds the configured size limit.')
+      await this.rejectProtocol(ws, 'message-too-large', 'relay.error.messageTooLarge')
       return
     }
     if(!this.allowMessage(ws)){
       this.countMetric('rateLimitRejects')
       logEvent('warn', 'relay.rate_limit', {role: connection.role, session: this.sessionId})
-      await this.rejectProtocol(ws, 'rate-limit', 'Relay connection exceeded the message rate limit.')
+      await this.rejectProtocol(ws, 'rate-limit', 'relay.error.rateLimit')
       return
     }
     this.countMetric('framesReceived')
@@ -268,7 +268,7 @@ export class RelayRoom extends DurableObject {
         continue
       }
       this.countMetric('sendFailures')
-      safeCloseSocket(target, 1011, 'relay send failure')
+      safeCloseSocket(target, 1011, 'relay.error.sendFailure')
     }
     this.countMetric('framesForwarded', forwarded)
   }
@@ -282,7 +282,7 @@ export class RelayRoom extends DurableObject {
   async webSocketError(ws){
     await this.ready
     await this.disconnectSocket(ws)
-    safeCloseSocket(ws, 1011, 'Relay websocket error')
+    safeCloseSocket(ws, 1011, 'relay.error.websocket')
   }
 
   phoneCount(){
@@ -448,60 +448,60 @@ function validateProtocolMessage(rawMessage, role, sessionId, latestPluginHello)
   try{
     payload = JSON.parse(rawMessage)
   }catch(error){
-    throw new RelayProtocolViolation('invalid-json', 'Relay messages must be valid JSON.')
+    throw new RelayProtocolViolation('invalid-json', 'relay.error.invalidJson')
   }
   if(!payload || typeof payload !== 'object' || Array.isArray(payload)){
-    throw new RelayProtocolViolation('invalid-json', 'Relay messages must be JSON objects.')
+    throw new RelayProtocolViolation('invalid-json', 'relay.error.jsonObject')
   }
 
   if(!['hello', 'frame', 'error'].includes(payload.type)){
-    throw new RelayProtocolViolation('invalid-type', 'Relay messages must use hello, frame, or error envelopes.')
+    throw new RelayProtocolViolation('invalid-type', 'relay.error.invalidEnvelopeType')
   }
   if(typeof payload.v !== 'number' || payload.v !== RELAY_PROTOCOL_VERSION){
-    throw new RelayProtocolViolation('unsupported-version', 'Unsupported relay protocol version.')
+    throw new RelayProtocolViolation('unsupported-version', 'relay.error.unsupportedVersion')
   }
   if(typeof payload.s !== 'string' || payload.s !== sessionId){
-    throw new RelayProtocolViolation('session-mismatch', 'Relay message is bound to another session.')
+    throw new RelayProtocolViolation('session-mismatch', 'relay.error.messageSessionMismatch')
   }
 
   if(payload.type === 'hello'){
     if(role !== 'plugin'){
-      throw new RelayProtocolViolation('invalid-role', 'Only the plugin may publish relay hello messages.')
+      throw new RelayProtocolViolation('invalid-role', 'relay.error.helloPluginOnly')
     }
-    const keyId = requiredString(payload, 'k', 'Relay hello is missing a key id.')
-    requiredString(payload, 'nonce', 'Relay hello is missing a plugin nonce.')
+    const keyId = requiredString(payload, 'k', 'relay.error.helloMissingKey')
+    requiredString(payload, 'nonce', 'relay.error.helloMissingNonce')
     return {messageType: 'hello', keyId, frameKind: ''}
   }
 
   if(payload.type === 'error'){
     if(role !== 'plugin'){
-      throw new RelayProtocolViolation('invalid-role', 'Only the plugin may publish plaintext relay errors.')
+      throw new RelayProtocolViolation('invalid-role', 'relay.error.plainErrorPluginOnly')
     }
-    requiredString(payload, 'code', 'Relay error messages need an error code.')
-    requiredString(payload, 'message', 'Relay error messages need an error message.')
+    requiredString(payload, 'code', 'relay.error.errorMissingCode')
+    requiredString(payload, 'message', 'relay.error.errorMissingMessage')
     return {messageType: 'error', keyId: '', frameKind: ''}
   }
 
-  const keyId = requiredString(payload, 'k', 'Encrypted relay frames need a key id.')
-  const frameKind = requiredString(payload, 'kind', 'Encrypted relay frames need a kind.')
-  requiredString(payload, 'n', 'Encrypted relay frames need a nonce.')
-  requiredString(payload, 'ct', 'Encrypted relay frames need ciphertext.')
+  const keyId = requiredString(payload, 'k', 'relay.error.frameMissingKey')
+  const frameKind = requiredString(payload, 'kind', 'relay.error.frameMissingKind')
+  requiredString(payload, 'n', 'relay.error.frameMissingNonce')
+  requiredString(payload, 'ct', 'relay.error.frameMissingCiphertext')
 
   const allowedKinds = role === 'plugin' ? PLUGIN_FRAME_KINDS : PHONE_FRAME_KINDS
   if(!allowedKinds.has(frameKind)){
-    throw new RelayProtocolViolation('invalid-kind', 'Encrypted relay frame kind is not allowed for this role.')
+    throw new RelayProtocolViolation('invalid-kind', 'relay.error.frameKindForRole')
   }
 
   if(role === 'plugin'){
     const activeKeyId = helloKeyId(latestPluginHello)
     if(!activeKeyId){
-      throw new RelayProtocolViolation('missing-hello', 'The plugin must publish a relay hello before encrypted frames.')
+      throw new RelayProtocolViolation('missing-hello', 'relay.error.pluginHelloRequired')
     }
     if(keyId !== activeKeyId){
-      throw new RelayProtocolViolation('invalid-key', 'Plugin frame key id does not match the active relay hello.')
+      throw new RelayProtocolViolation('invalid-key', 'relay.error.pluginKeyMismatch')
     }
   }else if(!latestPluginHello){
-    throw new RelayProtocolViolation('missing-hello', 'The relay plugin is not ready for encrypted commands yet.')
+    throw new RelayProtocolViolation('missing-hello', 'relay.error.pluginNotReady')
   }
 
   return {messageType: 'frame', keyId, frameKind}

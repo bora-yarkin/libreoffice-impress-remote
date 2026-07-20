@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 import socket
 
+from impress_remote_relay.localization import translate
+
 DEFAULT_HOST_V4 = "0.0.0.0"
 DEFAULT_HOST_V6 = "::"
 DEFAULT_SESSION_TTL = 3600
@@ -27,13 +29,13 @@ class RelayRuntimeConfig:
         port = payload.get("port", 8080)
         session_ttl = payload.get("session_ttl", DEFAULT_SESSION_TTL)
         if not isinstance(host_v4, str):
-            raise ValueError("Relay runtime config host_v4 must be a string.")
+            raise ValueError(translate("relay.error.runtimeHostV4"))
         if not isinstance(host_v6, str):
-            raise ValueError("Relay runtime config host_v6 must be a string.")
+            raise ValueError(translate("relay.error.runtimeHostV6"))
         if isinstance(port, bool) or not isinstance(port, int):
-            raise ValueError("Relay runtime config port must be an integer.")
+            raise ValueError(translate("relay.error.runtimePort"))
         if isinstance(session_ttl, bool) or not isinstance(session_ttl, int):
-            raise ValueError("Relay runtime config session_ttl must be an integer.")
+            raise ValueError(translate("relay.error.runtimeSessionTtl"))
         return cls(
             host_v4=host_v4,
             host_v6=host_v6,
@@ -54,7 +56,7 @@ def choose_random_port() -> int:
 def load_runtime_config(path: Path) -> RelayRuntimeConfig:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("Relay runtime config must be a JSON object.")
+        raise ValueError(translate("relay.error.runtimeConfigObject"))
     return RelayRuntimeConfig.from_dict(payload)
 
 

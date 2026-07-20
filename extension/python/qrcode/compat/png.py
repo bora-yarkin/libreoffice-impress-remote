@@ -1,7 +1,11 @@
+from typing import Any
+
 # Try to import png library.
-PngWriter = None
+PngWriter: type[Any] | None = None
 
 try:
-    from png import Writer as PngWriter  # type: ignore  # noqa: F401
+    from png import Writer as _PngWriter  # type: ignore[import-not-found]
+
+    PngWriter = _PngWriter
 except ImportError:  # pragma: no cover
     pass

@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from impress_remote.config import relay_session_status_url, relay_websocket_url
+from impress_remote.localization import translate
 from impress_remote.protocol import (
     RelayProtocolFailure,
     SecureRelayCodec,
@@ -41,7 +42,7 @@ def _read_exact(sock: socket.socket, size: int) -> bytes:
     while remaining > 0:
         chunk = sock.recv(remaining)
         if not chunk:
-            raise ConnectionError("websocket connection closed")
+            raise ConnectionError(translate("relayClient.error.closed"))
         chunks.append(chunk)
         remaining -= len(chunk)
     return b"".join(chunks)
@@ -55,9 +56,9 @@ class RelayWebSocket:
     def connect(self) -> None:
         parsed = urlparse(self.url)
         if parsed.scheme not in {"ws", "wss"}:
-            raise ValueError(f"Unsupported websocket scheme: {parsed.scheme}")
+            raise ValueError(translate("relayClient.error.unsupportedScheme", scheme=parsed.scheme))
         if not parsed.hostname:
-            raise ValueError("Relay websocket URL is missing a host")
+            raise ValueError(translate("relayClient.error.missingHost"))
 
         port = parsed.port or (443 if parsed.scheme == "wss" else 80)
         raw_socket = socket.create_connection((parsed.hostname, port), timeout=5)
@@ -88,9 +89,11 @@ class RelayWebSocket:
             hashlib.sha1((websocket_key + GUID).encode("ascii")).digest()
         ).decode("ascii")
         if "101" not in response.splitlines()[0]:
-            raise ConnectionError(f"Unexpected websocket handshake response: {response!r}")
+            raise ConnectionError(
+                translate("relayClient.error.unexpectedHandshake", response=response)
+            )
         if f"sec-websocket-accept: {expected_accept}".lower() not in response.lower():
-            raise ConnectionError("Relay websocket handshake could not be verified")
+            raise ConnectionError(translate("relayClient.error.handshakeVerification"))
 
         self._socket = raw_socket
 
@@ -134,7 +137,7 @@ class RelayWebSocket:
             if opcode == 0x1:
                 return payload.decode("utf-8")
             if opcode == 0x8:
-                raise ConnectionError("Relay websocket closed the connection")
+                raise ConnectionError(translate("relayClient.error.relayClosed"))
             if opcode == 0x9:
                 self._send_frame(0xA, payload)
                 continue
@@ -147,13 +150,13 @@ class RelayWebSocket:
         while b"\r\n\r\n" not in response:
             chunk = sock.recv(4096)
             if not chunk:
-                raise ConnectionError("Unexpected EOF during websocket handshake")
+                raise ConnectionError(translate("relayClient.error.handshakeEof"))
             response.extend(chunk)
         return response.decode("iso-8859-1")
 
     def _require_socket(self) -> socket.socket:
         if self._socket is None:
-            raise ConnectionError("Relay websocket is not connected")
+            raise ConnectionError(translate("relayClient.error.notConnected"))
         return self._socket
 
     def _send_frame(self, opcode: int, payload: bytes) -> None:

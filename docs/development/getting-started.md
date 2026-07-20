@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.5.0` release line.
+This guide matches the `0.6.4` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -34,6 +34,14 @@ Slide Show -> Presentation Remote
 3. Choose `Start` inside the dialog to bring up the embedded local server.
 4. Scan the QR code shown by LibreOffice with your phone.
 5. Choose `Open Console` if you also want to preview the current route in a desktop browser.
+
+## Testing Localization
+
+The extension ships English and Turkish catalogs in `localizations/`.
+
+- Set `IMPRESS_REMOTE_LANG=tr` before launching LibreOffice to force Turkish extension strings during development.
+- Add `?lang=tr` to the phone UI URL, or `lang=tr` in the pairing fragment, to force Turkish browser strings.
+- Omit the override to let the extension and browser fall back to their detected language, then English.
 
 ## Relay Mode
 

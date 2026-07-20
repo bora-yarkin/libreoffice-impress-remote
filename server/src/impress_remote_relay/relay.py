@@ -13,6 +13,7 @@ from typing import Any
 from aiohttp import WSMsgType, web
 
 from impress_remote_relay.assets import read_web_asset, web_asset_manifest
+from impress_remote_relay.localization import translate
 from impress_remote_relay.session import RelaySession
 
 RELAY_PROTOCOL_VERSION = 1
@@ -118,6 +119,7 @@ def create_app(state: RelayState | None = None) -> web.Application:
     app.router.add_get("/index.html", index)
     app.router.add_get("/app.js", app_js)
     app.router.add_get("/app.css", app_css)
+    app.router.add_get("/localizations/{name}", localization_json)
     app.router.add_get("/ws", websocket_handler)
     return app
 
@@ -153,15 +155,15 @@ async def session_status(request: web.Request) -> web.Response:
     session_id = request.query.get("session", "")
     admission_token = request.query.get("a", "")
     if not session_id:
-        raise web.HTTPBadRequest(text="session is required")
+        raise web.HTTPBadRequest(text=translate("relay.error.sessionRequired"))
     if len(session_id) > state.max_session_id_length or not _is_valid_session_id(session_id):
-        raise web.HTTPBadRequest(text="session id format is invalid")
+        raise web.HTTPBadRequest(text=translate("relay.error.sessionFormat"))
     session = state.sessions.get(session_id)
     if session is None:
-        raise web.HTTPNotFound(text="session not found")
+        raise web.HTTPNotFound(text=translate("relay.error.sessionNotFound"))
     if not session.authorize(admission_token):
         state.count("authRejects")
-        raise web.HTTPForbidden(text="session admission token is invalid")
+        raise web.HTTPForbidden(text=translate("relay.error.admissionTokenInvalid"))
     session.touch()
     return web.json_response({"ok": True, "session": session.snapshot()})
 
@@ -191,21 +193,31 @@ async def app_css(_request: web.Request) -> web.Response:
     )
 
 
+async def localization_json(request: web.Request) -> web.Response:
+    name = request.match_info.get("name", "")
+    if name not in {"en.json", "tr.json"}:
+        raise web.HTTPNotFound(text=translate("relay.error.localizationNotFound"))
+    return web.Response(
+        text=read_web_asset(f"localizations/{name}"),
+        content_type="application/json",
+    )
+
+
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     role = request.query.get("role", "")
     session_id = request.query.get("session", "")
     admission_token = request.query.get("a", "")
     if role not in {"plugin", "phone"} or not session_id:
-        raise web.HTTPBadRequest(text="role and session are required")
+        raise web.HTTPBadRequest(text=translate("relay.error.roleAndSessionRequired"))
     state = get_relay_state(request.app)
     if len(session_id) > state.max_session_id_length:
-        raise web.HTTPBadRequest(text="session id is too long")
+        raise web.HTTPBadRequest(text=translate("relay.error.sessionTooLong"))
     if not _is_valid_session_id(session_id):
-        raise web.HTTPBadRequest(text="session id format is invalid")
+        raise web.HTTPBadRequest(text=translate("relay.error.sessionFormat"))
     session = state.get(session_id)
     if session is None:
         state.count("rateLimitRejects")
-        raise web.HTTPServiceUnavailable(text="relay session capacity has been reached")
+        raise web.HTTPServiceUnavailable(text=translate("relay.error.sessionCapacity"))
     if not session.authorize(admission_token):
         state.count("authRejects")
         _log_event(
@@ -214,16 +226,19 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
             role=role,
             session=session_id,
         )
-        raise web.HTTPForbidden(text="session admission token is invalid")
+        raise web.HTTPForbidden(text=translate("relay.error.admissionTokenInvalid"))
     if role == "phone" and session.phone_count() >= state.max_phones_per_session:
-        raise web.HTTPTooManyRequests(text="too many phones connected to this session")
+        raise web.HTTPTooManyRequests(text=translate("relay.error.tooManyPhones"))
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=state.max_message_bytes)
     await ws.prepare(request)
     state.count("websocketAccepts")
     _log_event(logging.INFO, "relay.ws_accept", role=role, session=session_id)
     if role == "plugin":
         if session.plugin is not None:
-            await session.plugin.close(code=4000, message=b"plugin replaced")
+            await session.plugin.close(
+                code=4000,
+                message=translate("relay.error.pluginReplaced").encode("utf-8")[:120],
+            )
         session.plugin = ws
         session.clear_cached_plugin_messages()
     else:
@@ -246,7 +261,7 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
                         ws,
                         session_id,
                         "rate-limit",
-                        "Relay connection exceeded the message rate limit.",
+                        "relay.error.rateLimit",
                     )
                     break
                 accepted = await relay_message(
@@ -264,7 +279,7 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
                     ws,
                     session_id,
                     "binary-unsupported",
-                    "Relay messages must be UTF-8 JSON text.",
+                    "relay.error.binaryUnsupported",
                 )
                 break
             elif message.type == WSMsgType.ERROR:
@@ -325,11 +340,14 @@ async def relay_message(
         return_exceptions=True,
     )
     successes = 0
-    for target, result in zip(targets, results):
+    for target, result in zip(targets, results, strict=True):
         if isinstance(result, Exception) or result is False:
             state.count("sendFailures")
             try:
-                await target.close(code=1011, message=b"relay send failure")
+                await target.close(
+                    code=1011,
+                    message=translate("relay.error.sendFailure").encode("utf-8")[:120],
+                )
             except Exception:
                 pass
             continue
@@ -356,7 +374,10 @@ def _record_plugin_metadata(
         session.latest_plugin_hello = raw_message
         session.cached_plugin_frames.clear()
         return
-    if envelope.message_type != "frame" or envelope.frame_kind not in _REPLAYABLE_PLUGIN_FRAME_KINDS:
+    if (
+        envelope.message_type != "frame"
+        or envelope.frame_kind not in _REPLAYABLE_PLUGIN_FRAME_KINDS
+    ):
         return
     session.cache_plugin_frame(raw_message, max_cached_plugin_frames)
 
@@ -381,61 +402,61 @@ def _validate_protocol_message(
     try:
         payload = json.loads(raw_message)
     except (TypeError, json.JSONDecodeError) as exc:
-        raise _RelayProtocolViolation("invalid-json", "Relay messages must be valid JSON.") from exc
+        raise _RelayProtocolViolation("invalid-json", "relay.error.invalidJson") from exc
     if not isinstance(payload, dict):
-        raise _RelayProtocolViolation("invalid-json", "Relay messages must be JSON objects.")
+        raise _RelayProtocolViolation("invalid-json", "relay.error.jsonObject")
 
     message_type = payload.get("type")
     if message_type not in {"hello", "frame", "error"}:
         raise _RelayProtocolViolation(
             "invalid-type",
-            "Relay messages must use hello, frame, or error envelopes.",
+            "relay.error.invalidEnvelopeType",
         )
 
     version = payload.get("v")
     if not isinstance(version, int) or version != RELAY_PROTOCOL_VERSION:
         raise _RelayProtocolViolation(
             "unsupported-version",
-            "Unsupported relay protocol version.",
+            "relay.error.unsupportedVersion",
         )
 
     bound_session = payload.get("s")
     if not isinstance(bound_session, str) or bound_session != session_id:
         raise _RelayProtocolViolation(
             "session-mismatch",
-            "Relay message is bound to another session.",
+            "relay.error.messageSessionMismatch",
         )
 
     if message_type == "hello":
         if role != "plugin":
             raise _RelayProtocolViolation(
                 "invalid-role",
-                "Only the plugin may publish relay hello messages.",
+                "relay.error.helloPluginOnly",
             )
-        key_id = _required_string(payload, "k", "Relay hello is missing a key id.")
-        _required_string(payload, "nonce", "Relay hello is missing a plugin nonce.")
+        key_id = _required_string(payload, "k", "relay.error.helloMissingKey")
+        _required_string(payload, "nonce", "relay.error.helloMissingNonce")
         return _RelayEnvelope(message_type="hello", key_id=key_id)
 
     if message_type == "error":
         if role != "plugin":
             raise _RelayProtocolViolation(
                 "invalid-role",
-                "Only the plugin may publish plaintext relay errors.",
+                "relay.error.plainErrorPluginOnly",
             )
-        _required_string(payload, "code", "Relay error messages need an error code.")
-        _required_string(payload, "message", "Relay error messages need an error message.")
+        _required_string(payload, "code", "relay.error.errorMissingCode")
+        _required_string(payload, "message", "relay.error.errorMissingMessage")
         return _RelayEnvelope(message_type="error")
 
-    key_id = _required_string(payload, "k", "Encrypted relay frames need a key id.")
-    frame_kind = _required_string(payload, "kind", "Encrypted relay frames need a kind.")
-    _required_string(payload, "n", "Encrypted relay frames need a nonce.")
-    _required_string(payload, "ct", "Encrypted relay frames need ciphertext.")
+    key_id = _required_string(payload, "k", "relay.error.frameMissingKey")
+    frame_kind = _required_string(payload, "kind", "relay.error.frameMissingKind")
+    _required_string(payload, "n", "relay.error.frameMissingNonce")
+    _required_string(payload, "ct", "relay.error.frameMissingCiphertext")
 
     allowed_kinds = _PLUGIN_FRAME_KINDS if role == "plugin" else _PHONE_FRAME_KINDS
     if frame_kind not in allowed_kinds:
         raise _RelayProtocolViolation(
             "invalid-kind",
-            "Encrypted relay frame kind is not allowed for this role.",
+            "relay.error.frameKindForRole",
         )
 
     if role == "plugin":
@@ -443,17 +464,17 @@ def _validate_protocol_message(
         if not active_key_id:
             raise _RelayProtocolViolation(
                 "missing-hello",
-                "The plugin must publish a relay hello before encrypted frames.",
+                "relay.error.pluginHelloRequired",
             )
         if key_id != active_key_id:
             raise _RelayProtocolViolation(
                 "invalid-key",
-                "Plugin frame key id does not match the active relay hello.",
+                "relay.error.pluginKeyMismatch",
             )
     elif not latest_plugin_hello:
         raise _RelayProtocolViolation(
             "missing-hello",
-            "The relay plugin is not ready for encrypted commands yet.",
+            "relay.error.pluginNotReady",
         )
 
     return _RelayEnvelope(message_type="frame", key_id=key_id, frame_kind=frame_kind)

@@ -10,6 +10,7 @@ from struct import pack
 import tempfile
 from zlib import compress
 
+from impress_remote.localization import translate
 from qrcode import QRCode, constants
 
 
@@ -44,7 +45,7 @@ def _matrix_to_png_bytes(
     box_size: int = 8,
 ) -> bytes:
     if not matrix or not matrix[0]:
-        raise RuntimeError("QR matrix is empty.")
+        raise RuntimeError(translate("error.qrEmpty"))
 
     size = len(matrix)
     width = size * box_size
@@ -71,7 +72,7 @@ def _matrix_to_png_bytes(
 
 def export_qr_png_path(_ctx, payload: str) -> Path:
     if not payload:
-        raise RuntimeError("No pairing URL is available for this route.")
+        raise RuntimeError(translate("error.noPairingUrl"))
 
     temp_file = tempfile.NamedTemporaryFile(
         prefix="impress-remote-qr-",
