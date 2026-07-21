@@ -23,7 +23,10 @@ def discover_local_urls(port: int, session_id: str) -> list[str]:
 
 
 def discover_direct_ipv6_urls(port: int, session_id: str) -> list[str]:
-    return [format_http_url(address, port, session_id) for address in discover_direct_ipv6_addresses()]
+    return [
+        format_http_url(address, port, session_id)
+        for address in discover_direct_ipv6_addresses()
+    ]
 
 
 def discover_direct_ipv6_addresses() -> list[str]:

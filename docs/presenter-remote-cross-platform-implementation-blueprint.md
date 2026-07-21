@@ -278,12 +278,12 @@ asset
   "elapsedSeconds": 140,
   "currentSlideImageRevision": "opaque-current-revision",
   "nextSlideImageRevision": "opaque-next-revision",
-  "currentSlideImageUrl": "/api/slide/current?rev=...",
-  "nextSlideImageUrl": "/api/slide/next?rev=..."
+  "currentSlideImageUrl": "/api/direct/slide/current?rev=...",
+  "nextSlideImageUrl": "/api/direct/slide/next?rev=..."
 }
 ```
 
-Relay image URLs remain empty; image bytes arrive as encrypted assets.
+Relay image URLs remain empty; local/direct image URLs return encrypted asset frames.
 
 Asset:
 

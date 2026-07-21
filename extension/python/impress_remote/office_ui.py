@@ -7,6 +7,8 @@ from pathlib import Path
 import threading
 import webbrowser
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import unquote, urlparse
+from urllib.request import url2pathname
 
 import unohelper
 
@@ -79,6 +81,34 @@ def open_external_url(ctx, url: str) -> bool:
         return True
     except Exception:
         return bool(webbrowser.open(url, new=2))
+
+
+def _file_url_to_path(value: str) -> Path:
+    if value.startswith("file://"):
+        parsed = urlparse(value)
+        return Path(url2pathname(unquote(parsed.path))).resolve()
+    return Path(value).expanduser().resolve()
+
+
+def choose_export_directory(ctx, title: str) -> Path:
+    try:
+        picker = _service_manager(ctx).createInstanceWithContext(
+            "com.sun.star.ui.dialogs.FolderPicker",
+            ctx,
+        )
+        if hasattr(picker, "setTitle"):
+            picker.setTitle(title)
+        result = picker.execute()
+        if int(result) == 1:
+            directory = picker.getDirectory()
+            if directory:
+                return _file_url_to_path(str(directory))
+    except Exception:
+        pass
+
+    from impress_remote.resources import default_export_directory
+
+    return default_export_directory()
 
 
 def show_error_message(ctx, message: str, title: str | None = None) -> None:
@@ -453,6 +483,15 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             if control_name == "save_button":
                 self._save_settings()
                 return
+            if control_name == "export_relay_button":
+                self._export_resource("relay")
+                return
+            if control_name == "export_cloudflare_button":
+                self._export_resource("cloudflare")
+                return
+            if control_name == "export_docs_button":
+                self._export_resource("docs")
+                return
         except Exception as exc:
             message = translate("error.dialogActionFailed", error=exc)
             self.handler.report_runtime_error(message)
@@ -494,7 +533,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         self._refresh_pairing_preview(snapshot)
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(346, 264, translate("office.advanced.title"))
+        dialog = self._create_dialog_shell(346, 286, translate("office.advanced.title"))
         dialog_model = dialog.getModel()
         self._add_fixed_text(
             dialog_model,
@@ -647,13 +686,55 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             20,
             multiline=True,
         )
-        self._add_button(dialog_model, "save_button", translate("common.save"), 244, 240, 44, 14)
-        self._add_button(dialog_model, "close_button", translate("common.close"), 294, 240, 44, 14)
+        self._add_fixed_text(
+            dialog_model,
+            "resources_title",
+            translate("office.label.resources"),
+            8,
+            242,
+            58,
+            10,
+        )
+        self._add_button(
+            dialog_model,
+            "export_relay_button",
+            translate("office.button.exportRelay"),
+            72,
+            240,
+            74,
+            14,
+        )
+        self._add_button(
+            dialog_model,
+            "export_cloudflare_button",
+            translate("office.button.exportCloudflare"),
+            150,
+            240,
+            86,
+            14,
+        )
+        self._add_button(
+            dialog_model,
+            "export_docs_button",
+            translate("office.button.exportDocs"),
+            240,
+            240,
+            84,
+            14,
+        )
+        self._add_button(dialog_model, "save_button", translate("common.save"), 244, 264, 44, 14)
+        self._add_button(dialog_model, "close_button", translate("common.close"), 294, 264, 44, 14)
         return dialog
 
     def _add_listeners(self) -> None:
         dialog = self._dialog()
-        for control_name in ("save_button", "close_button"):
+        for control_name in (
+            "save_button",
+            "close_button",
+            "export_relay_button",
+            "export_cloudflare_button",
+            "export_docs_button",
+        ):
             control = dialog.getControl(control_name)
             listener = DialogButtonListener(self)
             control.addActionListener(listener)
@@ -710,6 +791,37 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             self.refresh(str(exc))
             return
         self.refresh(translate("component.settingsSaved"))
+
+    def _export_resource(self, kind: str) -> None:
+        from impress_remote.resources import export_packaged_resource
+
+        destination = choose_export_directory(self.ctx, translate("office.export.chooseFolder"))
+        result = export_packaged_resource(kind, destination)
+        if kind == "relay":
+            self.refresh(
+                translate(
+                    "office.export.relayDone",
+                    path=result.destination,
+                    count=result.entries,
+                )
+            )
+            return
+        if kind == "cloudflare":
+            self.refresh(
+                translate(
+                    "office.export.cloudflareDone",
+                    path=result.destination,
+                    count=result.entries,
+                )
+            )
+            return
+        self.refresh(
+            translate(
+                "office.export.docsDone",
+                path=result.destination,
+                count=result.entries,
+            )
+        )
 
     def _set_route_selection(self, name: str, route: str) -> None:
         route_keys = tuple(ROUTE_LABELS)

@@ -76,7 +76,9 @@ async def test_relay_forwards_plugin_encrypted_state_frame_to_phone() -> None:
         assert hello_message.type == WSMsgType.TEXT
         assert hello_message.data == hello_raw
 
-        await plugin_socket.send_str(plugin_codec.encode_state_frame({"running": True, "slideCount": 3}))
+        await plugin_socket.send_str(
+            plugin_codec.encode_state_frame({"running": True, "slideCount": 3})
+        )
         frame_message = await phone_socket.receive(timeout=1)
         assert frame_message.type == WSMsgType.TEXT
         decoded = phone_codec.decode_frame(frame_message.data)
@@ -148,6 +150,8 @@ async def test_root_serves_lightweight_relay_ui() -> None:
         body = await response.text()
         assert 'id="slide-frame"' in body
         assert 'id="notes"' in body
+        assert 'rel="manifest"' in body
+        assert 'id="connection-panel"' in body
     finally:
         await client.close()
 
@@ -163,7 +167,33 @@ async def test_asset_manifest_is_served() -> None:
         payload = await response.json()
         assert "files" in payload
         assert "app.js" in payload["files"]
+        assert "manifest.webmanifest" in payload["files"]
+        assert "sw.js" in payload["files"]
+        assert "icons/remote.svg" in payload["files"]
         assert "localizations/en.json" in payload["files"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pwa_assets_are_served() -> None:
+    server = TestServer(create_app(RelayState()))
+    client = TestClient(server)
+    await client.start_server()
+    try:
+        manifest = await client.get("/manifest.webmanifest")
+        assert manifest.status == 200
+        manifest_payload = await manifest.json()
+        assert manifest_payload["display"] == "standalone"
+
+        worker = await client.get("/sw.js")
+        assert worker.status == 200
+        assert worker.headers["Service-Worker-Allowed"] == "/"
+        assert "impress-remote-shell" in await worker.text()
+
+        icon = await client.get("/icons/remote.svg")
+        assert icon.status == 200
+        assert "<svg" in await icon.text()
     finally:
         await client.close()
 
@@ -235,7 +265,11 @@ async def test_new_phone_receives_cached_hello_state_and_asset_frames() -> None:
         assert messages[0].data == hello_raw
 
         decoded_frames = [phone_codec.decode_frame(message.data) for message in messages[1:]]
-        assert [frame.kind for frame in decoded_frames if frame is not None] == ["state", "asset", "asset"]
+        assert [frame.kind for frame in decoded_frames if frame is not None] == [
+            "state",
+            "asset",
+            "asset",
+        ]
         assert decoded_frames[1] is not None
         assert decoded_frames[2] is not None
         assert decoded_frames[1].payload["slot"] == "current"
@@ -311,7 +345,9 @@ async def test_phone_without_admission_token_is_rejected() -> None:
         response = await client.get(f"/api/session?session={SESSION_ID}")
         assert response.status == 404
 
-        plugin_socket = await client.ws_connect(f"/ws?role=plugin&session={SESSION_ID}&a=join-token")
+        plugin_socket = await client.ws_connect(
+            f"/ws?role=plugin&session={SESSION_ID}&a=join-token"
+        )
         response = await client.get(f"/api/session?session={SESSION_ID}")
         assert response.status == 403
         await plugin_socket.close()
@@ -326,7 +362,9 @@ async def test_session_status_requires_matching_admission_token() -> None:
     client = TestClient(server)
     await client.start_server()
     try:
-        plugin_socket = await client.ws_connect(f"/ws?role=plugin&session={SESSION_ID}&a=join-token")
+        plugin_socket = await client.ws_connect(
+            f"/ws?role=plugin&session={SESSION_ID}&a=join-token"
+        )
         response = await client.get(f"/api/session?session={SESSION_ID}&a=join-token")
         assert response.status == 200
         payload = await response.json()
@@ -348,14 +386,20 @@ async def test_phone_stays_connected_and_receives_fresh_hello_after_plugin_recon
     client = TestClient(server)
     await client.start_server()
     try:
-        plugin_socket = await client.ws_connect(f"/ws?role=plugin&session={SESSION_ID}&a=join-token")
-        phone_socket = await client.ws_connect(f"/ws?role=phone&session={SESSION_ID}&a=join-token")
+        plugin_socket = await client.ws_connect(
+            f"/ws?role=plugin&session={SESSION_ID}&a=join-token"
+        )
+        phone_socket = await client.ws_connect(
+            f"/ws?role=phone&session={SESSION_ID}&a=join-token"
+        )
         first_plugin, first_phone, hello_raw = _build_secure_codecs()
         await plugin_socket.send_str(hello_raw)
         first_hello = await phone_socket.receive(timeout=1)
         assert first_hello.type == WSMsgType.TEXT
         assert first_hello.data == hello_raw
-        await plugin_socket.send_str(first_plugin.encode_state_frame({"running": True, "slideCount": 2}))
+        await plugin_socket.send_str(
+            first_plugin.encode_state_frame({"running": True, "slideCount": 2})
+        )
         first_state_message = await phone_socket.receive(timeout=1)
         first_state = first_phone.decode_frame(first_state_message.data)
         assert first_state is not None
@@ -363,7 +407,9 @@ async def test_phone_stays_connected_and_receives_fresh_hello_after_plugin_recon
         await plugin_socket.close()
 
         second_plugin, _second_phone, second_hello_raw = _build_secure_codecs()
-        plugin_socket = await client.ws_connect(f"/ws?role=plugin&session={SESSION_ID}&a=join-token")
+        plugin_socket = await client.ws_connect(
+            f"/ws?role=plugin&session={SESSION_ID}&a=join-token"
+        )
         await plugin_socket.send_str(second_hello_raw)
         refreshed_hello = await phone_socket.receive(timeout=1)
         assert refreshed_hello.type == WSMsgType.TEXT
@@ -371,7 +417,9 @@ async def test_phone_stays_connected_and_receives_fresh_hello_after_plugin_recon
         second_hello = decode_hello_message(refreshed_hello.data)
         assert second_hello is not None
 
-        await plugin_socket.send_str(second_plugin.encode_state_frame({"running": True, "slideCount": 7}))
+        await plugin_socket.send_str(
+            second_plugin.encode_state_frame({"running": True, "slideCount": 7})
+        )
         frame_message = await phone_socket.receive(timeout=1)
         reconnect_phone = SecureRelayCodec(
             role="phone",
@@ -395,8 +443,12 @@ async def test_rate_limit_rejects_noisy_phone_connections() -> None:
     client = TestClient(server)
     await client.start_server()
     try:
-        plugin_socket = await client.ws_connect(f"/ws?role=plugin&session={SESSION_ID}&a=join-token")
-        phone_socket = await client.ws_connect(f"/ws?role=phone&session={SESSION_ID}&a=join-token")
+        plugin_socket = await client.ws_connect(
+            f"/ws?role=plugin&session={SESSION_ID}&a=join-token"
+        )
+        phone_socket = await client.ws_connect(
+            f"/ws?role=phone&session={SESSION_ID}&a=join-token"
+        )
         _plugin_codec, phone_codec, hello_raw = _build_secure_codecs()
 
         await plugin_socket.send_str(hello_raw)

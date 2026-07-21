@@ -6,6 +6,7 @@
 ## Product And Architecture
 
 - [Architecture](architecture.md)
+- [LibreOffice Upstream Architecture](libreoffice-upstream-architecture.md)
 - [Protocol](protocol.md)
 - [Roadmap](roadmap.md)
 - [LibreOffice Extension](libreoffice-extension.md)

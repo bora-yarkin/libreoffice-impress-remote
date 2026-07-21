@@ -5,7 +5,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090c13">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Impress Remote">
   <title data-i18n="app.title"></title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/remote.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/remote.svg">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -22,6 +29,16 @@
     </section>
     <section class="notes-card">
       <pre id="notes"></pre>
+    </section>
+    <section class="connection-panel" id="connection-panel" role="status" aria-live="polite" hidden>
+      <div>
+        <p class="connection-title" id="connection-title"></p>
+        <p class="connection-detail" id="connection-detail"></p>
+      </div>
+      <div class="connection-actions">
+        <button class="connection-button" id="retry-button" type="button" data-i18n="web.retry"></button>
+        <button class="connection-button connection-button-secondary" id="reload-button" type="button" data-i18n="web.reload"></button>
+      </div>
     </section>
     <nav class="primary-controls">
       <button class="nav-button" id="prev-button" data-command="previous_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousSlide">

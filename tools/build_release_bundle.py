@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-import tomllib
+import sys
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from tools.shared_webui import copy_webui
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.project_version import read_project_version  # noqa: E402
+from tools.shared_webui import copy_webui  # noqa: E402
+
 DIST = ROOT / "dist"
 SERVER_ROOT = ROOT / "server"
 SERVER_PACKAGE = SERVER_ROOT / "src" / "impress_remote_relay"
@@ -18,9 +22,7 @@ DEPLOY_ROOT = ROOT / "deploy" / "python-relay"
 
 
 def project_version() -> str:
-    with (ROOT / "pyproject.toml").open("rb") as handle:
-        data = tomllib.load(handle)
-    return str(data["project"]["version"])
+    return read_project_version()
 
 
 def copy_python_package(source: Path, destination: Path) -> None:
@@ -46,10 +48,11 @@ def copy_deploy_files(source: Path, destination: Path) -> None:
         shutil.copy2(path, target)
 
 
-def build_bundle() -> tuple[Path, Path]:
+def build_bundle(dist_dir: Path = DIST) -> tuple[Path, Path]:
     version = project_version()
-    bundle_dir = DIST / f"impress-remote-relay-python-{version}"
-    archive_path = DIST / f"impress-remote-relay-python-{version}.zip"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    bundle_dir = dist_dir / f"impress-remote-relay-python-{version}"
+    archive_path = dist_dir / f"impress-remote-relay-python-{version}.zip"
 
     if bundle_dir.exists():
         shutil.rmtree(bundle_dir)
@@ -62,12 +65,13 @@ def build_bundle() -> tuple[Path, Path]:
     relay_src = bundle_dir / "src" / "impress_remote_relay"
     relay_src.mkdir(parents=True, exist_ok=True)
     copy_python_package(SERVER_PACKAGE, relay_src)
+    (relay_src / "VERSION").write_text(version + "\n", encoding="utf-8")
     copy_webui(relay_src / "web")
 
     with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
         for path in sorted(bundle_dir.rglob("*")):
             if path.is_file():
-                archive.write(path, path.relative_to(DIST))
+                archive.write(path, path.relative_to(dist_dir))
 
     return bundle_dir, archive_path
 

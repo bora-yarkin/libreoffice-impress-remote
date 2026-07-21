@@ -1,0 +1,19 @@
+{
+  "name": "LibreOffice Impress Remote",
+  "short_name": "Impress Remote",
+  "description": "A lightweight phone remote for LibreOffice Impress.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090c13",
+  "theme_color": "#090c13",
+  "icons": [
+    {
+      "src": "/icons/remote.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -121,7 +121,7 @@ class LocalServerTests(unittest.TestCase):
 
         self.assertEqual(
             RemoteServer.current_slide_image_url(server, state),
-            "/api/slide/current?rev=current123",
+            "/api/direct/slide/current?rev=current123",
         )
 
     def test_next_slide_image_url_is_empty_without_a_next_slide(self) -> None:
@@ -139,8 +139,74 @@ class LocalServerTests(unittest.TestCase):
 
         self.assertEqual(
             RemoteServer.next_slide_image_url(server, state),
-            "/api/slide/next?rev=next456",
+            "/api/direct/slide/next?rev=next456",
         )
+
+    def test_local_fallback_current_slide_image_url_uses_authenticated_endpoint(self) -> None:
+        state = SimpleNamespace(
+            document_kind="impress",
+            slide_count=8,
+            current_render_token="current123",
+        )
+        server = cast(RemoteServer, SimpleNamespace(controller=None))
+
+        self.assertEqual(
+            RemoteServer.local_fallback_current_slide_image_url(server, state),
+            "/api/local/slide/current?rev=current123",
+        )
+
+    def test_local_fallback_next_slide_image_url_uses_authenticated_endpoint(self) -> None:
+        state = SimpleNamespace(next_slide=3, next_render_token="next456")
+        server = cast(RemoteServer, SimpleNamespace(controller=None))
+
+        self.assertEqual(
+            RemoteServer.local_fallback_next_slide_image_url(server, state),
+            "/api/local/slide/next?rev=next456",
+        )
+
+    def test_local_fallback_state_payload_marks_plaintext_compatibility_transport(self) -> None:
+        state = SimpleNamespace(
+            running=True,
+            active=True,
+            paused=False,
+            blanked=False,
+            document_kind="impress",
+            status_message="Running",
+            current_slide=1,
+            slide_count=5,
+            current_title="Intro",
+            notes="Speaker notes",
+            next_slide=2,
+            next_title="Next",
+            next_preview="Next",
+            can_go_previous=True,
+            can_go_next=True,
+            remaining_slides=3,
+            at_end_of_deck=False,
+            elapsed_seconds=12,
+            current_render_token="current123",
+            next_render_token="next456",
+        )
+        class StatePayloadServerStub:
+            _state_payload = RemoteServer._state_payload
+            local_fallback_current_slide_image_url = (
+                RemoteServer.local_fallback_current_slide_image_url
+            )
+            local_fallback_next_slide_image_url = RemoteServer.local_fallback_next_slide_image_url
+
+            def __init__(self) -> None:
+                self.controller = SimpleNamespace(state=lambda: state)
+
+            def connection_info(self) -> dict[str, object]:
+                return {"session": "demo123"}
+
+        server = cast(RemoteServer, StatePayloadServerStub())
+
+        payload = RemoteServer.local_fallback_state_payload(server)
+
+        self.assertEqual(payload["transportSecurity"], "local-authenticated-plaintext")
+        self.assertEqual(payload["currentSlideImageUrl"], "/api/local/slide/current?rev=current123")
+        self.assertEqual(payload["nextSlideImageUrl"], "/api/local/slide/next?rev=next456")
 
     def test_relay_asset_payload_encodes_current_slide_png_for_the_expected_revision(self) -> None:
         state = SimpleNamespace(

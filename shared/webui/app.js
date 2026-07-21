@@ -115,8 +115,20 @@ function isRelayMode(){
   return routeMode === 'relay'
 }
 
+function isLocalMode(){
+  return routeMode === 'local'
+}
+
+function hasWebCrypto(){
+  return !!(window.crypto && window.crypto.subtle)
+}
+
+function isLocalFallbackMode(){
+  return isLocalMode() && !hasWebCrypto()
+}
+
 function isSecureDirectMode(){
-  return routeMode === 'ipv6'
+  return !isRelayMode() && !isLocalFallbackMode()
 }
 
 function relaySocketUrl(session, admissionToken){
@@ -145,11 +157,74 @@ function setConnectionPhase(nextPhase){
   renderBanner()
 }
 
+function messageFromError(error){
+  if(error && typeof error === 'object' && typeof error.message === 'string'){
+    return error.message
+  }
+  return String(error || t('web.errorUnknown'))
+}
+
+function connectionCopy(){
+  if(connectionPhase === 'connecting'){
+    return {
+      title: isRelayMode() ? t('web.connection.connectingRelayTitle') : t('web.connection.connectingTitle'),
+      detail: isRelayMode() ? t('web.connectingRelay') : t('web.connecting'),
+      actions: false,
+    }
+  }
+  if(connectionPhase === 'reconnecting'){
+    return {
+      title: t('web.connection.reconnectingTitle'),
+      detail: isRelayMode() ? t('web.reconnectingRelay') : t('web.reconnecting'),
+      actions: true,
+    }
+  }
+  if(connectionPhase === 'offline'){
+    return {
+      title: t('web.connection.offlineTitle'),
+      detail: transportErrorMessage || (isRelayMode() ? t('web.offlineRelay') : t('web.offline')),
+      actions: true,
+    }
+  }
+  return {
+    title: '',
+    detail: '',
+    actions: false,
+  }
+}
+
+function renderConnectionPanel(){
+  const panel = document.getElementById('connection-panel')
+  if(!panel){
+    return
+  }
+  const title = document.getElementById('connection-title')
+  const detail = document.getElementById('connection-detail')
+  const retryButton = document.getElementById('retry-button')
+  const reloadButton = document.getElementById('reload-button')
+  const copy = connectionCopy()
+  const shouldShow = connectionPhase !== 'live'
+  panel.hidden = !shouldShow
+  if(title){
+    title.textContent = copy.title
+  }
+  if(detail){
+    detail.textContent = copy.detail
+  }
+  if(retryButton){
+    retryButton.hidden = !copy.actions
+  }
+  if(reloadButton){
+    reloadButton.hidden = !copy.actions
+  }
+}
+
 function renderBanner(){
   const target = document.getElementById('status')
   if(!target){
     return
   }
+  renderConnectionPanel()
   if(connectionPhase === 'offline' && transportErrorMessage){
     target.textContent = transportErrorMessage
     return
@@ -216,20 +291,17 @@ async function updateSlideImage(state){
     currentImageObjectUrl = ''
     return
   }
-  if(isSecureDirectMode()){
-    if(nextUrl !== lastImageUrl){
-      const blobUrl = await fetchSecureSlideObjectUrl(nextUrl)
-      if((lastState && lastState.currentSlideImageUrl) !== nextUrl){
-        revokeObjectUrl(blobUrl)
-        return
-      }
-      revokeObjectUrl(currentImageObjectUrl)
-      currentImageObjectUrl = blobUrl
-      image.src = blobUrl
-      lastImageUrl = nextUrl
+  if(nextUrl !== lastImageUrl){
+    const blobUrl = isLocalFallbackMode()
+      ? await fetchLocalFallbackSlideObjectUrl(nextUrl)
+      : await fetchSecureSlideObjectUrl(nextUrl)
+    if((lastState && lastState.currentSlideImageUrl) !== nextUrl){
+      revokeObjectUrl(blobUrl)
+      return
     }
-  }else if(nextUrl !== lastImageUrl){
-    image.src = nextUrl
+    revokeObjectUrl(currentImageObjectUrl)
+    currentImageObjectUrl = blobUrl
+    image.src = blobUrl
     lastImageUrl = nextUrl
   }
   image.hidden = false
@@ -248,25 +320,20 @@ async function preloadNextSlide(state){
     nextImageObjectUrl = ''
     return
   }
-  if(isSecureDirectMode()){
-    if(nextUrl === lastNextImageUrl){
-      return
-    }
-    const blobUrl = await fetchSecureSlideObjectUrl(nextUrl)
-    if((lastState && lastState.nextSlideImageUrl) !== nextUrl){
-      revokeObjectUrl(blobUrl)
-      return
-    }
-    revokeObjectUrl(nextImageObjectUrl)
-    nextImageObjectUrl = blobUrl
-    nextImagePreload.src = blobUrl
-    lastNextImageUrl = nextUrl
+  if(nextUrl === lastNextImageUrl){
     return
   }
-  if(nextUrl !== lastNextImageUrl){
-    nextImagePreload.src = nextUrl
-    lastNextImageUrl = nextUrl
+  const blobUrl = isLocalFallbackMode()
+    ? await fetchLocalFallbackSlideObjectUrl(nextUrl)
+    : await fetchSecureSlideObjectUrl(nextUrl)
+  if((lastState && lastState.nextSlideImageUrl) !== nextUrl){
+    revokeObjectUrl(blobUrl)
+    return
   }
+  revokeObjectUrl(nextImageObjectUrl)
+  nextImageObjectUrl = blobUrl
+  nextImagePreload.src = blobUrl
+  lastNextImageUrl = nextUrl
 }
 
 function syncCurrentSlideAsset(){
@@ -331,7 +398,7 @@ function showPlaceholderMessage(message){
 }
 
 function showTransportError(error){
-  transportErrorMessage = String(error)
+  transportErrorMessage = messageFromError(error)
   setConnectionPhase('offline')
 }
 
@@ -366,17 +433,58 @@ async function fetchJson(url, options){
   return data
 }
 
+function localFallbackHeaders(extra = {}){
+  return {
+    ...extra,
+    'X-Impress-Remote-Session': routeSession,
+    'X-Impress-Remote-Secret': pairingSecret,
+  }
+}
+
+async function fetchLocalFallbackJson(url, options = {}){
+  return fetchJson(url, {
+    ...options,
+    headers: localFallbackHeaders(options.headers || {}),
+  })
+}
+
+async function refreshLocalFallbackStateSnapshot(){
+  const state = await fetchLocalFallbackJson('/api/local/state')
+  hasEverConnected = true
+  setConnectionPhase('live')
+  renderState(state)
+}
+
+async function sendLocalFallbackCommand(commandName, payload = {}){
+  await fetchLocalFallbackJson('/api/local/command', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({command: commandName, ...payload}),
+  })
+  await refreshLocalFallbackStateSnapshot()
+}
+
+async function fetchLocalFallbackSlideObjectUrl(url){
+  const response = await fetch(url, {
+    headers: localFallbackHeaders(),
+  })
+  if(!response.ok){
+    throw new Error(`${response.status} ${response.statusText}`)
+  }
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
+}
+
 async function refreshStateSnapshot(){
   if(isRelayMode()){
     return
   }
+  if(isLocalFallbackMode()){
+    return refreshLocalFallbackStateSnapshot()
+  }
   if(isSecureDirectMode()){
     return refreshSecureDirectStateSnapshot()
   }
-  const state = await fetchJson('/api/state')
-  hasEverConnected = true
-  setConnectionPhase('live')
-  renderState(state)
 }
 
 function connectEvents(){
@@ -384,29 +492,13 @@ function connectEvents(){
     connectRelay().catch(showTransportError)
     return
   }
-  if(isSecureDirectMode()){
-    connectSecureDirectEvents()
-    return
-  }
-  if(!('EventSource' in window)){
+  if(isLocalFallbackMode()){
     startPollingFallback()
     return
   }
-  if(eventSource){
-    eventSource.close()
-  }
-  eventSource = new EventSource('/api/events')
-  eventSource.addEventListener('open', () => {
-    hasEverConnected = true
-    setConnectionPhase('live')
-  })
-  eventSource.addEventListener('state', event => {
-    hasEverConnected = true
-    setConnectionPhase('live')
-    renderState(JSON.parse(event.data))
-  })
-  eventSource.onerror = () => {
-    setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
+  if(isSecureDirectMode()){
+    connectSecureDirectEvents()
+    return
   }
 }
 
@@ -432,24 +524,51 @@ async function command(name, payload = {}){
     await sendRelayCommand(name, payload)
     return
   }
+  if(isLocalFallbackMode()){
+    await sendLocalFallbackCommand(name, payload)
+    return
+  }
   if(isSecureDirectMode()){
     await sendSecureDirectCommand(name, payload)
     return
   }
-  await fetchJson('/api/command', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({command: name, ...payload}),
-  })
-  if(!eventSource){
-    await refreshStateSnapshot()
+}
+
+function stopTransports(){
+  if(eventSource){
+    eventSource.close()
+    eventSource = null
   }
+  if(pollTimer){
+    window.clearInterval(pollTimer)
+    pollTimer = null
+  }
+  if(relayState.reconnectTimer){
+    window.clearTimeout(relayState.reconnectTimer)
+    relayState.reconnectTimer = null
+  }
+  closeSocket()
+}
+
+function retryConnection(){
+  stopTransports()
+  transportErrorMessage = ''
+  setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
+  connectEvents()
 }
 
 document.querySelectorAll('[data-command]').forEach(button => {
   button.addEventListener('click', () => {
     command(button.dataset.command).catch(showTransportError)
   })
+})
+
+document.getElementById('retry-button').addEventListener('click', () => {
+  retryConnection()
+})
+
+document.getElementById('reload-button').addEventListener('click', () => {
+  window.location.reload()
 })
 
 function canAdvanceWithSlideTap(){
@@ -668,7 +787,7 @@ function connectSecureDirectEvents(){
   if(!pairingSecret || !routeSession){
     throw new Error(t('web.directLinkRequired'))
   }
-  if(!window.crypto || !window.crypto.subtle){
+  if(!hasWebCrypto()){
     throw new Error(t('web.webCryptoDirectUnsupported'))
   }
   if(!('EventSource' in window)){
@@ -912,12 +1031,16 @@ async function connectRelay(){
   closeSocket()
   relayState.codec = null
   if(!relayState.session || !relayState.pairingSecret || !relayState.admissionToken){
-    showPlaceholderMessage(t('web.relayOpenFullLink'))
+    const message = t('web.relayOpenFullLink')
+    showPlaceholderMessage(message)
+    transportErrorMessage = message
     setConnectionPhase('offline')
     return
   }
-  if(!window.crypto || !window.crypto.subtle){
-    showPlaceholderMessage(t('web.secureRelayUnsupported'))
+  if(!hasWebCrypto()){
+    const message = t('web.secureRelayUnsupported')
+    showPlaceholderMessage(message)
+    transportErrorMessage = message
     setConnectionPhase('offline')
     return
   }
@@ -950,10 +1073,18 @@ async function connectRelay(){
   })
 }
 
+function registerServiceWorker(){
+  if(!('serviceWorker' in navigator) || !window.isSecureContext){
+    return
+  }
+  navigator.serviceWorker.register('/sw.js').catch(() => {})
+}
+
 async function bootstrap(){
   await loadLocalization()
+  registerServiceWorker()
   setConnectionPhase('connecting')
-  if(isRelayMode() || isSecureDirectMode()){
+  if(isRelayMode() || isSecureDirectMode() || isLocalFallbackMode()){
     if(!pairingSecret || !routeSession){
       throw new Error(
         isRelayMode()
@@ -961,7 +1092,7 @@ async function bootstrap(){
           : t('web.directLinkRequired')
       )
     }
-    if(!window.crypto || !window.crypto.subtle){
+    if((isRelayMode() || isSecureDirectMode()) && !hasWebCrypto()){
       throw new Error(t('web.webCryptoTransportUnsupported'))
     }
     if(isRelayMode() && !relayAdmissionToken){

@@ -29,22 +29,25 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups should work wit
 
 ## Current Status
 
-Version `0.6.4` is a usable pre-1.0 build with:
+Version `0.6.12` is a usable pre-1.0 build with:
 
 - QR-first local pairing
 - live current-slide rendering
 - presenter notes on the phone
 - LibreOffice-native remote controls and settings
-- encrypted relay and direct IPv6 transport for fallback networking, including relay-hosted slide previews and relay admission control
+- Impress-only Slide Show menu integration plus supported toolbar buttons near the built-in slideshow controls
+- encrypted local, direct IPv6, and relay transport for presenter state, commands, and slide assets, including relay-hosted slide previews and relay admission control
+- Safari-compatible authenticated local fallback for LAN browsers that do not expose Web Crypto on plain HTTP
 - one shared phone-remote web UI source reused by the LibreOffice extension, the Python relay, and the Cloudflare relay bundle
+- visible phone-side connection recovery, retry/reload actions, accessibility polish, and PWA shell metadata
 - keyed user-facing strings with English and Turkish localization catalogs shared by LibreOffice and the phone UI
 - build tooling for the `.oxt`, a stripped standalone Python relay bundle with service installers, and the separate Cloudflare relay deployment bundle
+- OXT-contained matching Python relay, Cloudflare relay, and documentation bundles exportable from Advanced Remote Settings
 - relay session-status, reconnect replay, structured logs, and published self-hosting docs for testing relay mode as a real fallback path
 
 Still in progress:
 
 - ECDH-based key exchange
-- encrypted transport parity for local mode
 - phone-side presentation timer
 - expanding localization beyond the initial English and Turkish catalogs toward LibreOffice-wide language coverage
 - GitHub release support that runs the standard workflows and, after they pass, publishes a GitHub release with the extension package and a stripped relay-server release artifact without bundled documentation
@@ -53,9 +56,9 @@ Still in progress:
 ## How To Use It
 
 1. Install the extension in LibreOffice.
-2. Open `Slide Show -> Presentation Remote`.
-3. Start the remote and scan the QR code with your phone.
-4. Control the presentation from the phone while keeping setup inside LibreOffice.
+2. Open `Slide Show -> Presentation Remote -> Start Remote`.
+3. Scan the QR code with your phone.
+4. Use `Advanced Remote Settings` from the same submenu when you want to change the route or relay configuration.
 
 The default route is `Auto`, which tries:
 
@@ -74,6 +77,7 @@ This README is intentionally product-focused. Technical details live in the link
 - [Technical documentation index](docs/README.md)
 - [Build and test setup](docs/development/getting-started.md)
 - [Architecture](docs/architecture.md)
+- [LibreOffice upstream architecture](docs/libreoffice-upstream-architecture.md)
 - [Protocol](docs/protocol.md)
 - [Relay server](docs/relay-server.md)
 - [Security model](docs/security/e2ee.md)

@@ -9,6 +9,92 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.6.12] - 2026-07-21
+
+### Added
+
+- Added a Safari-compatible local-only phone transport fallback for browsers that do not expose Web Crypto on LAN HTTP origins.
+- Added authenticated `/api/local/*` state, command, and slide-image endpoints gated by the pairing session id and pairing secret.
+
+### Security
+
+- Kept relay and direct IPv6 transport Web-Crypto-only, and kept the old unauthenticated `/api/state`, `/api/command`, `/api/events`, and `/api/slide/*` endpoints removed.
+- Documented that the Safari local fallback is authenticated but plaintext, intended only for same-LAN compatibility when encrypted local transport is unavailable in the browser.
+
+## [0.6.11] - 2026-07-21
+
+### Changed
+
+- Renamed the compiled extension artifact to include the centralized version number, for example `libreoffice-impress-remote-0.6.11.oxt`.
+- Changed OXT packaging to build embedded relay and documentation archives in a temporary directory instead of leaving intermediate zip files and folders in `dist/`.
+- Updated `make install-oxt` to install the versioned OXT filename.
+
+## [0.6.10] - 2026-07-21
+
+### Added
+
+- Embedded the matching Cloudflare Worker relay archive inside the compiled `.oxt` alongside the Python relay and documentation archives.
+- Added an Advanced Remote Settings action to export the bundled Cloudflare relay package from the installed extension.
+
+## [0.6.9] - 2026-07-21
+
+### Changed
+
+- Centralized release versioning around the root `VERSION` file so OXT packaging, relay bundles, Cloudflare bundles, documentation bundles, and runtime package versions derive from one source.
+- Made tool entrypoints import-safe when run directly as `python tools/build_oxt.py`, matching the Product CI command path.
+- Packaged `description.xml` now receives the release version during OXT build instead of relying on a hand-edited source XML value.
+
+### Fixed
+
+- Fixed GitHub Product CI failing with `ModuleNotFoundError: No module named 'tools'` when invoking `python tools/build_oxt.py` directly.
+
+## [0.6.8] - 2026-07-21
+
+### Added
+
+- Embedded the matching stripped Python relay-server release archive and documentation archive inside the `.oxt` package.
+- Added Advanced Remote Settings actions to export the bundled relay server or documentation to a selected folder, falling back to the user's Downloads folder when folder selection is unavailable.
+- Added safe packaged-resource extraction helpers with archive path validation.
+
+### Changed
+
+- Bumped the extension, relay package, and project version to `0.6.8`.
+
+## [0.6.7] - 2026-07-21
+
+### Changed
+
+- Local and direct IPv6 phone routes now both use the encrypted `/api/direct/*` protocol path for state snapshots, server-sent events, commands, and slide assets.
+- Updated phone-side encrypted transport messages so they refer to encrypted local/direct mode instead of direct IPv6 only.
+- Updated protocol, security, architecture, roadmap, README, and TODO docs around local encrypted transport and the explicit local HTTP shell trust model.
+- Bumped the extension, relay package, and project version to `0.6.7`.
+
+### Security
+
+- Removed the plaintext local `/api/state`, `/api/events`, `/api/command`, and `/api/slide/*` production endpoints from the embedded LibreOffice web server.
+- Local mode now protects presenter notes, slide images, and remote commands with the same HKDF-SHA256 plus AES-256-GCM session profile, replay checks, session binding, and key rotation used by direct IPv6.
+
+## [0.6.6] - 2026-07-21
+
+### Added
+
+- Added a LibreOffice upstream architecture note that separates core-candidate functionality from companion relay/deployment scope and maps extension seams to likely LibreOffice modules.
+- Added phone UI PWA metadata, a service worker shell cache, and an installable app icon shared by the OXT, Python relay, and Cloudflare bundles.
+
+### Changed
+
+- Expanded architecture, compliance, roadmap, README, and TODO docs around the path from extension prototype to LibreOffice-core contribution.
+- Added a visible phone-side connection recovery panel with localized retry/reload actions, stronger offline/error feedback, and improved focus styling.
+- Bumped the extension, relay package, and project version to `0.6.6`.
+
+## [0.6.5] - 2026-07-21
+
+### Changed
+
+- Moved the extension UI from a standalone top-level menu to an Impress-only Slide Show submenu using LibreOffice addon menu merging.
+- Added supported toolbar merge entries for Start/Stop Remote and Advanced Remote Settings near LibreOffice's built-in slideshow controls in `standardbar`, `singlemode`, and `notebookbarshortcuts`.
+- Bumped the extension, relay package, and project version to `0.6.5`.
+
 ## [0.6.4] - 2026-07-20
 
 ### Fixed

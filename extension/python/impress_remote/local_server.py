@@ -290,14 +290,14 @@ class RemoteServer:
             or not state.current_render_token
         ):
             return ""
-        return f"/api/slide/current?rev={state.current_render_token}"
+        return f"/api/direct/slide/current?rev={state.current_render_token}"
 
     def next_slide_image_url(self, state=None) -> str:
         if state is None:
             state = self.controller.state()
         if state.next_slide is None or not state.next_render_token:
             return ""
-        return f"/api/slide/next?rev={state.next_render_token}"
+        return f"/api/direct/slide/next?rev={state.next_render_token}"
 
     def secure_current_slide_image_url(self, state=None) -> str:
         if state is None:
@@ -340,6 +340,35 @@ class RemoteServer:
             next_slide_image_url=self.secure_next_slide_image_url(state),
         )
         payload.update(self.connection_info())
+        return payload
+
+    def local_fallback_current_slide_image_url(self, state=None) -> str:
+        if state is None:
+            state = self.controller.state()
+        if (
+            state.document_kind != "impress"
+            or state.slide_count <= 0
+            or not state.current_render_token
+        ):
+            return ""
+        return f"/api/local/slide/current?rev={state.current_render_token}"
+
+    def local_fallback_next_slide_image_url(self, state=None) -> str:
+        if state is None:
+            state = self.controller.state()
+        if state.next_slide is None or not state.next_render_token:
+            return ""
+        return f"/api/local/slide/next?rev={state.next_render_token}"
+
+    def local_fallback_state_payload(self) -> dict[str, object]:
+        state = self.controller.state()
+        payload = self._state_payload(
+            state,
+            current_slide_image_url=self.local_fallback_current_slide_image_url(state),
+            next_slide_image_url=self.local_fallback_next_slide_image_url(state),
+        )
+        payload.update(self.connection_info())
+        payload["transportSecurity"] = "local-authenticated-plaintext"
         return payload
 
     def secure_direct_state_response(self) -> dict[str, object]:
@@ -790,12 +819,14 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._send_file(WEB_ROOT / "app.css", "text/css; charset=utf-8")
         elif parsed.path == "/app.js":
             self._send_file(WEB_ROOT / "app.js", "application/javascript; charset=utf-8")
+        elif parsed.path == "/manifest.webmanifest":
+            self._send_file(WEB_ROOT / "manifest.webmanifest", "application/manifest+json")
+        elif parsed.path == "/sw.js":
+            self._send_file(WEB_ROOT / "sw.js", "application/javascript; charset=utf-8")
+        elif parsed.path == "/icons/remote.svg":
+            self._send_file(WEB_ROOT / "icons" / "remote.svg", "image/svg+xml")
         elif parsed.path.startswith("/localizations/"):
             self._localization_file(parsed.path)
-        elif parsed.path == "/api/state":
-            self._json(self.server_ref.state_payload())
-        elif parsed.path == "/api/config":
-            self._json(self.server_ref.config_payload())
         elif parsed.path == "/api/direct/handshake":
             self._json(self.server_ref.direct_session.current_hello_payload())
         elif parsed.path == "/api/direct/state":
@@ -806,57 +837,29 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._current_slide_image_secure(parsed)
         elif parsed.path == "/api/direct/slide/next":
             self._next_slide_image_secure(parsed)
-        elif parsed.path == "/api/events":
-            self._event_stream()
-        elif parsed.path == "/api/slide/current":
-            self._current_slide_image()
-        elif parsed.path == "/api/slide/next":
-            self._next_slide_image()
+        elif parsed.path == "/api/local/state":
+            if self._authorize_local_fallback():
+                self._json(self.server_ref.local_fallback_state_payload())
+        elif parsed.path == "/api/local/slide/current":
+            if self._authorize_local_fallback():
+                self._current_slide_image_plain(slot="current")
+        elif parsed.path == "/api/local/slide/next":
+            if self._authorize_local_fallback():
+                self._current_slide_image_plain(slot="next")
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         self._track_client_activity(parsed.path)
-        if parsed.path == "/api/command":
-            self._handle_command()
-            return
         if parsed.path == "/api/direct/command":
             self._handle_direct_command()
             return
-        if parsed.path == "/api/config":
-            self._handle_config_update()
+        if parsed.path == "/api/local/command":
+            if self._authorize_local_fallback():
+                self._handle_local_command()
             return
         self.send_error(HTTPStatus.NOT_FOUND)
-
-    def _handle_command(self) -> None:
-        try:
-            payload = self._read_json()
-            index = self._command_index(payload)
-            command = self._command_name(payload)
-        except (ValueError, json.JSONDecodeError):
-            self.send_error(HTTPStatus.BAD_REQUEST)
-            return
-
-        self.server_ref.controller.command(command, index)
-        self._json({"ok": True})
-
-    def _handle_config_update(self) -> None:
-        try:
-            payload = self._read_json()
-        except json.JSONDecodeError:
-            self._json(
-                {"ok": False, "error": translate("error.configJson")},
-                HTTPStatus.BAD_REQUEST,
-            )
-            return
-
-        try:
-            response = self.server_ref.apply_config(payload)
-        except ValueError as exc:
-            self._json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
-            return
-        self._json(response)
 
     def _handle_direct_command(self) -> None:
         try:
@@ -872,30 +875,60 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self.server_ref.controller.command(command, index)
         self._json({"ok": True})
 
+    def _handle_local_command(self) -> None:
+        try:
+            payload = self._read_json()
+        except (ValueError, json.JSONDecodeError):
+            self.send_error(HTTPStatus.BAD_REQUEST)
+            return
+        command = decode_command_payload(payload)
+        if command is None:
+            self._json(
+                {"ok": False, "error": translate("error.directCommandMissing")},
+                HTTPStatus.BAD_REQUEST,
+            )
+            return
+        self.server_ref.controller.command(command.command, command.index)
+        self._json({"ok": True})
+
     def _track_client_activity(self, path: str) -> None:
         if path not in {
             "/",
             "/index.html",
             "/app.css",
             "/app.js",
+            "/manifest.webmanifest",
+            "/sw.js",
+            "/icons/remote.svg",
             "/localizations/en.json",
             "/localizations/tr.json",
-            "/api/state",
             "/api/direct/handshake",
             "/api/direct/state",
             "/api/direct/events",
             "/api/direct/command",
             "/api/direct/slide/current",
             "/api/direct/slide/next",
-            "/api/events",
-            "/api/command",
-            "/api/slide/current",
-            "/api/slide/next",
+            "/api/local/state",
+            "/api/local/command",
+            "/api/local/slide/current",
+            "/api/local/slide/next",
         }:
             return
         client_host = self.client_address[0] if self.client_address else None
         source = "ipv6" if client_host and ":" in client_host else "local"
         self.server_ref.mark_client_activity(source, client_host)
+
+    def _authorize_local_fallback(self) -> bool:
+        if (
+            self.headers.get("X-Impress-Remote-Session") == self.server_ref.session_id
+            and self.headers.get("X-Impress-Remote-Secret") == self.server_ref.pairing_secret
+        ):
+            return True
+        self._json(
+            {"ok": False, "error": translate("error.localFallbackUnauthorized")},
+            HTTPStatus.FORBIDDEN,
+        )
+        return False
 
     def _localization_file(self, path: str) -> None:
         name = Path(path).name
@@ -914,52 +947,6 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             raise ValueError(translate("error.payloadJson"))
         return payload
-
-    def _command_index(self, payload: dict[str, object]) -> int | None:
-        index_value = payload.get("index")
-        if index_value is None:
-            return None
-        if isinstance(index_value, bool):
-            return int(index_value)
-        if isinstance(index_value, int):
-            return index_value
-        if isinstance(index_value, str):
-            return int(index_value)
-        raise ValueError(translate("error.commandIndex"))
-
-    def _command_name(self, payload: dict[str, object]) -> str:
-        command = payload.get("command", "")
-        if not isinstance(command, str):
-            raise ValueError(translate("error.commandName"))
-        return command
-
-    def _event_stream(self) -> None:
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-
-        last_payload = ""
-        last_heartbeat = time.monotonic()
-        try:
-            while True:
-                payload = json.dumps(self.server_ref.state_payload(), separators=(",", ":"))
-                now = time.monotonic()
-                if payload != last_payload:
-                    self.wfile.write(b"event: state\n")
-                    self.wfile.write(f"data: {payload}\n\n".encode())
-                    self.wfile.flush()
-                    last_payload = payload
-                    last_heartbeat = now
-                elif now - last_heartbeat >= 10:
-                    self.wfile.write(b": keepalive\n\n")
-                    self.wfile.flush()
-                    last_heartbeat = now
-                time.sleep(0.35)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            return
 
     def _event_stream_secure(self) -> None:
         self.send_response(HTTPStatus.OK)
@@ -1007,23 +994,6 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
-    def _current_slide_image(self) -> None:
-        try:
-            data = self.server_ref.controller.current_slide_png_bytes()
-        except RuntimeError as exc:
-            self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
-            return
-        except Exception as exc:
-            self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
-            return
-
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "image/png")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
     def _current_slide_image_secure(self, parsed) -> None:
         revision = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("rev", "")
         try:
@@ -1038,23 +1008,6 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
         self._json(payload)
-
-    def _next_slide_image(self) -> None:
-        try:
-            data = self.server_ref.controller.next_slide_png_bytes()
-        except RuntimeError as exc:
-            self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
-            return
-        except Exception as exc:
-            self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
-            return
-
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "image/png")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
 
     def _next_slide_image_secure(self, parsed) -> None:
         revision = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("rev", "")
@@ -1071,10 +1024,32 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             return
         self._json(payload)
 
+    def _current_slide_image_plain(self, *, slot: str) -> None:
+        try:
+            if slot == "current":
+                data = self.server_ref.controller.current_slide_png_bytes()
+            else:
+                data = self.server_ref.controller.next_slide_png_bytes()
+        except RuntimeError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        except Exception as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        self._bytes(data, "image/png")
+
     def _json(self, payload: dict[str, object], status: HTTPStatus = HTTPStatus.OK) -> None:
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _bytes(self, data: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()

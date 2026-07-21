@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-20` and the current `0.6.4` snapshot.
+It reflects the repository state as of `2026-07-21` and the current `0.6.12` snapshot.
 
 ## Product Direction
 
@@ -77,6 +77,8 @@ This is the base for the remaining work, not the finish line.
 
 ### M1 - Local Mode Complete
 
+Status: in progress after `0.6.12`
+
 Target outcome:
 
 - local mode is the default recommended user path
@@ -85,9 +87,8 @@ Target outcome:
 
 Main work:
 
-- document the local HTTP trust model and whether HTTPS will be supported
-- add better mobile error states, retry states, and accessibility polish
 - add local embedded server endpoint coverage
+- expand same-Wi-Fi and hotspot guidance in LibreOffice and user-facing docs
 - harden slide-state refresh and reconnect behavior across start, stop, and slideshow transitions
 - confirm behavior on current LibreOffice versions across macOS, Windows, and Linux
 
@@ -106,6 +107,8 @@ Exit criteria:
 
 ### M2 - LibreOffice-quality UX, Guidance, Localization, and Accessibility
 
+Status: in progress after `0.6.12`
+
 Target outcome:
 
 - the feature feels like LibreOffice software, not a sidecar prototype
@@ -116,10 +119,10 @@ Main work:
 
 - expand the initial English and Turkish catalogs into importable translation packs
 - keep menu labels, dialog copy, status text, errors, and help text aligned with translation keys
-- improve keyboard behavior, focus order, and readable status feedback
+- extend keyboard, focus, and status-feedback verification across supported desktop platforms
 - add LibreOffice help and troubleshooting content
 - confirm package behavior and UI quality across supported desktop platforms
-- make the LibreOffice UI clearly explain the recommended local-first usage flow
+- expand the LibreOffice UI guidance around the recommended local-first and hotspot-friendly usage flow
 
 Repository focus:
 
@@ -136,7 +139,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.6.4`
+Status: in progress after `0.6.12`
 
 Target outcome:
 
@@ -149,12 +152,12 @@ Current baseline:
 - relay transport now uses versioned `hello`, `frame`, and `error` messages
 - relay state, command, and error frames now use HKDF-SHA256 plus AES-GCM
 - relay sessions now enforce replay protection, session binding, and plugin-driven key rotation
+- local and direct IPv6 routes now use the same encrypted state, command, and slide-asset protocol profile
 - the current relay protocol is documented tightly enough for compatible implementations to start from it
 
 Remaining work:
 
 - replace the current pairing-secret bootstrap with ECDH P-256
-- extend the same encrypted protocol contract to the local-only route
 - document previews and richer future frame kinds without fragmenting interoperability
 - update the threat model and operational guidance around trusted frontend delivery
 
@@ -173,7 +176,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.6.4`
+Status: completed in the current repository snapshot after `0.6.12`
 
 Target outcome:
 
@@ -234,23 +237,22 @@ Exit criteria:
 
 ### M6 - Upstream Preparation
 
+Status: completed in the current repository snapshot after `0.6.12`
+
 Target outcome:
 
 - the project has a clear, realistic path into LibreOffice itself
 
-Main work:
+Completed baseline:
 
-- define the upstream candidate scope explicitly:
-  - local mode
-  - optional direct IPv6 mode, only if it stays maintainable and justified
-  - pairing and QR flow
-  - presenter state and controls
-  - LibreOffice-native configuration
-- identify what stays outside core:
-  - reference relay server
-  - deployment assets
+- upstream candidate scope is now explicit
+- relay and deployment assets are documented as companion scope
+- extension seams are mapped to likely LibreOffice surfaces
+- an upstream patch strategy exists in `docs/libreoffice-upstream-architecture.md`
+
+Remaining follow-up work:
+
 - reduce extension-specific assumptions that would be awkward in core
-- write an upstream design note mapping this feature to LibreOffice modules such as `sd/`, `svx/`, `framework/`, `officecfg/`, and help content
 - expand compatibility testing and user-facing docs
 
 Repository focus:
@@ -310,12 +312,12 @@ Exit criteria:
 
 The next practical order for this repo should be:
 
-1. Finish local mode polish and local endpoint coverage.
-2. Improve LibreOffice-side guidance, localization plumbing, and accessibility around the local-first workflow.
-3. Extend the encrypted relay protocol to direct and local transports, starting with ECDH P-256 bootstrap.
-4. Make direct IPv6 route detection trustworthy as an optional fallback.
+1. Add local embedded server endpoint coverage and broader end-to-end local/direct test coverage.
+2. Expand LibreOffice-side guidance, localization packaging, and cross-platform accessibility verification around the local-first workflow.
+3. Replace the current pairing-secret bootstrap with an ECDH P-256 protocol migration.
+4. Expand LibreOffice runtime compatibility checks across supported versions and desktop platforms.
 5. Harden self-hosted relay lifecycle and deployment docs as an optional fallback.
-6. Write the upstream design note before attempting a large core port.
+6. Reduce extension-specific assumptions before attempting a larger LibreOffice-core proof of concept.
 
 ## Decision Policy For Public Tunnel Services
 

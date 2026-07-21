@@ -15,6 +15,8 @@ VENV_BANDIT := $(VENV_DIR)/bin/bandit
 VENV_PIP_AUDIT := $(VENV_DIR)/bin/pip-audit
 VENV_RELAY := $(VENV_DIR)/bin/impress-remote-relay
 SETUP_STAMP := $(VENV_DIR)/.setup-complete
+VERSION := $(shell cat VERSION 2>/dev/null)
+OXT_FILE := dist/libreoffice-impress-remote-$(VERSION).oxt
 
 help:
 	@echo "Targets: venv sdk-download oxt install-oxt test lint security server-dev release-bundle cloudflare-bundle release-full clean"
@@ -43,8 +45,8 @@ release-full: oxt release-bundle cloudflare-bundle
 
 install-oxt: oxt
 	@if [ -z "$(LO_UNOPKG)" ]; then echo "LibreOffice unopkg not found. Set LO_UNOPKG=/path/to/unopkg."; exit 1; fi
-	@echo "Installing dist/libreoffice-impress-remote.oxt with $(LO_UNOPKG)"
-	"$(LO_UNOPKG)" add -f dist/libreoffice-impress-remote.oxt
+	@echo "Installing $(OXT_FILE) with $(LO_UNOPKG)"
+	"$(LO_UNOPKG)" add -f "$(OXT_FILE)"
 
 test: $(SETUP_STAMP)
 	PYTHONPATH=extension/python:server/src $(VENV_PYTEST) tests server/tests

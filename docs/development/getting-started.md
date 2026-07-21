@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.6.4` release line.
+This guide matches the `0.6.12` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -29,11 +29,11 @@ After `make install-oxt`, open LibreOffice Impress and use:
 Slide Show -> Presentation Remote
 ```
 
-1. Choose `Settings` to open the LibreOffice control panel.
-2. Set the relay server if you want relay mode, keep the route on `Auto (Local -> IPv6 -> Relay)` unless you are forcing a specific path, and disable `Enable local` when you want a relay-only or direct-IPv6-only test.
-3. Choose `Start` inside the dialog to bring up the embedded local server.
+1. Open `Advanced Remote Settings` if you want to review the route, set a relay URL, or disable local mode for route-specific testing.
+2. Keep the route on `Auto (Local -> IPv6 -> Relay)` unless you are forcing a specific path, and disable `Enable local` only when you want a relay-only or direct-IPv6-only test.
+3. Save any settings changes, then use `Start Remote` from the same `Presentation Remote` submenu to bring up the embedded local server and QR pairing dialog.
 4. Scan the QR code shown by LibreOffice with your phone.
-5. Choose `Open Console` if you also want to preview the current route in a desktop browser.
+5. Use the Manual Link shown in `Advanced Remote Settings` if you also want to open the current route in a desktop browser.
 
 ## Testing Localization
 
@@ -51,9 +51,9 @@ make server-dev
 
 Then:
 
-1. Open the LibreOffice settings dialog from the extension menu.
+1. Open `Advanced Remote Settings` from the extension menu.
 2. Enable relay mode, enter the relay base URL, and save.
-3. Start the remote from the same dialog.
+3. Use `Start Remote` from the same `Presentation Remote` submenu.
 4. Change the route dropdown to `Relay server only` if you want to force relay mode during testing.
 5. Scan the QR code on the phone, or open the full pairing link with its `#...` fragment intact if you are testing the hosted relay page manually.
 6. When the phone joins successfully, LibreOffice should detect the relay session and start the slideshow automatically.
@@ -75,7 +75,9 @@ make cloudflare-bundle
 
 - `make release-bundle` produces a stripped standalone Python relay bundle with the relay Python sources, bundled phone web UI, and Linux or Windows service helper scripts under `dist/`.
 - `make cloudflare-bundle` produces a Cloudflare Worker plus Durable Object relay bundle that serves the same shared phone UI from a `public/` assets directory.
-- `make release-full` builds `dist/libreoffice-impress-remote.oxt` plus both relay bundle variants in one command.
+- `make oxt` builds only the versioned extension package, for example `dist/libreoffice-impress-remote-0.6.12.oxt`.
+- `make release-full` builds the versioned OXT plus both standalone relay bundle variants in one command.
+- The `.oxt` itself embeds the matching stripped Python relay bundle, Cloudflare relay bundle, and documentation bundle so users can export them from Advanced Remote Settings without visiting GitHub.
 
 Useful relay checks:
 
@@ -93,11 +95,11 @@ If LibreOffice reports:
 premature end of file:///.../python/impress_remote/component.py
 ```
 
-check the installed cache version under `~/Library/Application Support/LibreOffice/4/user/uno_packages/cache/uno_packages/`. If that cache still contains an older `description.xml` version than `dist/libreoffice-impress-remote.oxt`, LibreOffice is loading a stale package. Rebuild and reinstall with:
+check the installed cache version under `~/Library/Application Support/LibreOffice/4/user/uno_packages/cache/uno_packages/`. If that cache still contains an older `description.xml` version than the current `dist/libreoffice-impress-remote-<version>.oxt`, LibreOffice is loading a stale package. Rebuild and reinstall with:
 
 ```bash
 make oxt
 make install-oxt
 ```
 
-If the stale cache persists, remove the extension from LibreOffice Extension Manager, quit LibreOffice, then install the freshly built `dist/libreoffice-impress-remote.oxt` again.
+If the stale cache persists, remove the extension from LibreOffice Extension Manager, quit LibreOffice, then install the freshly built `dist/libreoffice-impress-remote-<version>.oxt` again.

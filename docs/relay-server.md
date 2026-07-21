@@ -45,7 +45,7 @@ Transport confidentiality is already implemented:
 - relay `frame` payloads stay AES-GCM encrypted end to end
 - the relay only sees session metadata, plaintext `hello` metadata, and opaque ciphertext frames
 
-Frontend delivery trust is intentionally simpler in `0.6.4`:
+Frontend delivery trust is intentionally simpler in `0.6.12`:
 
 - the supported production model is self-hosting the published relay bundle
 - the bundle ships `asset-manifest.json` with SHA-256 hashes of the served UI files
@@ -97,9 +97,11 @@ For the stripped release bundle:
 
 ```bash
 make release-bundle
-cd dist/impress-remote-relay-python-0.6.4
+cd dist/impress-remote-relay-python-0.6.12
 ./run-relay.sh
 ```
+
+The installed `.oxt` also contains the matching Python relay bundle, Cloudflare relay bundle, and documentation bundle for its own version. In LibreOffice Impress, open `Slide Show -> Presentation Remote -> Advanced Remote Settings`, choose `Get Relay Server`, `Get Cloudflare Relay`, or `Get Documentation`, and export it to Downloads or a selected folder.
 
 Windows PowerShell:
 

@@ -391,7 +391,7 @@ class ControllerTests(unittest.TestCase):
             ],
         )
 
-    def test_start_presentation_falls_back_to_direct_properties_without_argument_support(self) -> None:
+    def test_start_presentation_falls_back_to_direct_properties_without_args(self) -> None:
         slideshow = FakeSlideShowController(current_index=0, slides=self.slides)
         presentation = FakeLegacyPresentation(slideshow)
         document = FakeDocument(self.slides, presentation, self.slides[0])

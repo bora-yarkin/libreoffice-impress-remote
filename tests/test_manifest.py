@@ -2,8 +2,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+OOR = "{http://openoffice.org/2001/registry}"
+
+
+def _node_xpath(name: str) -> str:
+    return f"node[@{OOR}name='{name}']"
 
 
 def test_extension_manifest_files_exist() -> None:
@@ -33,3 +39,46 @@ def test_extension_manifest_includes_settings_schema_and_data() -> None:
     assert 'application/vnd.sun.star.configuration-schema' in manifest
     assert 'manifest:full-path="Settings.xcs"' in manifest
     assert 'manifest:full-path="Settings.xcu"' in manifest
+
+
+def test_addons_merge_into_impress_slideshow_menu_and_toolbars() -> None:
+    addons = ET.parse(ROOT / "extension/Addons.xcu")
+    root = addons.getroot()
+    addon_ui = root.find(f".//{_node_xpath('AddonUI')}")
+    assert addon_ui is not None
+
+    assert addon_ui.find(_node_xpath("OfficeMenuBar")) is None
+    assert addon_ui.find(_node_xpath("OfficeMenuBarMerging")) is not None
+    assert addon_ui.find(_node_xpath("OfficeToolbarMerging")) is not None
+
+    xml = (ROOT / "extension/Addons.xcu").read_text(encoding="utf-8")
+    assert ".uno:SlideShowMenu\\.uno:PresentationCurrentSlide" in xml
+    assert "standardbar" in xml
+    assert "singlemode" in xml
+    assert "notebookbarshortcuts" in xml
+    assert xml.count("com.sun.star.presentation.PresentationDocument") >= 8
+    assert "vnd.org.borayarkin.impressremote:toggle" in xml
+    assert "vnd.org.borayarkin.impressremote:settings" in xml
+
+
+def test_shared_phone_ui_does_not_call_plaintext_local_control_endpoints() -> None:
+    app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
+
+    for endpoint in (
+        "/api/state",
+        "/api/events",
+        "/api/command",
+        "/api/slide/current",
+        "/api/slide/next",
+    ):
+        assert endpoint not in app_js
+
+
+def test_shared_phone_ui_has_authenticated_local_compatibility_fallback() -> None:
+    app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
+
+    assert "/api/local/state" in app_js
+    assert "/api/local/command" in app_js
+    assert "X-Impress-Remote-Session" in app_js
+    assert "X-Impress-Remote-Secret" in app_js
+    assert "isLocalFallbackMode()" in app_js
