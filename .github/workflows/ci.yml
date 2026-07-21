@@ -34,14 +34,32 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.11'
+      - name: Install Test Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' -e './server[dev]'
       - name: Compile Python Sources
         run: python -m compileall -q extension/python server/src tests server/tests tools
+      - name: Lint Python Sources
+        run: python -m ruff check extension/python server/src server/tests tests tools
+      - name: Run Python Tests
+        run: python -m pytest tests server/tests
+        env:
+          PYTHONPATH: extension/python:server/src
       - name: Validate Extension Manifest
         run: python tools/check_manifest.py
       - name: Build Extension Package
         run: python tools/build_oxt.py
       - name: Verify Extension Artifact
         run: test -s dist/libreoffice-impress-remote-*.oxt
+      - name: Build Release Bundles
+        run: |
+          python tools/build_release_bundle.py
+          python tools/build_cloudflare_bundle.py
+      - name: Verify Release Bundles
+        run: |
+          test -s dist/impress-remote-relay-python-*.zip
+          test -s dist/impress-remote-relay-cloudflare-*.zip
       - name: Upload Extension Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

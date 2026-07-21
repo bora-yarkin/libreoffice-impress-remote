@@ -5,10 +5,14 @@
 
 ## Product And Architecture
 
+- [User Guide](user-guide.md)
+- [Feature Matrix](feature-matrix.md)
 - [Architecture](architecture.md)
 - [LibreOffice Upstream Architecture](libreoffice-upstream-architecture.md)
 - [Protocol](protocol.md)
 - [Roadmap](roadmap.md)
+- [Release Readiness](release-readiness.md)
+- [Test Before Release](test-before-release.md)
 - [LibreOffice Extension](libreoffice-extension.md)
 - [Relay Server](relay-server.md)
 - [E2E Security](security/e2ee.md)
@@ -17,6 +21,7 @@
 ## Development
 
 - [Getting Started](development/getting-started.md)
+- [Troubleshooting](troubleshooting.md)
 - [GitHub Security](development/github-security.md)
 - [Branch Protection](development/branch-protection.md)
 

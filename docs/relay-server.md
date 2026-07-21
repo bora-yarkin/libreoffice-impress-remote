@@ -41,11 +41,11 @@ Relay mode currently has two separate trust boundaries:
 
 Transport confidentiality is already implemented:
 
-- LibreOffice generates the pairing secret and relay admission token
+- LibreOffice generates the pairing verifier and relay admission token
 - relay `frame` payloads stay AES-GCM encrypted end to end
 - the relay only sees session metadata, plaintext `hello` metadata, and opaque ciphertext frames
 
-Frontend delivery trust is intentionally simpler in `0.6.12`:
+Frontend delivery trust is intentionally simpler in `0.6.16`:
 
 - the supported production model is self-hosting the published relay bundle
 - the bundle ships `asset-manifest.json` with SHA-256 hashes of the served UI files
@@ -58,11 +58,11 @@ That means a third-party relay can still serve hostile JavaScript if you choose 
 The relay phone link currently looks like:
 
 ```text
-https://relay.example.com/#mode=relay&s=<session>&k=<pairing-secret>&a=<admission-token>
+https://relay.example.com/#mode=relay&s=<session>&k=<pairing-verifier>&a=<admission-token>
 ```
 
 - `s` identifies the relay session
-- `k` is the pairing secret used for encrypted relay keys
+- `k` is the pairing verifier mixed into ECDH/HKDF key derivation
 - `a` is the admission token required for `/api/session` and `/ws`
 
 The fragment stays out of normal HTTP requests, but the JavaScript loaded from that page can read it.
@@ -97,7 +97,7 @@ For the stripped release bundle:
 
 ```bash
 make release-bundle
-cd dist/impress-remote-relay-python-0.6.12
+cd dist/impress-remote-relay-python-0.6.16
 ./run-relay.sh
 ```
 

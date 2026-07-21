@@ -453,13 +453,32 @@ def _validate_protocol_message(
         )
 
     if message_type == "hello":
-        if role != "plugin":
+        hello_role = _required_string(payload, "role", "relay.error.helloMissingRole")
+        if hello_role != role:
+            raise _RelayProtocolViolation(
+                "invalid-role",
+                "relay.error.helloRoleMismatch",
+            )
+        if role not in {"plugin", "phone"}:
             raise _RelayProtocolViolation(
                 "invalid-role",
                 "relay.error.helloPluginOnly",
             )
         key_id = _required_string(payload, "k", "relay.error.helloMissingKey")
         _required_string(payload, "nonce", "relay.error.helloMissingNonce")
+        _required_string(payload, "pub", "relay.error.helloMissingPublicKey")
+        if role == "phone":
+            active_key_id = _hello_key_id(latest_plugin_hello)
+            if not active_key_id:
+                raise _RelayProtocolViolation(
+                    "missing-hello",
+                    "relay.error.pluginNotReady",
+                )
+            if key_id != active_key_id:
+                raise _RelayProtocolViolation(
+                    "invalid-key",
+                    "relay.error.pluginKeyMismatch",
+                )
         return _RelayEnvelope(message_type="hello", key_id=key_id)
 
     if message_type == "error":

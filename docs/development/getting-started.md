@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.6.12` release line.
+This guide matches the `0.6.16` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -75,7 +75,7 @@ make cloudflare-bundle
 
 - `make release-bundle` produces a stripped standalone Python relay bundle with the relay Python sources, bundled phone web UI, and Linux or Windows service helper scripts under `dist/`.
 - `make cloudflare-bundle` produces a Cloudflare Worker plus Durable Object relay bundle that serves the same shared phone UI from a `public/` assets directory.
-- `make oxt` builds only the versioned extension package, for example `dist/libreoffice-impress-remote-0.6.12.oxt`.
+- `make oxt` builds only the versioned extension package, for example `dist/libreoffice-impress-remote-0.6.16.oxt`.
 - `make release-full` builds the versioned OXT plus both standalone relay bundle variants in one command.
 - The `.oxt` itself embeds the matching stripped Python relay bundle, Cloudflare relay bundle, and documentation bundle so users can export them from Advanced Remote Settings without visiting GitHub.
 
@@ -88,6 +88,8 @@ curl http://127.0.0.1:17865/asset-manifest.json
 ```
 
 ## Troubleshooting
+
+For the full install and runtime guide, see [Troubleshooting](../troubleshooting.md).
 
 If LibreOffice reports:
 

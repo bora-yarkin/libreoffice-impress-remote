@@ -9,6 +9,9 @@ from impress_remote.crypto import (
     base64url_decode,
     base64url_encode,
     hkdf_sha256,
+    p256_generate_private_key,
+    p256_public_key,
+    p256_shared_secret,
     random_token,
 )
 
@@ -32,6 +35,21 @@ def test_base64url_round_trip_preserves_binary_data() -> None:
     encoded = base64url_encode(payload)
 
     assert base64url_decode(encoded) == payload
+
+
+def test_p256_ecdh_shared_secret_matches_between_peers() -> None:
+    left_private = p256_generate_private_key()
+    right_private = p256_generate_private_key()
+    left_public = p256_public_key(left_private)
+    right_public = p256_public_key(right_private)
+
+    assert left_public[0] == 0x04
+    assert right_public[0] == 0x04
+    assert len(left_public) == 65
+    assert p256_shared_secret(left_private, right_public) == p256_shared_secret(
+        right_private,
+        left_public,
+    )
 
 
 def test_aes_gcm_matches_known_nist_vector() -> None:

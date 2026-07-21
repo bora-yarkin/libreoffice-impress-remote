@@ -9,7 +9,7 @@ from typing import cast
 from types import SimpleNamespace
 
 from impress_remote.local_server import RemoteServer, SecureDirectSession, _url_with_fragment_params
-from impress_remote.protocol import SecureRelayCodec, decode_hello_message
+from impress_remote.protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
 
 
 class PairingServerStub:
@@ -104,7 +104,7 @@ class LocalServerTests(unittest.TestCase):
 
     def test_current_slide_image_url_is_empty_without_an_impress_slide(self) -> None:
         state = SimpleNamespace(document_kind="none", slide_count=0, current_render_token="")
-        server = cast(RemoteServer, SimpleNamespace(controller=None))
+        server = cast(RemoteServer, SimpleNamespace(controller=None, session_id="demo123"))
 
         self.assertEqual(
             RemoteServer.current_slide_image_url(server, state),
@@ -117,16 +117,16 @@ class LocalServerTests(unittest.TestCase):
             slide_count=8,
             current_render_token="current123",
         )
-        server = cast(RemoteServer, SimpleNamespace(controller=None))
+        server = cast(RemoteServer, SimpleNamespace(controller=None, session_id="demo123"))
 
         self.assertEqual(
             RemoteServer.current_slide_image_url(server, state),
-            "/api/direct/slide/current?rev=current123",
+            "/api/direct/slide/current?s=demo123&rev=current123",
         )
 
     def test_next_slide_image_url_is_empty_without_a_next_slide(self) -> None:
         state = SimpleNamespace(next_slide=None, next_render_token="")
-        server = cast(RemoteServer, SimpleNamespace(controller=None))
+        server = cast(RemoteServer, SimpleNamespace(controller=None, session_id="demo123"))
 
         self.assertEqual(
             RemoteServer.next_slide_image_url(server, state),
@@ -135,11 +135,11 @@ class LocalServerTests(unittest.TestCase):
 
     def test_next_slide_image_url_uses_the_render_token(self) -> None:
         state = SimpleNamespace(next_slide=3, next_render_token="next456")
-        server = cast(RemoteServer, SimpleNamespace(controller=None))
+        server = cast(RemoteServer, SimpleNamespace(controller=None, session_id="demo123"))
 
         self.assertEqual(
             RemoteServer.next_slide_image_url(server, state),
-            "/api/direct/slide/next?rev=next456",
+            "/api/direct/slide/next?s=demo123&rev=next456",
         )
 
     def test_local_fallback_current_slide_image_url_uses_authenticated_endpoint(self) -> None:
@@ -360,6 +360,21 @@ class LocalServerTests(unittest.TestCase):
         hello = session.current_hello_payload()
         self.assertEqual(hello["type"], "hello")
 
+        phone = SecureRelayCodec(
+            role="phone",
+            session_id="demo",
+            pairing_secret="6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ",
+        )
+        decoded_hello = decode_hello_message(json.dumps(hello))
+        self.assertIsNotNone(decoded_hello)
+        assert decoded_hello is not None
+        phone_hello = phone.apply_hello(decoded_hello)
+        self.assertIsNotNone(phone_hello)
+        assert phone_hello is not None
+        session.apply_phone_hello(
+            cast(dict[str, object], json.loads(encode_hello_message(phone_hello)))
+        )
+
         state_response = session.state_response({"running": True, "slideCount": 4})
         self.assertIsNone(state_response["hello"])
         self.assertEqual(cast(dict[str, object], state_response["frame"])["type"], "frame")
@@ -371,16 +386,6 @@ class LocalServerTests(unittest.TestCase):
             revision="rev123",
         )
         self.assertEqual(cast(dict[str, object], asset_response["frame"])["kind"], "asset")
-
-        phone = SecureRelayCodec(
-            role="phone",
-            session_id="demo",
-            pairing_secret="6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ",
-        )
-        decoded_hello = decode_hello_message(json.dumps(hello))
-        self.assertIsNotNone(decoded_hello)
-        assert decoded_hello is not None
-        phone.apply_hello(decoded_hello)
 
         frame = phone.encode_command_frame("next_slide")
         command = session.decode_command(cast(dict[str, object], json.loads(frame)))

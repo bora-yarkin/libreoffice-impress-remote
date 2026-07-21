@@ -10,7 +10,7 @@ Local mode:
 Phone browser -> laptop local IP -> LibreOffice extension
 
 Relay mode:
-Phone browser -> Python relay UI/WS <- LibreOffice extension relay client
+Phone browser -> relay UI/WS <- LibreOffice extension relay client
 
 Direct IPv6 mode:
 Phone browser -> laptop global IPv6 -> LibreOffice extension
@@ -20,14 +20,23 @@ The extension owns slideshow control, notes extraction, state generation, local 
 
 The relay server owns session matching, hosted relay phone UI delivery, plaintext relay-key negotiation messages, admission-controlled session status, and opaque encrypted frame forwarding.
 
-As of `0.6.12`, relay and direct-IPv6 state, command, and asset flows are encrypted and session-bound. Local mode uses the same encrypted flow when the browser exposes Web Crypto, with an authenticated plaintext `/api/local/*` compatibility fallback for Safari-style LAN HTTP contexts that cannot run Web Crypto. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, and exposes a session-status probe so LibreOffice can detect joined relay phones.
+As of `0.6.16`, relay and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation. Local mode uses the same encrypted flow when the browser exposes Web Crypto, with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style LAN HTTP contexts that cannot run Web Crypto. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, and exposes a session-status probe so LibreOffice can detect joined relay phones.
+
+## Route Responsibilities
+
+| Route | Listener/Server | Phone UI Source | State And Commands | Primary Use |
+| --- | --- | --- | --- | --- |
+| Local, Web-Crypto-capable browser | LibreOffice embedded HTTP listener | LibreOffice extension | Session-bound encrypted `/api/direct/*` frames | Same Wi-Fi and hotspot use. |
+| Local, Safari-style Web Crypto unavailable | LibreOffice embedded HTTP listener | LibreOffice extension | LAN-only authenticated plaintext `/api/local/*` polling | Same-LAN compatibility on trusted local networks. |
+| Direct IPv6 | LibreOffice embedded IPv6 listener | LibreOffice extension | Session-bound encrypted `/api/direct/*` frames | Optional fallback when public IPv6 works end to end. |
+| Relay | Self-hosted Python or Cloudflare relay | Relay-hosted shared phone UI | Opaque encrypted websocket frames | Optional fallback for CGNAT or blocked local networks. |
 
 ## Runtime Components
 
 - LibreOffice protocol handler: registers `vnd.org.borayarkin.impressremote:*` commands, owns start/stop/settings dispatch, and reports dynamic menu state.
 - Impress controller adapter: reads slideshow state, presenter notes, slide indexes, titles, timer state, and blank/end state through UNO.
 - Slide preview exporter: renders the current and next slide images for the phone UI.
-- Local listener: serves the phone UI shell plus encrypted state, command, event, and slide-asset endpoints, with an authenticated plaintext `/api/local/*` compatibility fallback when local-mode Web Crypto is unavailable in the browser.
+- Local listener: serves the phone UI shell plus session-bound encrypted state, command, event, and slide-asset endpoints, with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback when local-mode Web Crypto is unavailable in the browser.
 - Relay client: connects LibreOffice to an optional self-hosted relay and sends only encrypted session frames after pairing.
 - Shared phone UI: static HTML, CSS, and JavaScript reused by the OXT, Python relay bundle, and Cloudflare relay bundle.
 - Relay server: performs session admission and opaque websocket forwarding without parsing slide notes, slide images, or commands.

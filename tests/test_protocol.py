@@ -5,7 +5,6 @@ import json
 import unittest
 
 from impress_remote.protocol import (
-    RelayHello,
     RelayProtocolFailure,
     SecureRelayCodec,
     decode_command_payload,
@@ -36,22 +35,22 @@ class ProtocolTests(unittest.TestCase):
         self.assertIsNone(decode_command_message('{"type":"state"}'))
 
     def test_hello_message_round_trip_preserves_key_metadata(self) -> None:
-        raw = encode_hello_message(
-            RelayHello(
-                version=1,
-                session_id="demo",
-                key_id="kid123",
-                plugin_nonce="nonce123",
-            )
+        plugin = SecureRelayCodec(
+            role="plugin",
+            session_id="demo",
+            pairing_secret="6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ",
         )
+        raw = encode_hello_message(plugin.rotate_send_key())
 
         decoded = decode_hello_message(raw)
 
         self.assertIsNotNone(decoded)
         assert decoded is not None
         self.assertEqual(decoded.session_id, "demo")
-        self.assertEqual(decoded.key_id, "kid123")
-        self.assertEqual(decoded.plugin_nonce, "nonce123")
+        self.assertEqual(decoded.sender_role, "plugin")
+        self.assertTrue(decoded.key_id)
+        self.assertTrue(decoded.plugin_nonce)
+        self.assertTrue(decoded.public_key)
 
     def test_error_message_round_trip_preserves_code_and_text(self) -> None:
         decoded = decode_error_message(encode_error_message("bad-frame", "Nope", "demo"))
@@ -68,7 +67,10 @@ class ProtocolTests(unittest.TestCase):
         phone = SecureRelayCodec(role="phone", session_id="demo", pairing_secret=pairing_secret)
 
         hello = plugin.rotate_send_key()
-        phone.apply_hello(hello)
+        phone_hello = phone.apply_hello(hello)
+        self.assertIsNotNone(phone_hello)
+        assert phone_hello is not None
+        plugin.apply_hello(phone_hello)
 
         encoded_state = plugin.encode_state_frame({"running": True, "slideCount": 7})
         decoded_state = phone.decode_frame(encoded_state)
@@ -95,7 +97,9 @@ class ProtocolTests(unittest.TestCase):
         plugin = SecureRelayCodec(role="plugin", session_id="demo", pairing_secret=pairing_secret)
         phone = SecureRelayCodec(role="phone", session_id="demo", pairing_secret=pairing_secret)
 
-        phone.apply_hello(plugin.rotate_send_key())
+        phone_hello = phone.apply_hello(plugin.rotate_send_key())
+        assert phone_hello is not None
+        plugin.apply_hello(phone_hello)
         encoded_asset = plugin.encode_asset_frame(
             {
                 "contentType": "image/png",
@@ -118,7 +122,9 @@ class ProtocolTests(unittest.TestCase):
         plugin = SecureRelayCodec(role="plugin", session_id="demo", pairing_secret=pairing_secret)
         phone = SecureRelayCodec(role="phone", session_id="demo", pairing_secret=pairing_secret)
 
-        phone.apply_hello(plugin.rotate_send_key())
+        phone_hello = phone.apply_hello(plugin.rotate_send_key())
+        assert phone_hello is not None
+        plugin.apply_hello(phone_hello)
         encoded_state = plugin.encode_state_frame({"running": True})
         self.assertIsNotNone(phone.decode_frame(encoded_state))
 
@@ -131,11 +137,15 @@ class ProtocolTests(unittest.TestCase):
         phone = SecureRelayCodec(role="phone", session_id="demo", pairing_secret=pairing_secret)
 
         first = plugin.rotate_send_key()
-        phone.apply_hello(first)
+        first_phone_hello = phone.apply_hello(first)
+        assert first_phone_hello is not None
+        plugin.apply_hello(first_phone_hello)
         old_command = phone.encode_command_frame("next_slide")
 
         second = plugin.rotate_send_key()
-        phone.apply_hello(second)
+        second_phone_hello = phone.apply_hello(second)
+        assert second_phone_hello is not None
+        plugin.apply_hello(second_phone_hello)
 
         decoded = plugin.decode_frame(old_command)
 
@@ -145,3 +155,12 @@ class ProtocolTests(unittest.TestCase):
         self.assertIsNotNone(command)
         assert command is not None
         self.assertEqual(command.command, "next_slide")
+
+    def test_plugin_cannot_encrypt_before_phone_ecdh_response(self) -> None:
+        pairing_secret = "6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ"
+        plugin = SecureRelayCodec(role="plugin", session_id="demo", pairing_secret=pairing_secret)
+
+        plugin.rotate_send_key()
+
+        with self.assertRaises(RelayProtocolFailure):
+            plugin.encode_state_frame({"running": True})

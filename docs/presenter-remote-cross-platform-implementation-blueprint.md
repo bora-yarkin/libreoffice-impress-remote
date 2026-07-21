@@ -141,7 +141,7 @@ Local:
 Phone browser -> laptop local IP -> LibreOffice extension
 
 Relay:
-Phone browser -> Python relay UI/WS <- LibreOffice extension relay client
+Phone browser -> relay UI/WS <- LibreOffice extension relay client
 
 Direct IPv6:
 Phone browser -> laptop global IPv6 -> LibreOffice extension
@@ -184,9 +184,10 @@ Current encrypted profile:
 
 ```text
 Protocol version: 1
+Key agreement: ECDH P-256
 Key derivation: HKDF-SHA256
 Encryption: AES-256-GCM
-Bootstrap: pairing secret from QR/manual-link fragment
+Bootstrap: ephemeral plugin/phone hello exchange plus QR/manual-link pairing verifier
 State direction: desktop host -> phone
 Command direction: phone -> desktop host
 Asset direction: desktop host -> phone
@@ -197,7 +198,7 @@ Replay cache: per direction and per key
 Pairing fragment:
 
 ```text
-#mode=<route>&s=<session-id>&k=<pairing-secret>
+#mode=<route>&s=<session-id>&k=<pairing-verifier>
 ```
 
 `hello`:
@@ -209,7 +210,9 @@ Pairing fragment:
   "s": "session-id",
   "k": "key-id",
   "nonce": "plugin-nonce",
-  "suite": "HKDF-SHA256+AES-256-GCM+PSK",
+  "role": "plugin",
+  "pub": "base64url-p256-plugin-public-key",
+  "suite": "ECDH-P256+HKDF-SHA256+AES-256-GCM",
   "rotate": 300,
   "features": ["state", "command", "error", "asset"]
 }
@@ -232,9 +235,9 @@ Encrypted frame:
 Key derivation:
 
 ```text
-salt = "impress-remote-relay/v1" || 0x00 || session-id
-info = "relay-keys" || 0x00 || key-id || 0x00 || plugin-nonce
-material = HKDF-SHA256(pairing-secret, salt, info, 64 bytes)
+salt = "impress-remote-relay/v1" || 0x00 || session-id || 0x00 || pairing-verifier
+info = "relay-keys" || 0x00 || key-id || 0x00 || plugin-nonce || 0x00 || plugin-public-key || 0x00 || phone-public-key
+material = HKDF-SHA256(ecdh-shared-secret, salt, info, 64 bytes)
 state-key = material[0:32]
 command-key = material[32:64]
 ```
@@ -3169,7 +3172,7 @@ Rules:
 
 ## 16.1 Relay-hosted frontend limitation
 
-Current encrypted frames protect against a passive or honest-but-curious relay, but a relay serving hostile phone JavaScript can read the fragment pairing secret.
+Current encrypted frames protect against a passive or honest-but-curious relay, but a relay serving hostile phone JavaScript can read the fragment pairing verifier and run the phone-side ECDH code.
 
 Long-term options:
 
@@ -3181,13 +3184,16 @@ Long-term options:
 
 Do not claim malicious-relay frontend protection until solved.
 
-## 16.2 ECDH migration
+## 16.2 ECDH hardening
 
-Recommended future handshake:
+Implemented baseline:
 
 - ephemeral P-256 keys;
 - QR binds session and authentication material;
 - ECDH plus HKDF;
+
+Recommended future hardening:
+
 - transcript-bound derivation;
 - key confirmation;
 - relay substitution detection;

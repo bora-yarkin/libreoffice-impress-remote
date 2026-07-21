@@ -269,6 +269,16 @@ class RelayClient:
                 last_presence_probe_at = 0.0
                 while not self._stop_event.is_set():
                     now = time.monotonic()
+                    incoming = websocket.receive_text(timeout=0.1)
+                    if incoming and self._handle_message(incoming):
+                        last_state_message = ""
+                        last_asset_revisions = {"current": "", "next": ""}
+                        last_state_sent_at = 0.0
+                    if not self._codec.ready():
+                        if now - last_presence_probe_at >= 1.0:
+                            last_presence_probe_at = now
+                            self._probe_phone_presence()
+                        continue
                     state = self.state_provider()
                     resend_secure_snapshot = False
                     state_message = encode_state_message(state)
@@ -289,9 +299,6 @@ class RelayClient:
                     if now - last_presence_probe_at >= 1.0:
                         last_presence_probe_at = now
                         self._probe_phone_presence()
-                    incoming = websocket.receive_text(timeout=0.5)
-                    if incoming:
-                        self._handle_message(incoming)
             except Exception as exc:
                 self._set_status(False, str(exc))
                 if self._stop_event.wait(2):
@@ -327,26 +334,34 @@ class RelayClient:
             websocket.send_text(self._codec.encode_asset_frame(asset_payload))
             last_asset_revisions[slot] = revision
 
-    def _handle_message(self, raw: str) -> None:
-        if decode_hello_message(raw) is not None:
-            return
+    def _handle_message(self, raw: str) -> bool:
+        hello = decode_hello_message(raw)
+        if hello is not None:
+            try:
+                self._codec.apply_hello(hello)
+            except RelayProtocolFailure as exc:
+                self._set_status(self._connected, exc.message)
+            if hello.sender_role == "phone" and self.activity_callback is not None:
+                self.activity_callback("relay")
+            return True
         error_message = decode_error_message(raw)
         if error_message is not None:
             self._set_status(self._connected, error_message.message)
-            return
+            return False
         try:
             frame = self._codec.decode_frame(raw)
         except RelayProtocolFailure as exc:
             self._set_status(self._connected, exc.message)
-            return
+            return False
         if frame is None or frame.kind != "command":
-            return
+            return False
         command = decode_command_payload(frame.payload)
         if command is None:
-            return
+            return False
         if self.activity_callback is not None:
             self.activity_callback("relay")
         self.command_handler(command.command, command.index)
+        return False
 
     def _probe_phone_presence(self) -> None:
         if self.activity_callback is None:

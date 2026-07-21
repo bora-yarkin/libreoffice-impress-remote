@@ -32,6 +32,15 @@ _SBOX = (
 )
 _RCON = (0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36)
 _GCM_POLY = 0xE1000000000000000000000000000000
+_P256_P = int("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff", 16)
+_P256_A = _P256_P - 3
+_P256_B = int("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b", 16)
+_P256_GX = int("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296", 16)
+_P256_GY = int("4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5", 16)
+_P256_N = int("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551", 16)
+_P256_FIELD_BYTES = 32
+_P256_POINT_PREFIX = 0x04
+_P256_INFINITY: tuple[int, int] | None = None
 
 
 def random_token(bytes_len: int = 32) -> str:
@@ -40,6 +49,27 @@ def random_token(bytes_len: int = 32) -> str:
 
 def random_bytes(length: int) -> bytes:
     return secrets.token_bytes(length)
+
+
+def p256_generate_private_key() -> int:
+    return secrets.randbelow(_P256_N - 1) + 1
+
+
+def p256_public_key(private_key: int) -> bytes:
+    _validate_p256_private_key(private_key)
+    point = _p256_scalar_multiply(private_key, (_P256_GX, _P256_GY))
+    if point is None:
+        raise ValueError(translate("crypto.error.p256InvalidPoint"))
+    return _p256_encode_point(point)
+
+
+def p256_shared_secret(private_key: int, peer_public_key: bytes) -> bytes:
+    _validate_p256_private_key(private_key)
+    peer_point = _p256_decode_point(peer_public_key)
+    shared_point = _p256_scalar_multiply(private_key, peer_point)
+    if shared_point is None:
+        raise ValueError(translate("crypto.error.p256InvalidPoint"))
+    return shared_point[0].to_bytes(_P256_FIELD_BYTES, "big")
 
 
 def base64url_encode(data: bytes) -> str:
@@ -255,4 +285,74 @@ def _gf128_multiply(left: int, right: int) -> int:
             value = (value >> 1) ^ _GCM_POLY
         else:
             value >>= 1
+    return result
+
+
+def _validate_p256_private_key(private_key: int) -> None:
+    if not 1 <= private_key < _P256_N:
+        raise ValueError(translate("crypto.error.p256PrivateKey"))
+
+
+def _p256_encode_point(point: tuple[int, int]) -> bytes:
+    return b"\x04" + point[0].to_bytes(_P256_FIELD_BYTES, "big") + point[1].to_bytes(
+        _P256_FIELD_BYTES,
+        "big",
+    )
+
+
+def _p256_decode_point(raw: bytes) -> tuple[int, int]:
+    if len(raw) != 65 or raw[0] != _P256_POINT_PREFIX:
+        raise ValueError(translate("crypto.error.p256PublicKey"))
+    x = int.from_bytes(raw[1:33], "big")
+    y = int.from_bytes(raw[33:65], "big")
+    point = (x, y)
+    if not _p256_is_on_curve(point):
+        raise ValueError(translate("crypto.error.p256PublicKey"))
+    return point
+
+
+def _p256_is_on_curve(point: tuple[int, int]) -> bool:
+    x, y = point
+    if not 0 <= x < _P256_P or not 0 <= y < _P256_P:
+        return False
+    return (y * y - (x * x * x + _P256_A * x + _P256_B)) % _P256_P == 0
+
+
+def _p256_inverse(value: int) -> int:
+    return pow(value, -1, _P256_P)
+
+
+def _p256_add(
+    left: tuple[int, int] | None,
+    right: tuple[int, int] | None,
+) -> tuple[int, int] | None:
+    if left is None:
+        return right
+    if right is None:
+        return left
+    x1, y1 = left
+    x2, y2 = right
+    if x1 == x2 and (y1 + y2) % _P256_P == 0:
+        return _P256_INFINITY
+    if left == right:
+        slope = ((3 * x1 * x1 + _P256_A) * _p256_inverse((2 * y1) % _P256_P)) % _P256_P
+    else:
+        slope = ((y2 - y1) * _p256_inverse((x2 - x1) % _P256_P)) % _P256_P
+    x3 = (slope * slope - x1 - x2) % _P256_P
+    y3 = (slope * (x1 - x3) - y1) % _P256_P
+    return (x3, y3)
+
+
+def _p256_scalar_multiply(
+    scalar: int,
+    point: tuple[int, int],
+) -> tuple[int, int] | None:
+    result: tuple[int, int] | None = _P256_INFINITY
+    addend: tuple[int, int] | None = point
+    value = scalar
+    while value:
+        if value & 1:
+            result = _p256_add(result, addend)
+        addend = _p256_add(addend, addend)
+        value >>= 1
     return result

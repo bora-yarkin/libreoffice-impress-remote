@@ -7,7 +7,9 @@ This project is pre-1.0 and should still be treated as security-sensitive softwa
 
 ## Supported Versions
 
-No stable supported version exists yet.
+No stable supported version exists yet. Until `1.0.0`, only the latest tagged or main-branch preview is supported for security fixes.
+
+For the release target matrix and preview/stable blockers, see `docs/release-readiness.md`.
 
 ## Reporting Vulnerabilities
 

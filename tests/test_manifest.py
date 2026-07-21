@@ -24,6 +24,7 @@ def test_extension_manifest_files_exist() -> None:
         "shared/webui/index.html",
         "localizations/en.json",
         "localizations/tr.json",
+        "docs/test-before-release.md",
     ]
     missing = [path for path in required if not (ROOT / path).exists()]
     assert not missing
@@ -84,8 +85,65 @@ def test_shared_phone_ui_has_authenticated_local_compatibility_fallback() -> Non
     assert "isLocalFallbackMode()" in app_js
 
 
+def test_shared_phone_ui_binds_direct_requests_to_pairing_session() -> None:
+    app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
+
+    assert "function directSessionUrl(path)" in app_js
+    assert "url.searchParams.set('s', routeSession)" in app_js
+    assert "directSessionUrl('/api/direct/state')" in app_js
+    assert "directSessionUrl('/api/direct/events')" in app_js
+    assert "directSessionUrl('/api/direct/command')" in app_js
+
+
+def test_shared_phone_ui_uses_ecdh_bootstrap_for_encrypted_transport() -> None:
+    app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
+
+    assert "{name: 'ECDH', namedCurve: 'P-256'}" in app_js
+    assert "role: 'phone'" in app_js
+    assert "pub: bytesToBase64Url(phonePublicKey)" in app_js
+    assert "ECDH-P256+HKDF-SHA256+AES-256-GCM" in app_js
+    assert "fetchJson(directSessionUrl('/api/direct/handshake'), {" in app_js
+
+
 def test_product_ci_uploads_the_versioned_oxt_artifact() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "dist/libreoffice-impress-remote-*.oxt" in workflow
     assert "dist/libreoffice-impress-remote.oxt" not in workflow
+
+
+def test_product_ci_runs_release_readiness_checks() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    for expected in (
+        "python -m ruff check extension/python server/src server/tests tests tools",
+        "python -m pytest tests server/tests",
+        "python tools/build_oxt.py",
+        "python tools/build_release_bundle.py",
+        "python tools/build_cloudflare_bundle.py",
+        "dist/impress-remote-relay-python-*.zip",
+        "dist/impress-remote-relay-cloudflare-*.zip",
+    ):
+        assert expected in workflow
+
+
+def test_release_testing_checklist_is_linked_and_route_complete() -> None:
+    docs_index = (ROOT / "docs/README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    release_readiness = (ROOT / "docs/release-readiness.md").read_text(encoding="utf-8")
+    checklist = (ROOT / "docs/test-before-release.md").read_text(encoding="utf-8")
+
+    assert "test-before-release.md" in docs_index
+    assert "docs/test-before-release.md" in readme
+    assert "test-before-release.md" in release_readiness
+    for expected_section in (
+        "## Local Same-Wi-Fi Mode",
+        "## Hotspot Local Mode",
+        "## Safari Local Compatibility",
+        "## Direct IPv6 Mode",
+        "## Python Relay Mode",
+        "## Cloudflare Relay Mode",
+        "## Localization",
+        "## Security And Protocol",
+    ):
+        assert expected_section in checklist

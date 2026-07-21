@@ -9,6 +9,75 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+### Documentation
+
+- Added a user guide for local-first pairing, hotspot usage, route selection, and manual-link backup.
+- Added a user-facing feature matrix that separates implemented behavior from planned work.
+- Added an install/runtime troubleshooting guide for LibreOffice extension loading, stale caches, missing modules, menu visibility, QR/link, local pairing, Safari Web Crypto, and relay issues.
+- Aligned architecture and security summaries around local encrypted mode, Safari local fallback, direct IPv6, and relay behavior.
+- Added release-readiness policy covering route gates, target compatibility, latest-preview support, CI gates, manual release checks, and preview/beta blockers.
+
+### Changed
+
+- Expanded Product CI from smoke packaging to a release gate that installs test dependencies, runs lint and tests, builds the OXT, builds relay bundles, and verifies release artifacts.
+
+## [0.6.16] - 2026-07-21
+
+### Fixed
+
+- Fixed Pylance diagnostics in the embedded local HTTP endpoint tests by making the fake controller injection and fake-only command assertions explicit.
+
+### Changed
+
+- Bumped the extension, relay package, and project version to `0.6.16`.
+
+## [0.6.15] - 2026-07-21
+
+### Added
+
+- Added pure-Python P-256 ECDH support inside the LibreOffice extension runtime so encrypted transport does not depend on external Python cryptography packages.
+- Added two-way ECDH `hello` negotiation: LibreOffice publishes an ephemeral plugin public key, the phone answers with an ephemeral phone public key, and both sides derive AES transport keys from the ECDH shared secret plus the QR pairing verifier.
+- Added direct HTTP handshake completion over `POST /api/direct/handshake` before encrypted state, assets, or commands are exchanged.
+- Added relay support for forwarding validated phone `hello` responses while keeping relay servers opaque and keyless.
+
+### Changed
+
+- Replaced the previous pre-shared-secret-only encrypted transport bootstrap with `ECDH-P256+HKDF-SHA256+AES-256-GCM`.
+- Updated the shared phone UI to use browser Web Crypto ECDH and to keep multiple key generations so in-flight frames survive key rotation.
+- Updated protocol, relay, local HTTP, and crypto tests for the two-leg ECDH handshake.
+- Bumped the extension, relay package, and project version to `0.6.15`.
+
+## [0.6.14] - 2026-07-21
+
+### Added
+
+- Added an encrypted embedded HTTP round-trip test that pairs as a phone client, decrypts direct state, decrypts a slide asset frame, and sends an encrypted command back to the extension server.
+- Added `docs/test-before-release.md` with manual release-candidate steps for OXT installation, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, Cloudflare relay, phone UI, localization, security, and release notes.
+
+### Changed
+
+- Updated release-readiness and TODO tracking so automated coverage, manual real-device release checks, and remaining browser/LibreOffice compatibility work are separated more clearly.
+- Bumped the extension, relay package, and project version to `0.6.14`.
+
+## [0.6.13] - 2026-07-21
+
+### Added
+
+- Added embedded local HTTP endpoint tests for the LibreOffice-served phone UI, direct encrypted state, local compatibility state, commands, slide assets, stale revisions, and response security headers.
+
+### Changed
+
+- Direct local/IPv6 `/api/direct/*` requests now require the unguessable pairing session id in the query string or `X-Impress-Remote-Session` header before they are treated as paired client activity.
+- The shared phone UI now binds direct encrypted state, event, handshake, command, and slide-asset requests to the pairing session id from the QR/manual-link fragment.
+- Direct and local compatibility slide endpoints now reject stale slide render revisions instead of returning a mismatched current slide image.
+- Embedded local API and static responses now include no-sniff, no-referrer, frame-denial, and Content Security Policy headers.
+
+### Security
+
+- Restricted authenticated plaintext `/api/local/*` compatibility transport to local-network, link-local, or loopback clients.
+- Added constant-time comparison for local compatibility session and pairing-secret headers.
+- Added a JSON body size limit for local/direct command endpoints.
+
 ## [0.6.12] - 2026-07-21
 
 ### Added

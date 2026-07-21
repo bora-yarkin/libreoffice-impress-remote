@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import hmac
+import ipaddress
 import socket
 import threading
 import time
@@ -34,6 +36,7 @@ from impress_remote.protocol import (
     RelayProtocolFailure,
     SecureRelayCodec,
     decode_command_payload,
+    decode_hello_message,
     encode_hello_message,
 )
 from impress_remote.relay_client import RelayClient
@@ -45,6 +48,11 @@ WEB_ROOT = resolve_packaged_or_shared_dir(
 )
 LOCALIZATION_ROOT = localization_root()
 AUTO_ROUTE_PRIORITY = ("local", "ipv6", "relay")
+MAX_JSON_BODY_BYTES = 16 * 1024
+
+
+class StaleSlideRevision(RuntimeError):
+    pass
 
 
 def _url_with_fragment_params(url: str, **params: str) -> str:
@@ -63,6 +71,16 @@ def _json_object(raw: str) -> dict[str, object]:
     return payload
 
 
+def _is_local_compatibility_client(client_host: str | None) -> bool:
+    if client_host is None:
+        return False
+    try:
+        parsed = ipaddress.ip_address(client_host.split("%", 1)[0])
+    except ValueError:
+        return client_host.lower() == "localhost"
+    return parsed.is_loopback or parsed.is_private or parsed.is_link_local
+
+
 class SecureDirectSession:
     def __init__(self, session_id: str, pairing_secret: str):
         self.session_id = session_id
@@ -77,6 +95,20 @@ class SecureDirectSession:
     def current_hello_payload(self) -> dict[str, object]:
         with self._lock:
             return _json_object(encode_hello_message(self._hello))
+
+    def ready(self) -> bool:
+        with self._lock:
+            return self._codec.ready()
+
+    def apply_phone_hello(self, payload: dict[str, object]) -> None:
+        hello = decode_hello_message(json.dumps(payload, separators=(",", ":")))
+        if hello is None:
+            raise RelayProtocolFailure(
+                "invalid-hello",
+                translate("protocol.error.helloInvalid"),
+            )
+        with self._lock:
+            self._codec.apply_hello(hello)
 
     def state_response(self, payload: dict[str, object]) -> dict[str, object]:
         with self._lock:
@@ -290,14 +322,14 @@ class RemoteServer:
             or not state.current_render_token
         ):
             return ""
-        return f"/api/direct/slide/current?rev={state.current_render_token}"
+        return f"/api/direct/slide/current?s={self.session_id}&rev={state.current_render_token}"
 
     def next_slide_image_url(self, state=None) -> str:
         if state is None:
             state = self.controller.state()
         if state.next_slide is None or not state.next_render_token:
             return ""
-        return f"/api/direct/slide/next?rev={state.next_render_token}"
+        return f"/api/direct/slide/next?s={self.session_id}&rev={state.next_render_token}"
 
     def secure_current_slide_image_url(self, state=None) -> str:
         if state is None:
@@ -308,14 +340,14 @@ class RemoteServer:
             or not state.current_render_token
         ):
             return ""
-        return f"/api/direct/slide/current?rev={state.current_render_token}"
+        return f"/api/direct/slide/current?s={self.session_id}&rev={state.current_render_token}"
 
     def secure_next_slide_image_url(self, state=None) -> str:
         if state is None:
             state = self.controller.state()
         if state.next_slide is None or not state.next_render_token:
             return ""
-        return f"/api/direct/slide/next?rev={state.next_render_token}"
+        return f"/api/direct/slide/next?s={self.session_id}&rev={state.next_render_token}"
 
     def console_url(self) -> str:
         preferred = self.pairing_target(self.config.preferred_route)
@@ -372,6 +404,11 @@ class RemoteServer:
         return payload
 
     def secure_direct_state_response(self) -> dict[str, object]:
+        if not self.direct_session.ready():
+            raise RelayProtocolFailure(
+                "missing-hello",
+                translate("protocol.error.missingNegotiatedKey"),
+            )
         return self.direct_session.state_response(self.secure_direct_state_payload())
 
     def secure_direct_command(self, payload: dict[str, object]) -> tuple[str, int | None]:
@@ -384,6 +421,12 @@ class RemoteServer:
         slot: str,
         revision: str = "",
     ) -> dict[str, object]:
+        if not self.direct_session.ready():
+            raise RelayProtocolFailure(
+                "missing-hello",
+                translate("protocol.error.missingNegotiatedKey"),
+            )
+        self._validate_slide_revision(slot, revision)
         if slot == "current":
             data = self.controller.current_slide_png_bytes()
         else:
@@ -394,6 +437,31 @@ class RemoteServer:
             slot=slot,
             revision=revision,
         )
+
+    def local_fallback_slide_bytes(self, *, slot: str, revision: str = "") -> bytes:
+        self._validate_slide_revision(slot, revision)
+        if slot == "current":
+            return self.controller.current_slide_png_bytes()
+        return self.controller.next_slide_png_bytes()
+
+    def _validate_slide_revision(self, slot: str, revision: str) -> None:
+        expected_revision = str(revision).strip()
+        if not expected_revision:
+            return
+        state = self.controller.state()
+        if slot == "current":
+            if (
+                state.document_kind != "impress"
+                or state.slide_count <= 0
+                or state.current_render_token != expected_revision
+            ):
+                raise StaleSlideRevision(translate("error.staleSlideExport"))
+            return
+        if slot == "next":
+            if state.next_slide is None or state.next_render_token != expected_revision:
+                raise StaleSlideRevision(translate("error.staleSlideExport"))
+            return
+        raise RuntimeError(translate("error.noSlideExport"))
 
     def relay_asset_payload(self, slot: str, revision: str) -> dict[str, object] | None:
         expected_revision = str(revision).strip()
@@ -812,7 +880,6 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        self._track_client_activity(parsed.path)
         if parsed.path in {"/", "/index.html"}:
             self._send_file(WEB_ROOT / "index.html", "text/html; charset=utf-8")
         elif parsed.path == "/app.css":
@@ -828,15 +895,20 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         elif parsed.path.startswith("/localizations/"):
             self._localization_file(parsed.path)
         elif parsed.path == "/api/direct/handshake":
-            self._json(self.server_ref.direct_session.current_hello_payload())
+            if self._authorize_direct_session(parsed, mark_activity=False):
+                self._json(self.server_ref.direct_session.current_hello_payload())
         elif parsed.path == "/api/direct/state":
-            self._json(self.server_ref.secure_direct_state_response())
+            if self._authorize_direct_session(parsed):
+                self._json(self.server_ref.secure_direct_state_response())
         elif parsed.path == "/api/direct/events":
-            self._event_stream_secure()
+            if self._authorize_direct_session(parsed):
+                self._event_stream_secure()
         elif parsed.path == "/api/direct/slide/current":
-            self._current_slide_image_secure(parsed)
+            if self._authorize_direct_session(parsed):
+                self._current_slide_image_secure(parsed)
         elif parsed.path == "/api/direct/slide/next":
-            self._next_slide_image_secure(parsed)
+            if self._authorize_direct_session(parsed):
+                self._next_slide_image_secure(parsed)
         elif parsed.path == "/api/local/state":
             if self._authorize_local_fallback():
                 self._json(self.server_ref.local_fallback_state_payload())
@@ -851,9 +923,13 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        self._track_client_activity(parsed.path)
         if parsed.path == "/api/direct/command":
-            self._handle_direct_command()
+            if self._authorize_direct_session(parsed):
+                self._handle_direct_command()
+            return
+        if parsed.path == "/api/direct/handshake":
+            if self._authorize_direct_session(parsed, mark_activity=False):
+                self._handle_direct_handshake()
             return
         if parsed.path == "/api/local/command":
             if self._authorize_local_fallback():
@@ -861,10 +937,30 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             return
         self.send_error(HTTPStatus.NOT_FOUND)
 
+    def _handle_direct_handshake(self) -> None:
+        try:
+            payload = self._read_json()
+            self.server_ref.direct_session.apply_phone_hello(payload)
+        except OverflowError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            return
+        except RelayProtocolFailure as exc:
+            self._json({"ok": False, "error": exc.message}, HTTPStatus.BAD_REQUEST)
+            return
+        except (ValueError, json.JSONDecodeError):
+            self.send_error(HTTPStatus.BAD_REQUEST)
+            return
+
+        self._mark_authorized_client_activity()
+        self._json({"ok": True})
+
     def _handle_direct_command(self) -> None:
         try:
             payload = self._read_json()
             command, index = self.server_ref.secure_direct_command(payload)
+        except OverflowError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            return
         except RelayProtocolFailure as exc:
             self._json({"ok": False, "error": exc.message}, HTTPStatus.BAD_REQUEST)
             return
@@ -878,6 +974,9 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
     def _handle_local_command(self) -> None:
         try:
             payload = self._read_json()
+        except OverflowError as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            return
         except (ValueError, json.JSONDecodeError):
             self.send_error(HTTPStatus.BAD_REQUEST)
             return
@@ -891,38 +990,46 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self.server_ref.controller.command(command.command, command.index)
         self._json({"ok": True})
 
-    def _track_client_activity(self, path: str) -> None:
-        if path not in {
-            "/",
-            "/index.html",
-            "/app.css",
-            "/app.js",
-            "/manifest.webmanifest",
-            "/sw.js",
-            "/icons/remote.svg",
-            "/localizations/en.json",
-            "/localizations/tr.json",
-            "/api/direct/handshake",
-            "/api/direct/state",
-            "/api/direct/events",
-            "/api/direct/command",
-            "/api/direct/slide/current",
-            "/api/direct/slide/next",
-            "/api/local/state",
-            "/api/local/command",
-            "/api/local/slide/current",
-            "/api/local/slide/next",
-        }:
-            return
+    def _mark_authorized_client_activity(self) -> None:
         client_host = self.client_address[0] if self.client_address else None
         source = "ipv6" if client_host and ":" in client_host else "local"
         self.server_ref.mark_client_activity(source, client_host)
 
-    def _authorize_local_fallback(self) -> bool:
+    def _authorize_direct_session(self, parsed, *, mark_activity: bool = True) -> bool:
+        query_session = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("s", "")
+        header_session = self.headers.get("X-Impress-Remote-Session", "")
         if (
-            self.headers.get("X-Impress-Remote-Session") == self.server_ref.session_id
-            and self.headers.get("X-Impress-Remote-Secret") == self.server_ref.pairing_secret
+            hmac.compare_digest(query_session, self.server_ref.session_id)
+            or hmac.compare_digest(header_session, self.server_ref.session_id)
         ):
+            if mark_activity:
+                self._mark_authorized_client_activity()
+            return True
+        self._json(
+            {"ok": False, "error": translate("error.directSessionUnauthorized")},
+            HTTPStatus.FORBIDDEN,
+        )
+        return False
+
+    def _authorize_local_fallback(self) -> bool:
+        client_host = self.client_address[0] if self.client_address else None
+        if not _is_local_compatibility_client(client_host):
+            self._json(
+                {"ok": False, "error": translate("error.localFallbackLanOnly")},
+                HTTPStatus.FORBIDDEN,
+            )
+            return False
+        if (
+            hmac.compare_digest(
+                self.headers.get("X-Impress-Remote-Session", ""),
+                self.server_ref.session_id,
+            )
+            and hmac.compare_digest(
+                self.headers.get("X-Impress-Remote-Secret", ""),
+                self.server_ref.pairing_secret,
+            )
+        ):
+            self._mark_authorized_client_activity()
             return True
         self._json(
             {"ok": False, "error": translate("error.localFallbackUnauthorized")},
@@ -941,7 +1048,12 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         )
 
     def _read_json(self) -> dict[str, object]:
-        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            raise ValueError(translate("error.payloadJson")) from None
+        if length > MAX_JSON_BODY_BYTES:
+            raise OverflowError(translate("error.payloadTooLarge"))
         raw = self.rfile.read(length) or b"{}"
         payload = json.loads(raw)
         if not isinstance(payload, dict):
@@ -951,21 +1063,22 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
     def _event_stream_secure(self) -> None:
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
+        self._send_common_security_headers(cache_control="no-store")
         self.send_header("Connection", "keep-alive")
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
 
         last_payload = ""
         last_heartbeat = time.monotonic()
-        hello_payload = json.dumps(
-            self.server_ref.direct_session.current_hello_payload(),
-            separators=(",", ":"),
-        )
         try:
-            self.wfile.write(b"event: hello\n")
-            self.wfile.write(f"data: {hello_payload}\n\n".encode())
-            self.wfile.flush()
+            if not self.server_ref.direct_session.ready():
+                hello_payload = json.dumps(
+                    self.server_ref.direct_session.current_hello_payload(),
+                    separators=(",", ":"),
+                )
+                self.wfile.write(b"event: hello\n")
+                self.wfile.write(f"data: {hello_payload}\n\n".encode())
+                self.wfile.flush()
             while True:
                 plain_state = self.server_ref.secure_direct_state_payload()
                 state_fingerprint = json.dumps(plain_state, separators=(",", ":"))
@@ -1001,6 +1114,9 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
                 slot="current",
                 revision=revision,
             )
+        except StaleSlideRevision as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.CONFLICT)
+            return
         except RuntimeError as exc:
             self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
@@ -1016,6 +1132,9 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
                 slot="next",
                 revision=revision,
             )
+        except StaleSlideRevision as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.CONFLICT)
+            return
         except RuntimeError as exc:
             self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
@@ -1025,11 +1144,13 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self._json(payload)
 
     def _current_slide_image_plain(self, *, slot: str) -> None:
+        parsed = urlparse(self.path)
+        revision = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("rev", "")
         try:
-            if slot == "current":
-                data = self.server_ref.controller.current_slide_png_bytes()
-            else:
-                data = self.server_ref.controller.next_slide_png_bytes()
+            data = self.server_ref.local_fallback_slide_bytes(slot=slot, revision=revision)
+        except StaleSlideRevision as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.CONFLICT)
+            return
         except RuntimeError as exc:
             self._json({"ok": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
@@ -1042,7 +1163,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
+        self._send_common_security_headers(cache_control="no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -1050,7 +1171,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
     def _bytes(self, data: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
+        self._send_common_security_headers(cache_control="no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -1059,7 +1180,24 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         data = path.read_bytes()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
+        self._send_common_security_headers(cache_control="no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_common_security_headers(self, *, cache_control: str) -> None:
+        self.send_header("Cache-Control", cache_control)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self'; "
+            "img-src 'self' blob: data:; "
+            "connect-src 'self' ws: wss:; "
+            "manifest-src 'self'; "
+            "base-uri 'none'; "
+            "frame-ancestors 'none'",
+        )

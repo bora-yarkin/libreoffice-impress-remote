@@ -5,7 +5,7 @@
 
 The extension is packaged as an `.oxt` archive. It should remain as self-contained as possible.
 
-As of `0.6.12`, the extension owns Impress-only Slide Show menu and supported-toolbar integration, pairing, route selection, QR generation, transport settings, encrypted local/direct transport with a Safari-compatible authenticated local fallback, relay pairing secrets, encrypted relay asset publishing, relay session-status probing, runtime issue reporting, bundled Python relay/Cloudflare relay/documentation export, and English/Turkish localization plumbing. The phone UI is intentionally lightweight and settings-free, but now comes from the shared `shared/webui/` source during development and is vendored into the `.oxt` at build time.
+As of `0.6.16`, the extension owns Impress-only Slide Show menu and supported-toolbar integration, pairing, route selection, QR generation, transport settings, encrypted ECDH local/direct transport with a Safari-compatible authenticated local fallback, relay pairing verifiers, encrypted relay asset publishing, relay session-status probing, runtime issue reporting, bundled Python relay/Cloudflare relay/documentation export, and English/Turkish localization plumbing. The phone UI is intentionally lightweight and settings-free, but now comes from the shared `shared/webui/` source during development and is vendored into the `.oxt` at build time.
 
 ## Rules
 

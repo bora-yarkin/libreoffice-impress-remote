@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-21` and the current `0.6.12` snapshot.
+It reflects the repository state as of `2026-07-21` and the current `0.6.16` snapshot.
 
 ## Product Direction
 
@@ -77,7 +77,7 @@ This is the base for the remaining work, not the finish line.
 
 ### M1 - Local Mode Complete
 
-Status: in progress after `0.6.12`
+Status: in progress after `0.6.16`
 
 Target outcome:
 
@@ -107,7 +107,7 @@ Exit criteria:
 
 ### M2 - LibreOffice-quality UX, Guidance, Localization, and Accessibility
 
-Status: in progress after `0.6.12`
+Status: in progress after `0.6.16`
 
 Target outcome:
 
@@ -139,7 +139,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.6.12`
+Status: in progress after `0.6.16`
 
 Target outcome:
 
@@ -150,14 +150,14 @@ Target outcome:
 Current baseline:
 
 - relay transport now uses versioned `hello`, `frame`, and `error` messages
-- relay state, command, and error frames now use HKDF-SHA256 plus AES-GCM
+- relay state, command, and error frames now use ECDH P-256, HKDF-SHA256, and AES-GCM
 - relay sessions now enforce replay protection, session binding, and plugin-driven key rotation
-- local and direct IPv6 routes now use the same encrypted state, command, and slide-asset protocol profile
+- direct IPv6 and Web-Crypto-capable local mode now use the same session-bound encrypted state, command, and slide-asset protocol profile, while local Safari-style LAN browsers can fall back to LAN-only authenticated plaintext `/api/local/*` polling
 - the current relay protocol is documented tightly enough for compatible implementations to start from it
 
 Remaining work:
 
-- replace the current pairing-secret bootstrap with ECDH P-256
+- expand browser and LibreOffice compatibility evidence for the ECDH P-256 handshake
 - document previews and richer future frame kinds without fragmenting interoperability
 - update the threat model and operational guidance around trusted frontend delivery
 
@@ -176,7 +176,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.6.12`
+Status: completed in the current repository snapshot after `0.6.16`
 
 Target outcome:
 
@@ -237,7 +237,7 @@ Exit criteria:
 
 ### M6 - Upstream Preparation
 
-Status: completed in the current repository snapshot after `0.6.12`
+Status: completed in the current repository snapshot after `0.6.16`
 
 Target outcome:
 
@@ -312,10 +312,10 @@ Exit criteria:
 
 The next practical order for this repo should be:
 
-1. Add local embedded server endpoint coverage and broader end-to-end local/direct test coverage.
+1. Expand browser and LibreOffice runtime compatibility checks across supported versions and desktop platforms.
 2. Expand LibreOffice-side guidance, localization packaging, and cross-platform accessibility verification around the local-first workflow.
-3. Replace the current pairing-secret bootstrap with an ECDH P-256 protocol migration.
-4. Expand LibreOffice runtime compatibility checks across supported versions and desktop platforms.
+3. Harden frontend trust around local HTTP, relay-hosted UI delivery, and signed or pinned shared assets.
+4. Add local embedded server endpoint coverage and broader end-to-end local/direct test coverage.
 5. Harden self-hosted relay lifecycle and deployment docs as an optional fallback.
 6. Reduce extension-specific assumptions before attempting a larger LibreOffice-core proof of concept.
 

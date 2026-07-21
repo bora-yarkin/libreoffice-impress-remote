@@ -142,6 +142,12 @@ function relaySocketUrl(session, admissionToken){
   return url.toString()
 }
 
+function directSessionUrl(path){
+  const url = new URL(path, window.location.href)
+  url.searchParams.set('s', routeSession)
+  return `${url.pathname}${url.search}`
+}
+
 function setConnectionPhase(nextPhase){
   connectionPhase = nextPhase
   if(nextPhase !== 'offline'){
@@ -497,7 +503,7 @@ function connectEvents(){
     return
   }
   if(isSecureDirectMode()){
-    connectSecureDirectEvents()
+    connectSecureDirectEvents().catch(showTransportError)
     return
   }
 }
@@ -674,11 +680,43 @@ function frameAad(session, keyId, kind, nonceText){
 }
 
 async function deriveRelayCodec(session, secretText, hello){
-  const secretBytes = base64UrlToBytes(secretText)
+  const pairingVerifier = base64UrlToBytes(secretText)
   const pluginNonce = base64UrlToBytes(hello.pluginNonce)
-  const baseKey = await crypto.subtle.importKey('raw', secretBytes, 'HKDF', false, ['deriveBits'])
-  const salt = concatBytes(utf8('impress-remote-relay/v1'), new Uint8Array([0]), utf8(session))
-  const info = concatBytes(utf8('relay-keys'), new Uint8Array([0]), utf8(hello.keyId), new Uint8Array([0]), pluginNonce)
+  const pluginPublicKey = base64UrlToBytes(hello.publicKey)
+  const phoneKeyPair = await crypto.subtle.generateKey(
+    {name: 'ECDH', namedCurve: 'P-256'},
+    false,
+    ['deriveBits'],
+  )
+  const phonePublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', phoneKeyPair.publicKey))
+  const importedPluginPublicKey = await crypto.subtle.importKey(
+    'raw',
+    pluginPublicKey,
+    {name: 'ECDH', namedCurve: 'P-256'},
+    false,
+    [],
+  )
+  const sharedSecret = await crypto.subtle.deriveBits(
+    {
+      name: 'ECDH',
+      public: importedPluginPublicKey,
+    },
+    phoneKeyPair.privateKey,
+    256,
+  )
+  const baseKey = await crypto.subtle.importKey('raw', new Uint8Array(sharedSecret), 'HKDF', false, ['deriveBits'])
+  const salt = concatBytes(utf8('impress-remote-relay/v1'), new Uint8Array([0]), utf8(session), new Uint8Array([0]), pairingVerifier)
+  const info = concatBytes(
+    utf8('relay-keys'),
+    new Uint8Array([0]),
+    utf8(hello.keyId),
+    new Uint8Array([0]),
+    pluginNonce,
+    new Uint8Array([0]),
+    pluginPublicKey,
+    new Uint8Array([0]),
+    phonePublicKey,
+  )
   const bits = await crypto.subtle.deriveBits(
     {
       name: 'HKDF',
@@ -690,11 +728,26 @@ async function deriveRelayCodec(session, secretText, hello){
     512,
   )
   const material = new Uint8Array(bits)
-  return {
-    keyId: hello.keyId,
+  const keySet = {
     stateKey: await crypto.subtle.importKey('raw', material.slice(0, 32), {name: 'AES-GCM'}, false, ['decrypt']),
     commandKey: await crypto.subtle.importKey('raw', material.slice(32, 64), {name: 'AES-GCM'}, false, ['encrypt']),
     pluginReplay: {values: new Set(), order: []},
+  }
+  return {
+    keyId: hello.keyId,
+    keySet,
+    responseHello: {
+      type: 'hello',
+      v: RELAY_PROTOCOL_VERSION,
+      s: session,
+      k: hello.keyId,
+      nonce: hello.pluginNonce,
+      role: 'phone',
+      pub: bytesToBase64Url(phonePublicKey),
+      suite: 'ECDH-P256+HKDF-SHA256+AES-256-GCM',
+      rotate: hello.keyRotationMessages,
+      features: [RELAY_KIND_STATE, RELAY_KIND_COMMAND, RELAY_KIND_ERROR, RELAY_KIND_ASSET],
+    },
   }
 }
 
@@ -705,6 +758,8 @@ function parseHello(payload){
     || typeof payload.s !== 'string'
     || typeof payload.k !== 'string'
     || typeof payload.nonce !== 'string'
+    || payload.role !== 'plugin'
+    || typeof payload.pub !== 'string'
   ){
     return null
   }
@@ -712,10 +767,19 @@ function parseHello(payload){
     sessionId: payload.s,
     keyId: payload.k,
     pluginNonce: payload.nonce,
+    publicKey: payload.pub,
+    keyRotationMessages: typeof payload.rotate === 'number' ? payload.rotate : 300,
   }
 }
 
-async function applySecureHelloPayload(payload){
+function storeNegotiatedCodec(existingCodec, negotiated){
+  const codec = existingCodec || {activeKeyId: '', keys: {}}
+  codec.keys[negotiated.keyId] = negotiated.keySet
+  codec.activeKeyId = negotiated.keyId
+  return codec
+}
+
+async function applySecureHelloPayload(payload, responseHandler = null){
   const hello = parseHello(payload)
   if(!hello){
     throw new Error(t('web.directHandshakeInvalid'))
@@ -723,7 +787,25 @@ async function applySecureHelloPayload(payload){
   if(hello.sessionId !== routeSession){
     throw new Error(t('web.directHandshakeMismatch'))
   }
-  secureState.codec = await deriveRelayCodec(routeSession, pairingSecret, hello)
+  const negotiated = await deriveRelayCodec(routeSession, pairingSecret, hello)
+  secureState.codec = storeNegotiatedCodec(secureState.codec, negotiated)
+  if(responseHandler){
+    await responseHandler(negotiated.responseHello)
+  }
+}
+
+async function establishSecureDirectHandshake(){
+  if(secureState.codec){
+    return
+  }
+  const hello = await fetchJson(directSessionUrl('/api/direct/handshake'))
+  await applySecureHelloPayload(hello, responseHello => {
+    return fetchJson(directSessionUrl('/api/direct/handshake'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(responseHello),
+    })
+  })
 }
 
 async function decryptSecureFramePayload(payload){
@@ -734,14 +816,18 @@ async function decryptSecureFramePayload(payload){
     payload.type !== 'frame'
     || payload.v !== RELAY_PROTOCOL_VERSION
     || payload.s !== routeSession
-    || payload.k !== secureState.codec.keyId
+    || typeof payload.k !== 'string'
     || typeof payload.kind !== 'string'
     || typeof payload.n !== 'string'
     || typeof payload.ct !== 'string'
   ){
     return null
   }
-  if(!rememberReplay(secureState.codec.pluginReplay, payload.n)){
+  const keySet = secureState.codec.keys[payload.k]
+  if(!keySet){
+    return null
+  }
+  if(!rememberReplay(keySet.pluginReplay, payload.n)){
     throw new Error(t('web.secureDirectReplay'))
   }
   const blob = base64UrlToBytes(payload.ct)
@@ -757,10 +843,10 @@ async function decryptSecureFramePayload(payload){
     {
       name: 'AES-GCM',
       iv: base64UrlToBytes(payload.n),
-      additionalData: frameAad(routeSession, secureState.codec.keyId, payload.kind, payload.n),
+      additionalData: frameAad(routeSession, payload.k, payload.kind, payload.n),
       tagLength: 128,
     },
-    secureState.codec.stateKey,
+    keySet.stateKey,
     combined,
   )
   return {
@@ -770,9 +856,16 @@ async function decryptSecureFramePayload(payload){
 }
 
 async function refreshSecureDirectStateSnapshot(){
-  const payload = await fetchJson('/api/direct/state')
+  await establishSecureDirectHandshake()
+  const payload = await fetchJson(directSessionUrl('/api/direct/state'))
   if(payload.hello){
-    await applySecureHelloPayload(payload.hello)
+    await applySecureHelloPayload(payload.hello, responseHello => {
+      return fetchJson(directSessionUrl('/api/direct/handshake'), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(responseHello),
+      })
+    })
   }
   const decrypted = await decryptSecureFramePayload(payload.frame)
   if(!decrypted || decrypted.kind !== RELAY_KIND_STATE){
@@ -783,7 +876,7 @@ async function refreshSecureDirectStateSnapshot(){
   renderState(decrypted.payload)
 }
 
-function connectSecureDirectEvents(){
+async function connectSecureDirectEvents(){
   if(!pairingSecret || !routeSession){
     throw new Error(t('web.directLinkRequired'))
   }
@@ -794,15 +887,22 @@ function connectSecureDirectEvents(){
     startPollingFallback()
     return
   }
+  await establishSecureDirectHandshake()
   if(eventSource){
     eventSource.close()
   }
-  eventSource = new EventSource('/api/direct/events')
+  eventSource = new EventSource(directSessionUrl('/api/direct/events'))
   eventSource.addEventListener('open', () => {
     setConnectionPhase(hasEverConnected ? 'live' : 'connecting')
   })
   eventSource.addEventListener('hello', event => {
-    applySecureHelloPayload(JSON.parse(event.data))
+    applySecureHelloPayload(JSON.parse(event.data), responseHello => {
+      return fetchJson(directSessionUrl('/api/direct/handshake'), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(responseHello),
+      })
+    })
       .then(() => {
         hasEverConnected = true
         if(connectionPhase !== 'offline'){
@@ -829,10 +929,7 @@ function connectSecureDirectEvents(){
 }
 
 async function buildSecureCommandFrame(commandName, payload = {}){
-  if(!secureState.codec){
-    const hello = await fetchJson('/api/direct/handshake')
-    await applySecureHelloPayload(hello)
-  }
+  await establishSecureDirectHandshake()
   const nonce = crypto.getRandomValues(new Uint8Array(12))
   const nonceText = bytesToBase64Url(nonce)
   const plaintext = utf8(JSON.stringify({command: commandName, ...payload}))
@@ -840,17 +937,17 @@ async function buildSecureCommandFrame(commandName, payload = {}){
     {
       name: 'AES-GCM',
       iv: nonce,
-      additionalData: frameAad(routeSession, secureState.codec.keyId, RELAY_KIND_COMMAND, nonceText),
+      additionalData: frameAad(routeSession, secureState.codec.activeKeyId, RELAY_KIND_COMMAND, nonceText),
       tagLength: 128,
     },
-    secureState.codec.commandKey,
+    secureState.codec.keys[secureState.codec.activeKeyId].commandKey,
     plaintext,
   )
   return {
     type: 'frame',
     v: RELAY_PROTOCOL_VERSION,
     s: routeSession,
-    k: secureState.codec.keyId,
+    k: secureState.codec.activeKeyId,
     kind: RELAY_KIND_COMMAND,
     n: nonceText,
     ct: bytesToBase64Url(new Uint8Array(encrypted)),
@@ -859,7 +956,7 @@ async function buildSecureCommandFrame(commandName, payload = {}){
 
 async function sendSecureDirectCommand(commandName, payload = {}){
   const frame = await buildSecureCommandFrame(commandName, payload)
-  await fetchJson('/api/direct/command', {
+  await fetchJson(directSessionUrl('/api/direct/command'), {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(frame),
@@ -872,7 +969,13 @@ async function sendSecureDirectCommand(commandName, payload = {}){
 async function fetchSecureSlideObjectUrl(url){
   const payload = await fetchJson(url)
   if(payload.hello){
-    await applySecureHelloPayload(payload.hello)
+    await applySecureHelloPayload(payload.hello, responseHello => {
+      return fetchJson(directSessionUrl('/api/direct/handshake'), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(responseHello),
+      })
+    })
   }
   const decrypted = await decryptSecureFramePayload(payload.frame)
   if(!decrypted || decrypted.kind !== RELAY_KIND_ASSET){
@@ -908,7 +1011,11 @@ async function decryptRelayFrame(payload){
   ){
     return null
   }
-  if(!rememberReplay(relayState.codec.pluginReplay, payload.n)){
+  const keySet = relayState.codec.keys[payload.k]
+  if(!keySet){
+    return null
+  }
+  if(!rememberReplay(keySet.pluginReplay, payload.n)){
     throw new Error(t('web.relayReplay'))
   }
   const blob = base64UrlToBytes(payload.ct)
@@ -927,7 +1034,7 @@ async function decryptRelayFrame(payload){
       additionalData: frameAad(relayState.session, payload.k, payload.kind, payload.n),
       tagLength: 128,
     },
-    relayState.codec.stateKey,
+    keySet.stateKey,
     combined,
   )
   return {
@@ -970,7 +1077,11 @@ async function handleIncoming(raw){
     if(hello.sessionId !== relayState.session){
       return
     }
-    relayState.codec = await deriveRelayCodec(relayState.session, relayState.pairingSecret, hello)
+    const negotiated = await deriveRelayCodec(relayState.session, relayState.pairingSecret, hello)
+    relayState.codec = storeNegotiatedCodec(relayState.codec, negotiated)
+    if(relayState.socket && relayState.socket.readyState === WebSocket.OPEN){
+      relayState.socket.send(JSON.stringify(negotiated.responseHello))
+    }
     renderBanner()
     return
   }
@@ -1010,17 +1121,17 @@ async function sendRelayCommand(commandName, payload = {}){
     {
       name: 'AES-GCM',
       iv: nonce,
-      additionalData: frameAad(relayState.session, relayState.codec.keyId, RELAY_KIND_COMMAND, nonceText),
+      additionalData: frameAad(relayState.session, relayState.codec.activeKeyId, RELAY_KIND_COMMAND, nonceText),
       tagLength: 128,
     },
-    relayState.codec.commandKey,
+    relayState.codec.keys[relayState.codec.activeKeyId].commandKey,
     plaintext,
   )
   relayState.socket.send(JSON.stringify({
     type: 'frame',
     v: RELAY_PROTOCOL_VERSION,
     s: relayState.session,
-    k: relayState.codec.keyId,
+    k: relayState.codec.activeKeyId,
     kind: RELAY_KIND_COMMAND,
     n: nonceText,
     ct: bytesToBase64Url(new Uint8Array(encrypted)),

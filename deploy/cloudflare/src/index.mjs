@@ -465,11 +465,25 @@ function validateProtocolMessage(rawMessage, role, sessionId, latestPluginHello)
   }
 
   if(payload.type === 'hello'){
-    if(role !== 'plugin'){
+    const helloRole = requiredString(payload, 'role', 'relay.error.helloMissingRole')
+    if(helloRole !== role){
+      throw new RelayProtocolViolation('invalid-role', 'relay.error.helloRoleMismatch')
+    }
+    if(!['plugin', 'phone'].includes(role)){
       throw new RelayProtocolViolation('invalid-role', 'relay.error.helloPluginOnly')
     }
     const keyId = requiredString(payload, 'k', 'relay.error.helloMissingKey')
     requiredString(payload, 'nonce', 'relay.error.helloMissingNonce')
+    requiredString(payload, 'pub', 'relay.error.helloMissingPublicKey')
+    if(role === 'phone'){
+      const activeKeyId = helloKeyId(latestPluginHello)
+      if(!activeKeyId){
+        throw new RelayProtocolViolation('missing-hello', 'relay.error.pluginNotReady')
+      }
+      if(keyId !== activeKeyId){
+        throw new RelayProtocolViolation('invalid-key', 'relay.error.pluginKeyMismatch')
+      }
+    }
     return {messageType: 'hello', keyId, frameKind: ''}
   }
 

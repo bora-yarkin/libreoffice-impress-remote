@@ -32,7 +32,9 @@ def _build_secure_codecs() -> tuple[SecureRelayCodec, SecureRelayCodec, str]:
         pairing_secret=PAIRING_SECRET,
     )
     hello = plugin.rotate_send_key()
-    phone.apply_hello(hello)
+    phone_hello = phone.apply_hello(hello)
+    assert phone_hello is not None
+    plugin.apply_hello(phone_hello)
     return plugin, phone, encode_hello_message(hello)
 
 
@@ -406,7 +408,12 @@ async def test_phone_stays_connected_and_receives_fresh_hello_after_plugin_recon
         assert first_state.payload["slideCount"] == 2
         await plugin_socket.close()
 
-        second_plugin, _second_phone, second_hello_raw = _build_secure_codecs()
+        second_plugin = SecureRelayCodec(
+            role="plugin",
+            session_id=SESSION_ID,
+            pairing_secret=PAIRING_SECRET,
+        )
+        second_hello_raw = encode_hello_message(second_plugin.rotate_send_key())
         plugin_socket = await client.ws_connect(
             f"/ws?role=plugin&session={SESSION_ID}&a=join-token"
         )
@@ -417,16 +424,21 @@ async def test_phone_stays_connected_and_receives_fresh_hello_after_plugin_recon
         second_hello = decode_hello_message(refreshed_hello.data)
         assert second_hello is not None
 
-        await plugin_socket.send_str(
-            second_plugin.encode_state_frame({"running": True, "slideCount": 7})
-        )
-        frame_message = await phone_socket.receive(timeout=1)
         reconnect_phone = SecureRelayCodec(
             role="phone",
             session_id=SESSION_ID,
             pairing_secret=PAIRING_SECRET,
         )
-        reconnect_phone.apply_hello(second_hello)
+        phone_hello = reconnect_phone.apply_hello(second_hello)
+        assert phone_hello is not None
+        second_plugin.apply_hello(phone_hello)
+        await phone_socket.send_str(encode_hello_message(phone_hello))
+        forwarded_phone_hello = await plugin_socket.receive(timeout=1)
+        assert forwarded_phone_hello.type == WSMsgType.TEXT
+        await plugin_socket.send_str(
+            second_plugin.encode_state_frame({"running": True, "slideCount": 7})
+        )
+        frame_message = await phone_socket.receive(timeout=1)
         decoded = reconnect_phone.decode_frame(frame_message.data)
         assert decoded is not None
         assert decoded.kind == "state"

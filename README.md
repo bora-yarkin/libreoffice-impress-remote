@@ -29,14 +29,14 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups should work wit
 
 ## Current Status
 
-Version `0.6.12` is a usable pre-1.0 build with:
+Version `0.6.16` is a usable pre-1.0 build with:
 
 - QR-first local pairing
 - live current-slide rendering
 - presenter notes on the phone
 - LibreOffice-native remote controls and settings
 - Impress-only Slide Show menu integration plus supported toolbar buttons near the built-in slideshow controls
-- encrypted local, direct IPv6, and relay transport for presenter state, commands, and slide assets, including relay-hosted slide previews and relay admission control
+- encrypted direct IPv6 and relay transport, plus encrypted local transport when Web Crypto is available, for presenter state, commands, and slide assets, including relay-hosted slide previews and relay admission control
 - Safari-compatible authenticated local fallback for LAN browsers that do not expose Web Crypto on plain HTTP
 - one shared phone-remote web UI source reused by the LibreOffice extension, the Python relay, and the Cloudflare relay bundle
 - visible phone-side connection recovery, retry/reload actions, accessibility polish, and PWA shell metadata
@@ -47,7 +47,6 @@ Version `0.6.12` is a usable pre-1.0 build with:
 
 Still in progress:
 
-- ECDH-based key exchange
 - phone-side presentation timer
 - expanding localization beyond the initial English and Turkish catalogs toward LibreOffice-wide language coverage
 - GitHub release support that runs the standard workflows and, after they pass, publishes a GitHub release with the extension package and a stripped relay-server release artifact without bundled documentation
@@ -75,10 +74,15 @@ This project is aiming for a fully FOSS, LibreOffice-friendly presenter remote t
 This README is intentionally product-focused. Technical details live in the linked docs:
 
 - [Technical documentation index](docs/README.md)
+- [User guide](docs/user-guide.md)
+- [Feature matrix](docs/feature-matrix.md)
+- [Troubleshooting](docs/troubleshooting.md)
 - [Build and test setup](docs/development/getting-started.md)
+- [Test before release](docs/test-before-release.md)
 - [Architecture](docs/architecture.md)
 - [LibreOffice upstream architecture](docs/libreoffice-upstream-architecture.md)
 - [Protocol](docs/protocol.md)
+- [Release readiness](docs/release-readiness.md)
 - [Relay server](docs/relay-server.md)
 - [Security model](docs/security/e2ee.md)
 - [Roadmap](docs/roadmap.md)

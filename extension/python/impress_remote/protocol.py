@@ -14,13 +14,16 @@ from impress_remote.crypto import (
     base64url_decode,
     base64url_encode,
     hkdf_sha256,
+    p256_generate_private_key,
+    p256_public_key,
+    p256_shared_secret,
     random_bytes,
     random_token,
 )
 from impress_remote.localization import translate
 
 RELAY_PROTOCOL_VERSION = 1
-RELAY_CIPHER_SUITE = "HKDF-SHA256+AES-256-GCM+PSK"
+RELAY_CIPHER_SUITE = "ECDH-P256+HKDF-SHA256+AES-256-GCM"
 RELAY_KEY_ROTATION_MESSAGES = 300
 RELAY_KIND_STATE = "state"
 RELAY_KIND_COMMAND = "command"
@@ -41,6 +44,8 @@ class RelayHello:
     session_id: str
     key_id: str
     plugin_nonce: str
+    sender_role: str = "plugin"
+    public_key: str = ""
     cipher_suite: str = RELAY_CIPHER_SUITE
     key_rotation_messages: int = RELAY_KEY_ROTATION_MESSAGES
     features: tuple[str, ...] = (
@@ -102,6 +107,12 @@ class _RelayKeySet:
     phone_replay: _ReplayCache
 
 
+@dataclass(frozen=True)
+class _PendingPluginHello:
+    hello: RelayHello
+    private_key: int
+
+
 class SecureRelayCodec:
     def __init__(
         self,
@@ -116,11 +127,13 @@ class SecureRelayCodec:
             raise ValueError(translate("protocol.error.unsupportedRole", role=role))
         self.role = role
         self.session_id = session_id
-        self._secret = base64url_decode(pairing_secret)
+        self._pairing_verifier = base64url_decode(pairing_secret)
         self._key_rotation_messages = max(int(key_rotation_messages), 1)
         self._replay_cache_size = max(int(replay_cache_size), 32)
         self._keys: dict[str, _RelayKeySet] = {}
         self._key_order: deque[str] = deque()
+        self._pending_plugin_hellos: dict[str, _PendingPluginHello] = {}
+        self._latest_plugin_hello: RelayHello | None = None
         self._active_key_id = ""
         self._sent_with_active_key = 0
 
@@ -128,32 +141,36 @@ class SecureRelayCodec:
         return bool(self._active_key_id)
 
     def should_rotate_send_key(self) -> bool:
-        return self.role == "plugin" and self._sent_with_active_key >= self._key_rotation_messages
+        return (
+            self.role == "plugin"
+            and self.ready()
+            and self._sent_with_active_key >= self._key_rotation_messages
+        )
 
     def rotate_send_key(self) -> RelayHello:
         if self.role != "plugin":
             raise ValueError(translate("protocol.error.rotatePluginOnly"))
         key_id = random_token(9)
         plugin_nonce = base64url_encode(random_bytes(16))
-        key_set = _derive_key_set(
-            self._secret,
-            self.session_id,
-            key_id,
-            plugin_nonce,
-            self._replay_cache_size,
-        )
-        self._store_key_set(key_set)
-        self._active_key_id = key_id
-        self._sent_with_active_key = 0
-        return RelayHello(
+        private_key = p256_generate_private_key()
+        hello = RelayHello(
             version=RELAY_PROTOCOL_VERSION,
             session_id=self.session_id,
             key_id=key_id,
             plugin_nonce=plugin_nonce,
+            sender_role="plugin",
+            public_key=base64url_encode(p256_public_key(private_key)),
             key_rotation_messages=self._key_rotation_messages,
         )
+        self._pending_plugin_hellos[key_id] = _PendingPluginHello(
+            hello=hello,
+            private_key=private_key,
+        )
+        self._latest_plugin_hello = hello
+        self._sent_with_active_key = 0
+        return hello
 
-    def apply_hello(self, hello: RelayHello) -> None:
+    def apply_hello(self, hello: RelayHello) -> RelayHello | None:
         if hello.version != RELAY_PROTOCOL_VERSION:
             raise RelayProtocolFailure(
                 "unsupported-version",
@@ -164,16 +181,24 @@ class SecureRelayCodec:
                 "session-mismatch",
                 translate("protocol.error.helloSessionMismatch"),
             )
-        key_set = _derive_key_set(
-            self._secret,
-            hello.session_id,
-            hello.key_id,
-            hello.plugin_nonce,
-            self._replay_cache_size,
+        if hello.cipher_suite != RELAY_CIPHER_SUITE:
+            raise RelayProtocolFailure(
+                "unsupported-suite",
+                translate("protocol.error.unsupportedCipherSuite"),
+            )
+        if self.role == "phone" and hello.sender_role == "plugin":
+            return self._apply_plugin_hello_as_phone(hello)
+        if self.role == "plugin" and hello.sender_role == "phone":
+            self._apply_phone_hello_as_plugin(hello)
+            return None
+        raise RelayProtocolFailure(
+            "invalid-hello-role",
+            translate(
+                "protocol.error.invalidHelloRole",
+                local=self.role,
+                remote=hello.sender_role,
+            ),
         )
-        self._store_key_set(key_set)
-        self._active_key_id = hello.key_id
-        self._sent_with_active_key = 0
 
     def encode_state_frame(self, state: dict[str, object]) -> str:
         return self._encode_frame(RELAY_KIND_STATE, state)
@@ -308,6 +333,75 @@ class SecureRelayCodec:
             if expired != self._active_key_id:
                 self._keys.pop(expired, None)
 
+    def _apply_plugin_hello_as_phone(self, hello: RelayHello) -> RelayHello:
+        if not hello.public_key:
+            raise RelayProtocolFailure(
+                "missing-public-key",
+                translate("protocol.error.helloMissingPublicKey"),
+            )
+        phone_private_key = p256_generate_private_key()
+        phone_public_key = p256_public_key(phone_private_key)
+        plugin_public_key = base64url_decode(hello.public_key)
+        shared_secret = p256_shared_secret(phone_private_key, plugin_public_key)
+        key_set = _derive_key_set(
+            shared_secret=shared_secret,
+            pairing_verifier=self._pairing_verifier,
+            session_id=hello.session_id,
+            key_id=hello.key_id,
+            plugin_nonce_text=hello.plugin_nonce,
+            plugin_public_key=plugin_public_key,
+            phone_public_key=phone_public_key,
+            replay_cache_size=self._replay_cache_size,
+        )
+        self._store_key_set(key_set)
+        self._active_key_id = hello.key_id
+        self._sent_with_active_key = 0
+        self._latest_plugin_hello = hello
+        return RelayHello(
+            version=RELAY_PROTOCOL_VERSION,
+            session_id=self.session_id,
+            key_id=hello.key_id,
+            plugin_nonce=hello.plugin_nonce,
+            sender_role="phone",
+            public_key=base64url_encode(phone_public_key),
+            key_rotation_messages=hello.key_rotation_messages,
+        )
+
+    def _apply_phone_hello_as_plugin(self, hello: RelayHello) -> None:
+        pending = self._pending_plugin_hellos.get(hello.key_id)
+        if pending is None:
+            raise RelayProtocolFailure(
+                "unknown-key",
+                translate("protocol.error.frameUnknownKey"),
+            )
+        if hello.plugin_nonce != pending.hello.plugin_nonce:
+            raise RelayProtocolFailure(
+                "invalid-nonce",
+                translate("protocol.error.helloNonceMismatch"),
+            )
+        if not hello.public_key:
+            raise RelayProtocolFailure(
+                "missing-public-key",
+                translate("protocol.error.helloMissingPublicKey"),
+            )
+        plugin_public_key = base64url_decode(pending.hello.public_key)
+        phone_public_key = base64url_decode(hello.public_key)
+        shared_secret = p256_shared_secret(pending.private_key, phone_public_key)
+        key_set = _derive_key_set(
+            shared_secret=shared_secret,
+            pairing_verifier=self._pairing_verifier,
+            session_id=hello.session_id,
+            key_id=hello.key_id,
+            plugin_nonce_text=hello.plugin_nonce,
+            plugin_public_key=plugin_public_key,
+            phone_public_key=phone_public_key,
+            replay_cache_size=self._replay_cache_size,
+        )
+        self._store_key_set(key_set)
+        self._active_key_id = hello.key_id
+        self._sent_with_active_key = 0
+        self._pending_plugin_hellos.pop(hello.key_id, None)
+
 
 def encode_state_message(state: dict[str, object]) -> str:
     return json.dumps({"type": "state", "state": state}, separators=(",", ":"))
@@ -354,6 +448,8 @@ def encode_hello_message(hello: RelayHello) -> str:
             "s": hello.session_id,
             "k": hello.key_id,
             "nonce": hello.plugin_nonce,
+            "role": hello.sender_role,
+            "pub": hello.public_key,
             "suite": hello.cipher_suite,
             "rotate": hello.key_rotation_messages,
             "features": list(hello.features),
@@ -370,6 +466,8 @@ def decode_hello_message(raw: str) -> RelayHello | None:
     session_id = payload.get("s")
     key_id = payload.get("k")
     plugin_nonce = payload.get("nonce")
+    sender_role = payload.get("role", "plugin")
+    public_key = payload.get("pub")
     cipher_suite = payload.get("suite", RELAY_CIPHER_SUITE)
     rotation = payload.get("rotate", RELAY_KEY_ROTATION_MESSAGES)
     features = payload.get(
@@ -385,6 +483,10 @@ def decode_hello_message(raw: str) -> RelayHello | None:
         or not key_id
         or not isinstance(plugin_nonce, str)
         or not plugin_nonce
+        or not isinstance(sender_role, str)
+        or sender_role not in {"plugin", "phone"}
+        or not isinstance(public_key, str)
+        or not public_key
         or not isinstance(cipher_suite, str)
         or not isinstance(rotation, int)
         or not isinstance(features, list)
@@ -396,6 +498,8 @@ def decode_hello_message(raw: str) -> RelayHello | None:
         session_id=session_id,
         key_id=key_id,
         plugin_nonce=plugin_nonce,
+        sender_role=sender_role,
+        public_key=public_key,
         cipher_suite=cipher_suite,
         key_rotation_messages=max(int(rotation), 1),
         features=feature_names
@@ -436,16 +540,34 @@ def decode_error_message(raw: str) -> RelayError | None:
 
 
 def _derive_key_set(
-    secret: bytes,
+    *,
+    shared_secret: bytes,
+    pairing_verifier: bytes,
     session_id: str,
     key_id: str,
     plugin_nonce_text: str,
+    plugin_public_key: bytes,
+    phone_public_key: bytes,
     replay_cache_size: int,
 ) -> _RelayKeySet:
     plugin_nonce = base64url_decode(plugin_nonce_text)
-    salt = _RELAY_PROTOCOL_LABEL + b"\0" + session_id.encode("utf-8")
-    info = b"relay-keys\0" + key_id.encode("utf-8") + b"\0" + plugin_nonce
-    material = hkdf_sha256(secret, salt, info, length=64)
+    salt = b"\0".join(
+        (
+            _RELAY_PROTOCOL_LABEL,
+            session_id.encode("utf-8"),
+            pairing_verifier,
+        )
+    )
+    info = b"\0".join(
+        (
+            b"relay-keys",
+            key_id.encode("utf-8"),
+            plugin_nonce,
+            plugin_public_key,
+            phone_public_key,
+        )
+    )
+    material = hkdf_sha256(shared_secret, salt, info, length=64)
     return _RelayKeySet(
         key_id=key_id,
         plugin_nonce=plugin_nonce_text,
