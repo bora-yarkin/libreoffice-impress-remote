@@ -41,10 +41,10 @@ jobs:
       - name: Build Extension Package
         run: python tools/build_oxt.py
       - name: Verify Extension Artifact
-        run: test -s dist/libreoffice-impress-remote.oxt
+        run: test -s dist/libreoffice-impress-remote-*.oxt
       - name: Upload Extension Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: libreoffice-impress-remote-oxt
-          path: dist/libreoffice-impress-remote.oxt
+          path: dist/libreoffice-impress-remote-*.oxt
           if-no-files-found: error

@@ -82,3 +82,10 @@ def test_shared_phone_ui_has_authenticated_local_compatibility_fallback() -> Non
     assert "X-Impress-Remote-Session" in app_js
     assert "X-Impress-Remote-Secret" in app_js
     assert "isLocalFallbackMode()" in app_js
+
+
+def test_product_ci_uploads_the_versioned_oxt_artifact() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert "dist/libreoffice-impress-remote-*.oxt" in workflow
+    assert "dist/libreoffice-impress-remote.oxt" not in workflow
