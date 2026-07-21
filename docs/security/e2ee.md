@@ -3,7 +3,7 @@
 
 # End-to-End Encryption
 
-Current local, direct IPv6, and relay profile in `0.6.16`:
+Current local, direct IPv6, and relay profile in `0.6.19`:
 
 ```text
 Pairing verifier in QR/manual-link fragment
@@ -38,7 +38,7 @@ The long-term goal is still one shared encrypted message format across local, re
 
 If the phone UI is loaded from the relay server, a malicious relay can serve hostile JavaScript. The E2E design protects against passive or honest-but-curious relays, not against a relay that controls frontend delivery unless the frontend is pinned, audited, or installed from a trusted source.
 
-For `0.6.16`, the supported relay trust model is:
+For `0.6.19`, the supported relay trust model is:
 
 - self-host the published Python or Cloudflare relay bundle
 - verify `asset-manifest.json` against the published release artifact before trusting the hosted phone UI

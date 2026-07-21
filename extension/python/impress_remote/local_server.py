@@ -198,6 +198,12 @@ class RemoteServer:
         self.client_connected = False
         self.client_connection_source = ""
         self.last_client_seen_at = 0.0
+        self.preload_status: dict[str, object] = {
+            "state": "idle",
+            "slides": 0,
+            "cacheSize": 0,
+            "lastError": "",
+        }
 
     def is_running(self) -> bool:
         relay_running = self.relay_client is not None and self.relay_client.is_running()
@@ -234,6 +240,7 @@ class RemoteServer:
 
             self._sync_relay_client()
             self._refresh_urls()
+            self._prewarm_local_slide_cache()
             if not self.is_running():
                 raise RuntimeError(translate("error.remoteRouteRequired"))
         except Exception:
@@ -260,6 +267,12 @@ class RemoteServer:
         self.client_connected = False
         self.client_connection_source = ""
         self.last_client_seen_at = 0.0
+        self.preload_status = {
+            "state": "idle",
+            "slides": 0,
+            "cacheSize": 0,
+            "lastError": "",
+        }
 
     def state_payload(self) -> dict[str, object]:
         state = self.controller.state()
@@ -547,6 +560,13 @@ class RemoteServer:
             "relayLastError": relay_status["lastError"],
             "clientConnected": self.client_connected,
             "clientConnectionSource": self.client_connection_source,
+            "slidePreloadStatus": dict(
+                getattr(
+                    self,
+                    "preload_status",
+                    {"state": "idle", "slides": 0, "cacheSize": 0, "lastError": ""},
+                )
+            ),
         }
 
     def config_payload(self) -> dict[str, object]:
@@ -712,6 +732,49 @@ class RemoteServer:
             self.controller.command("start_presentation_from_first_slide")
         except Exception:
             return
+
+    def _prewarm_local_slide_cache(self) -> None:
+        if not self.http_servers:
+            self.preload_status = {
+                "state": "disabled",
+                "slides": 0,
+                "cacheSize": 0,
+                "lastError": "",
+            }
+            return
+
+        prewarm = getattr(self.controller, "prewarm_slide_previews", None)
+        if not callable(prewarm):
+            self.preload_status = {
+                "state": "unavailable",
+                "slides": 0,
+                "cacheSize": 0,
+                "lastError": "",
+            }
+            return
+
+        try:
+            result = prewarm()
+        except Exception as exc:
+            self.preload_status = {
+                "state": "error",
+                "slides": 0,
+                "cacheSize": 0,
+                "lastError": str(exc),
+            }
+            self.listener_warnings.append(
+                translate("localServer.listener.preloadFailed", error=exc)
+            )
+            return
+
+        if not isinstance(result, dict):
+            result = {}
+        self.preload_status = {
+            "state": str(result.get("state", "ready")),
+            "slides": int(result.get("slides", 0)),
+            "cacheSize": int(result.get("cacheSize", 0)),
+            "lastError": "",
+        }
 
     def _pairing_hint(
         self,

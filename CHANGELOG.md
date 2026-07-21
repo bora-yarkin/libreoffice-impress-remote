@@ -21,6 +21,43 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 - Expanded Product CI from smoke packaging to a release gate that installs test dependencies, runs lint and tests, builds the OXT, builds relay bundles, and verifies release artifacts.
 
+## [0.6.19] - 2026-07-21
+
+### Fixed
+
+- Fixed Pylance diagnostics in local slide-preload status handling by validating the dynamic prewarm result before reading status fields.
+
+### Changed
+
+- Bumped the extension, relay package, and project version to `0.6.19`.
+
+## [0.6.18] - 2026-07-21
+
+### Added
+
+- Added a versioned source-only OXT build that omits embedded relay and documentation resource bundles while keeping the installable extension code and shared phone web UI.
+- Added `make source-oxt` and included the source-only OXT in `make release-full`.
+- Added packaging tests for source-only OXT contents and side-by-side full/source OXT outputs.
+
+### Changed
+
+- Bumped the extension, relay package, and project version to `0.6.18`.
+
+## [0.6.17] - 2026-07-21
+
+### Added
+
+- Added a phone-side presentation timer over the slide while the slideshow is running.
+- Added a compact icon-only phone controls drawer for start from first slide, previous/next effect, last slide, blank/resume, end presentation, and jump-to-slide actions.
+- Added local-mode full-deck preview prewarming through a bounded server-side PNG cache so slide changes can reuse already-exported previews.
+- Added local preload status to the runtime connection payload for troubleshooting.
+
+### Changed
+
+- Expanded LibreOffice in-product guidance for same-Wi-Fi and phone-hotspot local pairing.
+- Updated README, TODO, feature matrix, and release-readiness docs now that phone timer, richer phone controls, local guidance, and low-latency local prewarming are implemented.
+- Bumped the extension, relay package, and project version to `0.6.17`.
+
 ## [0.6.16] - 2026-07-21
 
 ### Fixed

@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.6.16` release line.
+This guide matches the `0.6.19` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -12,6 +12,7 @@ make venv
 make sdk-download
 make test
 make oxt
+make source-oxt
 make install-oxt
 make release-bundle
 make cloudflare-bundle
@@ -75,8 +76,9 @@ make cloudflare-bundle
 
 - `make release-bundle` produces a stripped standalone Python relay bundle with the relay Python sources, bundled phone web UI, and Linux or Windows service helper scripts under `dist/`.
 - `make cloudflare-bundle` produces a Cloudflare Worker plus Durable Object relay bundle that serves the same shared phone UI from a `public/` assets directory.
-- `make oxt` builds only the versioned extension package, for example `dist/libreoffice-impress-remote-0.6.16.oxt`.
-- `make release-full` builds the versioned OXT plus both standalone relay bundle variants in one command.
+- `make oxt` builds only the versioned full extension package, for example `dist/libreoffice-impress-remote-0.6.19.oxt`.
+- `make source-oxt` builds the versioned source-only extension package, for example `dist/libreoffice-impress-remote-0.6.19-source.oxt`, without embedded relay or documentation archives.
+- `make release-full` builds the versioned full OXT, source-only OXT, and both standalone relay bundle variants in one command.
 - The `.oxt` itself embeds the matching stripped Python relay bundle, Cloudflare relay bundle, and documentation bundle so users can export them from Advanced Remote Settings without visiting GitHub.
 
 Useful relay checks:

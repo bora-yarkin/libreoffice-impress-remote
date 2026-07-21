@@ -72,7 +72,10 @@ main{
 
 .slide-frame:focus-visible,
 .nav-button:focus-visible,
-.connection-button:focus-visible{
+.connection-button:focus-visible,
+.more-button:focus-visible,
+.drawer-button:focus-visible,
+#goto-input:focus-visible{
   outline:2px solid #7ab7ff;
   outline-offset:-2px;
 }
@@ -102,6 +105,50 @@ main{
   font-size:13px;
   font-weight:700;
   letter-spacing:.02em;
+}
+
+.timer-chip{
+  position:absolute;
+  left:10px;
+  bottom:10px;
+  margin:0;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(10,14,20,.72);
+  color:#f1f5f9;
+  font-size:13px;
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.04em;
+}
+
+.timer-chip[hidden]{
+  display:none;
+}
+
+.more-button{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:42px;
+  height:42px;
+  border:0;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(10,14,20,.72);
+  color:#f1f5f9;
+}
+
+.more-button svg{
+  width:26px;
+  height:26px;
+  stroke:currentColor;
+  stroke-width:3.5;
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
 }
 
 .notes-card{
@@ -184,6 +231,82 @@ main{
   background:#253147;
 }
 
+.command-drawer{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:calc(64px + env(safe-area-inset-bottom));
+  z-index:5;
+  max-height:min(48dvh,360px);
+  overflow-y:auto;
+  padding:10px;
+  background:rgba(9,12,19,.96);
+  box-shadow:0 -16px 40px rgba(0,0,0,.4);
+  -webkit-overflow-scrolling:touch;
+}
+
+.command-drawer[hidden]{
+  display:none;
+}
+
+.command-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+}
+
+.drawer-button{
+  min-height:50px;
+  border:0;
+  border-radius:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#161d2a;
+  color:#f1f5f9;
+  font:inherit;
+  font-weight:900;
+}
+
+.drawer-button svg{
+  width:25px;
+  height:25px;
+  stroke:currentColor;
+  stroke-width:2.25;
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.drawer-button-danger{
+  background:#6f1d1b;
+}
+
+.goto-row{
+  display:grid;
+  grid-template-columns:1fr 64px;
+  gap:8px;
+  margin-top:8px;
+}
+
+#goto-input{
+  box-sizing:border-box;
+  width:100%;
+  min-height:50px;
+  border:0;
+  border-radius:0;
+  padding:0 14px;
+  background:#101724;
+  color:#f1f5f9;
+  font:inherit;
+  font-size:18px;
+  font-weight:800;
+}
+
+.goto-button{
+  min-height:50px;
+}
+
 .primary-controls{
   flex:0 0 auto;
   display:grid;
@@ -241,6 +364,16 @@ button:active{
     right:8px;
     bottom:8px;
   }
+
+  .timer-chip{
+    left:8px;
+    bottom:8px;
+  }
+
+  .more-button{
+    top:8px;
+    right:8px;
+  }
 }
 
 @media (max-width:520px){
@@ -267,6 +400,14 @@ button:active{
 
   .slide-chip{
     font-size:12px;
+  }
+
+  .timer-chip{
+    font-size:12px;
+  }
+
+  .command-grid{
+    grid-template-columns:repeat(2,1fr);
   }
 }
 

@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-21` and the current `0.6.16` snapshot.
+It reflects the repository state as of `2026-07-21` and the current `0.6.19` snapshot.
 
 ## Product Direction
 
@@ -77,7 +77,7 @@ This is the base for the remaining work, not the finish line.
 
 ### M1 - Local Mode Complete
 
-Status: in progress after `0.6.16`
+Status: in progress after `0.6.19`
 
 Target outcome:
 
@@ -107,7 +107,7 @@ Exit criteria:
 
 ### M2 - LibreOffice-quality UX, Guidance, Localization, and Accessibility
 
-Status: in progress after `0.6.16`
+Status: in progress after `0.6.19`
 
 Target outcome:
 
@@ -139,7 +139,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.6.16`
+Status: in progress after `0.6.19`
 
 Target outcome:
 
@@ -176,7 +176,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.6.16`
+Status: completed in the current repository snapshot after `0.6.19`
 
 Target outcome:
 
@@ -237,7 +237,7 @@ Exit criteria:
 
 ### M6 - Upstream Preparation
 
-Status: completed in the current repository snapshot after `0.6.16`
+Status: completed in the current repository snapshot after `0.6.19`
 
 Target outcome:
 

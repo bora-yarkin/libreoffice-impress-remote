@@ -85,6 +85,26 @@ def test_shared_phone_ui_has_authenticated_local_compatibility_fallback() -> Non
     assert "isLocalFallbackMode()" in app_js
 
 
+def test_shared_phone_ui_exposes_presentation_controls_without_settings() -> None:
+    index_html = (ROOT / "shared/webui/index.html").read_text(encoding="utf-8")
+    app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
+
+    for command in (
+        "start_presentation_from_first_slide",
+        "previous_effect",
+        "next_effect",
+        "goto_last_slide",
+        "end_presentation",
+    ):
+        assert command in index_html
+    assert "blank-button" in index_html
+    assert "goto-input" in index_html
+    assert "timer-chip" in index_html
+    assert "resume_presentation" in app_js
+    assert "goto_slide" in app_js
+    assert "/api/config" not in app_js
+
+
 def test_shared_phone_ui_binds_direct_requests_to_pairing_session() -> None:
     app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
 

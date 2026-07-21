@@ -3,18 +3,19 @@
 
 # Feature Matrix
 
-This matrix reflects the `0.6.16` snapshot. It is deliberately user-facing: it separates what can be tested today from what is planned, so the README can stay short without hiding project status.
+This matrix reflects the `0.6.19` snapshot. It is deliberately user-facing: it separates what can be tested today from what is planned, so the README can stay short without hiding project status.
 
 ## User Workflow
 
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Install as a LibreOffice `.oxt` extension | Implemented | Built with `make oxt`; output is versioned as `dist/libreoffice-impress-remote-<version>.oxt`. |
+| Source-only OXT package | Implemented | Built with `make source-oxt`; output is versioned as `dist/libreoffice-impress-remote-<version>-source.oxt` and omits embedded relay/docs resource bundles. |
 | Start/stop remote from Impress | Implemented | Available from `Slide Show -> Presentation Remote -> Start Remote`; the menu item toggles to Stop Remote while running. |
 | QR-first pairing | Implemented | Start Remote opens a QR-only pairing popup; manual link is available from Advanced Remote Settings as a backup. |
 | Auto route selection | Implemented | Auto tries local first, then direct IPv6, then relay when configured. |
 | Same-Wi-Fi and hotspot local mode | Implemented | This is the recommended path and works for many normal Wi-Fi and phone-hotspot setups. |
-| In-product step-by-step help | Planned | Basic guidance exists in dialogs, but LibreOffice Help-style content and richer route troubleshooting are still planned. |
+| In-product step-by-step help | Implemented | Start Remote and Advanced Remote Settings explain same-Wi-Fi, phone-hotspot, manual-link, IPv6, and relay fallback usage. |
 | GitHub release publication | Planned | CI exists, but release creation and release artifact publishing are not automated yet. |
 | Release-readiness policy | Implemented | Route gates, target compatibility, and preview blockers are documented in [Release Readiness](release-readiness.md). |
 
@@ -28,9 +29,9 @@ This matrix reflects the `0.6.16` snapshot. It is deliberately user-facing: it s
 | Settings-free phone UI | Implemented | Route, relay, and troubleshooting settings stay in LibreOffice. |
 | Connection recovery panel | Implemented | The phone UI shows reconnect/offline feedback with retry and reload actions. |
 | PWA shell metadata | Implemented | Manifest, icon, and service worker shell are included. |
-| Presentation timer on phone | Planned | Presenter timer state exists in runtime state, but the phone timer UI is not shipped yet. |
-| Richer mobile controls | Planned | Runtime supports more commands, but the phone UI intentionally exposes only dummy-remote controls for now. |
-| Low-latency full-deck preload | Planned | Current/next slide preloading exists; full-deck pre-rendering is planned. |
+| Presentation timer on phone | Implemented | The timer is shown over the slide while a slideshow is running. |
+| Richer mobile controls | Implemented | A compact icon-only drawer exposes start/end, effect-step, blank/resume, last-slide, and jump-to-slide actions without adding settings to the phone UI. |
+| Low-latency full-deck preload | Implemented | Local mode prewarms a bounded server-side PNG cache for the full deck when the remote starts, and the phone still preloads the next slide image. |
 
 ## LibreOffice UX
 

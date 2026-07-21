@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 from pathlib import Path
+import argparse
 import re
 import shutil
 import sys
@@ -20,6 +21,7 @@ from tools.shared_webui import add_webui_to_zip  # noqa: E402
 EXTENSION = ROOT / "extension"
 DIST = ROOT / "dist"
 OUT = DIST / f"libreoffice-impress-remote-{read_project_version()}.oxt"
+SOURCE_OUT = DIST / f"libreoffice-impress-remote-{read_project_version()}-source.oxt"
 INCLUDE = [
     "META-INF",
     "description.xml",
@@ -57,11 +59,12 @@ def project_version() -> str:
     return read_project_version()
 
 
-def clean_oxt_dist(output_path: Path) -> None:
+def clean_oxt_dist(output_path: Path, *, keep: tuple[Path, ...] = ()) -> None:
     if not DIST.exists() or output_path.parent.resolve() != DIST.resolve():
         return
+    keep_paths = {path.resolve() for path in keep}
     for path in DIST.iterdir():
-        if path.resolve() == output_path.resolve():
+        if path.resolve() == output_path.resolve() or path.resolve() in keep_paths:
             continue
         if path.is_dir():
             shutil.rmtree(path)
@@ -107,16 +110,26 @@ def build_documentation_bundle(dist_dir: Path = DIST) -> Path:
     return archive_path
 
 
-def build_oxt(output_path: Path = OUT) -> Path:
+def build_oxt(
+    output_path: Path = OUT,
+    *,
+    include_support_bundles: bool = True,
+    clean_dist: bool = True,
+    keep_dist_paths: tuple[Path, ...] = (),
+) -> Path:
     output_path.parent.mkdir(exist_ok=True)
-    clean_oxt_dist(output_path)
+    if clean_dist:
+        clean_oxt_dist(output_path, keep=keep_dist_paths)
     if output_path.exists():
         output_path.unlink()
     with TemporaryDirectory(prefix="impress-remote-oxt-") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
-        _bundle_dir, relay_archive = build_bundle(temp_dir)
-        _cloudflare_dir, cloudflare_archive = build_cloudflare_bundle(temp_dir)
-        docs_archive = build_documentation_bundle(temp_dir)
+        support_archives: tuple[Path, ...] = ()
+        if include_support_bundles:
+            _bundle_dir, relay_archive = build_bundle(temp_dir)
+            _cloudflare_dir, cloudflare_archive = build_cloudflare_bundle(temp_dir)
+            docs_archive = build_documentation_bundle(temp_dir)
+            support_archives = (relay_archive, cloudflare_archive, docs_archive)
         with ZipFile(output_path, "w", ZIP_DEFLATED) as package:
             for item in INCLUDE:
                 if item == "description.xml":
@@ -125,12 +138,31 @@ def build_oxt(output_path: Path = OUT) -> Path:
                 add_path(package, EXTENSION / item, EXTENSION)
             package.writestr("python/impress_remote/VERSION", project_version() + "\n")
             add_webui_to_zip(package, "web")
-            for archive_path in (relay_archive, cloudflare_archive, docs_archive):
+            for archive_path in support_archives:
                 package.write(archive_path, Path("resources") / archive_path.name)
     return output_path
 
 
+def build_source_oxt(output_path: Path = SOURCE_OUT, *, clean_dist: bool = True) -> Path:
+    return build_oxt(
+        output_path,
+        include_support_bundles=False,
+        clean_dist=clean_dist,
+        keep_dist_paths=(OUT,),
+    )
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Build LibreOffice Impress Remote OXT packages.")
+    parser.add_argument(
+        "--source-only",
+        action="store_true",
+        help="Build the installable source-only OXT without embedded relay/docs bundles.",
+    )
+    args = parser.parse_args()
+    if args.source_only:
+        print(build_source_oxt())
+        return
     print(build_oxt())
 
 

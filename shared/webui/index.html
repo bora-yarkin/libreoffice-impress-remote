@@ -22,6 +22,12 @@
       <div class="slide-frame" id="slide-frame" role="button" tabindex="0" aria-label="" data-i18n-attr="aria-label:aria.currentSlideTap">
         <img id="slide-image" alt="" data-i18n-attr="alt:aria.currentSlidePreview" hidden>
         <p class="slide-chip slide-label slide-chip-overlay">-- / --</p>
+        <p class="timer-chip" id="timer-chip" hidden>00:00</p>
+        <button class="more-button" id="more-button" type="button" aria-expanded="false" aria-controls="command-drawer" aria-label="" data-i18n-attr="aria-label:aria.moreControls">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 8.5v.01M12 12v.01M12 15.5v.01"/>
+          </svg>
+        </button>
         <div class="slide-placeholder" id="slide-placeholder">
           <p class="placeholder-title" id="current-title"></p>
         </div>
@@ -38,6 +44,44 @@
       <div class="connection-actions">
         <button class="connection-button" id="retry-button" type="button" data-i18n="web.retry"></button>
         <button class="connection-button connection-button-secondary" id="reload-button" type="button" data-i18n="web.reload"></button>
+      </div>
+    </section>
+    <section class="command-drawer" id="command-drawer" hidden>
+      <div class="command-grid">
+        <button class="drawer-button" data-command="start_presentation_from_first_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.startPresentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </button>
+        <button class="drawer-button" data-command="previous_effect" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousEffect">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="m13 7-5 5 5 5M19 7l-5 5 5 5"/>
+          </svg>
+        </button>
+        <button class="drawer-button" data-command="next_effect" type="button" aria-label="" data-i18n-attr="aria-label:aria.nextEffect">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="m11 7 5 5-5 5M5 7l5 5-5 5"/>
+          </svg>
+        </button>
+        <button class="drawer-button" data-command="goto_last_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.lastSlide">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="m7 6 6 6-6 6M17 6v12"/>
+          </svg>
+        </button>
+        <button class="drawer-button" id="blank-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.blankScreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 7h14v10H5zM8 20h8"/>
+          </svg>
+        </button>
+        <button class="drawer-button drawer-button-danger" data-command="end_presentation" type="button" aria-label="" data-i18n-attr="aria-label:aria.endPresentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M7 7h10v10H7z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="goto-row">
+        <input id="goto-input" type="number" min="1" inputmode="numeric" pattern="[0-9]*" placeholder="#" aria-label="" data-i18n-attr="aria-label:aria.gotoSlideInput">
+        <button class="drawer-button goto-button" id="goto-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.gotoSlideButton">#</button>
       </div>
     </section>
     <nav class="primary-controls">

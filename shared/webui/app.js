@@ -160,6 +160,14 @@ function setConnectionPhase(nextPhase){
   })
   document.getElementById('prev-button').disabled = !commandsEnabled
   document.getElementById('next-button').disabled = !commandsEnabled
+  const gotoButton = document.getElementById('goto-button')
+  const blankButton = document.getElementById('blank-button')
+  if(gotoButton){
+    gotoButton.disabled = !commandsEnabled
+  }
+  if(blankButton){
+    blankButton.disabled = !commandsEnabled
+  }
   renderBanner()
 }
 
@@ -265,6 +273,63 @@ function slideLabel(currentSlide, slideCount){
     return '-- / --'
   }
   return `${currentSlide + 1} / ${slideCount}`
+}
+
+function formatElapsed(seconds){
+  const normalized = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
+  const hours = Math.floor(normalized / 3600)
+  const minutes = Math.floor((normalized % 3600) / 60)
+  const remainingSeconds = normalized % 60
+  const two = value => String(value).padStart(2, '0')
+  if(hours > 0){
+    return `${hours}:${two(minutes)}:${two(remainingSeconds)}`
+  }
+  return `${two(minutes)}:${two(remainingSeconds)}`
+}
+
+function renderTimer(state){
+  const timer = document.getElementById('timer-chip')
+  if(!timer){
+    return
+  }
+  const shouldShow = !!(state && state.running)
+  timer.hidden = !shouldShow
+  if(shouldShow){
+    timer.textContent = formatElapsed(Number(state.elapsedSeconds || 0))
+  }
+}
+
+function setDrawerOpen(open){
+  const drawer = document.getElementById('command-drawer')
+  const button = document.getElementById('more-button')
+  if(!drawer || !button){
+    return
+  }
+  drawer.hidden = !open
+  button.setAttribute('aria-expanded', open ? 'true' : 'false')
+}
+
+function drawerOpen(){
+  const drawer = document.getElementById('command-drawer')
+  return !!drawer && !drawer.hidden
+}
+
+function closeDrawer(){
+  setDrawerOpen(false)
+}
+
+function toggleDrawer(){
+  setDrawerOpen(!drawerOpen())
+}
+
+function syncBlankButton(state){
+  const button = document.getElementById('blank-button')
+  if(!button){
+    return
+  }
+  const label = state && state.presentationBlanked ? t('aria.resumePresentation') : t('aria.blankScreen')
+  button.setAttribute('aria-label', label)
+  button.title = label
 }
 
 function revokeObjectUrl(value){
@@ -400,6 +465,7 @@ function showPlaceholderMessage(message){
   document.querySelectorAll('.slide-label').forEach(node => {
     node.textContent = '-- / --'
   })
+  renderTimer(null)
   clearSlideImage()
 }
 
@@ -417,6 +483,8 @@ function renderState(state){
   document.getElementById('notes').textContent = state.notes || ''
   document.getElementById('prev-button').disabled = connectionPhase !== 'live' || !state.canGoPrevious
   document.getElementById('next-button').disabled = connectionPhase !== 'live' || !state.canGoNext
+  renderTimer(state)
+  syncBlankButton(state)
   updateSlideImage(state).catch(showTransportError)
   preloadNextSlide(state).catch(showTransportError)
   if(isRelayMode()){
@@ -565,8 +633,54 @@ function retryConnection(){
 
 document.querySelectorAll('[data-command]').forEach(button => {
   button.addEventListener('click', () => {
-    command(button.dataset.command).catch(showTransportError)
+    command(button.dataset.command).then(closeDrawer).catch(showTransportError)
   })
+})
+
+document.getElementById('more-button').addEventListener('click', event => {
+  event.stopPropagation()
+  toggleDrawer()
+})
+
+document.getElementById('blank-button').addEventListener('click', () => {
+  const commandName = lastState && lastState.presentationBlanked ? 'resume_presentation' : 'blank_screen'
+  command(commandName).then(closeDrawer).catch(showTransportError)
+})
+
+document.getElementById('goto-button').addEventListener('click', () => {
+  const input = document.getElementById('goto-input')
+  const value = Number.parseInt(input.value, 10)
+  if(!Number.isFinite(value) || value < 1){
+    input.focus()
+    return
+  }
+  const maxSlide = lastState && typeof lastState.slideCount === 'number'
+    ? Math.max(lastState.slideCount, 1)
+    : value
+  input.value = ''
+  command('goto_slide', {index: Math.min(value, maxSlide) - 1})
+    .then(closeDrawer)
+    .catch(showTransportError)
+})
+
+document.getElementById('goto-input').addEventListener('keydown', event => {
+  if(event.key !== 'Enter'){
+    return
+  }
+  event.preventDefault()
+  document.getElementById('goto-button').click()
+})
+
+document.addEventListener('click', event => {
+  if(!drawerOpen()){
+    return
+  }
+  const drawer = document.getElementById('command-drawer')
+  const moreButton = document.getElementById('more-button')
+  if(drawer.contains(event.target) || moreButton.contains(event.target)){
+    return
+  }
+  closeDrawer()
 })
 
 document.getElementById('retry-button').addEventListener('click', () => {

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import unittest
+from unittest.mock import patch
 
 from impress_remote.controller import ImpressController
 
@@ -329,6 +330,27 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(state.can_go_next)
         self.assertTrue(state.current_render_token)
         self.assertTrue(state.next_render_token)
+
+    def test_prewarm_slide_previews_populates_png_cache_for_local_mode(self) -> None:
+        slideshow = FakeSlideShowController(current_index=0, slides=self.slides)
+        document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[0])
+        controller = ImpressController(FakeContext(document))
+        exported: list[str] = []
+
+        def export(_ctx, slide) -> bytes:
+            exported.append(slide.getName())
+            return f"png:{slide.getName()}".encode()
+
+        with patch("impress_remote.controller.export_slide_png_bytes", side_effect=export):
+            result = controller.prewarm_slide_previews()
+            current_png = controller.current_slide_png_bytes()
+            next_png = controller.next_slide_png_bytes()
+
+        self.assertEqual(result["state"], "ready")
+        self.assertEqual(result["slides"], 3)
+        self.assertEqual(exported, ["Agenda", "Metrics", "Wrap"])
+        self.assertEqual(current_png, b"png:Agenda")
+        self.assertEqual(next_png, b"png:Metrics")
 
     def test_state_falls_back_to_editing_view_when_slideshow_is_not_running(self) -> None:
         slideshow = FakeSlideShowController(current_index=0, slides=self.slides, running=False)

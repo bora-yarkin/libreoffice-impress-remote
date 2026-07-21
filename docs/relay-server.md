@@ -45,7 +45,7 @@ Transport confidentiality is already implemented:
 - relay `frame` payloads stay AES-GCM encrypted end to end
 - the relay only sees session metadata, plaintext `hello` metadata, and opaque ciphertext frames
 
-Frontend delivery trust is intentionally simpler in `0.6.16`:
+Frontend delivery trust is intentionally simpler in `0.6.19`:
 
 - the supported production model is self-hosting the published relay bundle
 - the bundle ships `asset-manifest.json` with SHA-256 hashes of the served UI files
@@ -97,7 +97,7 @@ For the stripped release bundle:
 
 ```bash
 make release-bundle
-cd dist/impress-remote-relay-python-0.6.16
+cd dist/impress-remote-relay-python-0.6.19
 ./run-relay.sh
 ```
 

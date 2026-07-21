@@ -23,31 +23,32 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups should work wit
 
 - A LibreOffice Impress extension, not a separate desktop app
 - QR-first pairing from inside Impress
-- A lightweight phone remote with current slide, notes, and next/previous controls
+- A lightweight phone remote with current slide, notes, a timer, bottom next/previous controls, and compact icon-only presentation controls
 - Local networking by default, with direct IPv6 and self-hosted relay fallbacks
 - LibreOffice-owned settings, troubleshooting, and route selection
 
 ## Current Status
 
-Version `0.6.16` is a usable pre-1.0 build with:
+Version `0.6.19` is a usable pre-1.0 build with:
 
 - QR-first local pairing
 - live current-slide rendering
 - presenter notes on the phone
+- phone-side presentation timer and compact icon-only controls for start/end, effect steps, blank/resume, last slide, and jump-to-slide
 - LibreOffice-native remote controls and settings
 - Impress-only Slide Show menu integration plus supported toolbar buttons near the built-in slideshow controls
 - encrypted direct IPv6 and relay transport, plus encrypted local transport when Web Crypto is available, for presenter state, commands, and slide assets, including relay-hosted slide previews and relay admission control
 - Safari-compatible authenticated local fallback for LAN browsers that do not expose Web Crypto on plain HTTP
 - one shared phone-remote web UI source reused by the LibreOffice extension, the Python relay, and the Cloudflare relay bundle
 - visible phone-side connection recovery, retry/reload actions, accessibility polish, and PWA shell metadata
+- local-mode full-deck preview prewarming to reduce slide export stalls during navigation
 - keyed user-facing strings with English and Turkish localization catalogs shared by LibreOffice and the phone UI
-- build tooling for the `.oxt`, a stripped standalone Python relay bundle with service installers, and the separate Cloudflare relay deployment bundle
+- build tooling for the full `.oxt`, source-only `.oxt`, stripped standalone Python relay bundle with service installers, and separate Cloudflare relay deployment bundle
 - OXT-contained matching Python relay, Cloudflare relay, and documentation bundles exportable from Advanced Remote Settings
 - relay session-status, reconnect replay, structured logs, and published self-hosting docs for testing relay mode as a real fallback path
 
 Still in progress:
 
-- phone-side presentation timer
 - expanding localization beyond the initial English and Turkish catalogs toward LibreOffice-wide language coverage
 - GitHub release support that runs the standard workflows and, after they pass, publishes a GitHub release with the extension package and a stripped relay-server release artifact without bundled documentation
 - broader LibreOffice UX polish and accessibility work

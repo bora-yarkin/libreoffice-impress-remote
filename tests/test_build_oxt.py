@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.build_oxt import DIST, build_oxt, project_version  # noqa: E402
+from tools.build_oxt import DIST, build_oxt, build_source_oxt, project_version  # noqa: E402
 
 DESCRIPTION_NS = "{http://openoffice.org/extensions/description/2006}"
 
@@ -94,3 +94,38 @@ def test_build_oxt_defaults_to_versioned_filename_and_cleans_intermediates() -> 
         assert after - before == {Path(output.name)}
     finally:
         output.unlink(missing_ok=True)
+
+
+def test_build_source_oxt_excludes_embedded_support_bundles(tmp_path) -> None:
+    version = project_version()
+    output = tmp_path / f"libreoffice-impress-remote-{version}-source.oxt"
+
+    build_source_oxt(output)
+
+    with ZipFile(output) as package:
+        names = set(package.namelist())
+        assert "description.xml" in names
+        assert "python/impress_remote/component.py" in names
+        assert "python/impress_remote/VERSION" in names
+        assert "web/index.html" in names
+        assert "web/app.js" in names
+        assert "web/localizations/en.json" in names
+        assert not any(name.startswith("resources/") for name in names)
+
+
+def test_build_source_oxt_keeps_full_oxt_when_built_alongside() -> None:
+    version = project_version()
+    full_output = DIST / f"libreoffice-impress-remote-{version}.oxt"
+    source_output = DIST / f"libreoffice-impress-remote-{version}-source.oxt"
+
+    full_result = build_oxt()
+    source_result = build_source_oxt(clean_dist=True)
+
+    try:
+        assert full_result == full_output
+        assert source_result == source_output
+        assert full_output.exists()
+        assert source_output.exists()
+    finally:
+        full_output.unlink(missing_ok=True)
+        source_output.unlink(missing_ok=True)

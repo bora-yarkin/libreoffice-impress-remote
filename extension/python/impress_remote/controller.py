@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 import hashlib
 import time
@@ -52,6 +53,8 @@ class _ResolvedPresentation:
 
 
 class ImpressController:
+    _SLIDE_PNG_CACHE_LIMIT = 256
+
     def __init__(self, ctx, monotonic=None):
         self.ctx = ctx
         self._monotonic = monotonic or time.monotonic
@@ -59,6 +62,7 @@ class ImpressController:
         self._presentation_started_at: float | None = None
         self._blanked_presentation_key: tuple[int, int] | None = None
         self._blanked_slide_index: int | None = None
+        self._slide_png_cache: OrderedDict[str, bytes] = OrderedDict()
 
     def state(self) -> PresentationState:
         document = self._document()
@@ -244,17 +248,78 @@ class ImpressController:
 
     def current_slide_png_bytes(self) -> bytes:
         document = self._require_impress_document()
-        resolved = self._resolve_presentation(document)
-        slide = self._slide_for_index(document, resolved.current_index)
-        return export_slide_png_bytes(self.ctx, slide)
+        state = self.state()
+        slide = self._slide_for_index(document, state.current_slide)
+        return self._cached_slide_png_bytes(slide, state.current_render_token)
 
     def next_slide_png_bytes(self) -> bytes:
         document = self._require_impress_document()
-        resolved = self._resolve_presentation(document)
-        if resolved.next_index is None:
+        state = self.state()
+        if state.next_slide is None:
             raise RuntimeError(translate("error.noNextSlideExport"))
-        slide = self._slide_for_index(document, resolved.next_index)
-        return export_slide_png_bytes(self.ctx, slide)
+        slide = self._slide_for_index(document, state.next_slide)
+        return self._cached_slide_png_bytes(slide, state.next_render_token)
+
+    def prewarm_slide_previews(self) -> dict[str, object]:
+        document = self._require_impress_document()
+        resolved = self._resolve_presentation(document)
+        if resolved.slide_count <= 0:
+            return {"state": "empty", "slides": 0, "cacheSize": len(self._slide_png_cache)}
+
+        warmed = 0
+        for index in range(resolved.slide_count):
+            slide = self._slide_for_index(document, index)
+            if slide is None:
+                continue
+            title = extract_slide_title(slide)
+            notes = extract_notes_for_slide(slide)
+            preview = render_slide_preview(slide, index)
+            render_tokens = {
+                self._render_token(slide, index, title, notes, preview, True, False, False),
+                self._render_token(
+                    slide,
+                    index,
+                    title,
+                    notes,
+                    preview,
+                    resolved.running,
+                    resolved.paused,
+                    False,
+                ),
+                self._render_token(slide, index, title, "", preview, False, False, False),
+            }
+            render_tokens.discard("")
+            missing_tokens = [
+                token for token in render_tokens if token not in self._slide_png_cache
+            ]
+            if not missing_tokens:
+                continue
+            data = export_slide_png_bytes(self.ctx, slide)
+            warmed += 1
+            for token in missing_tokens:
+                self._remember_slide_png(token, data)
+        return {
+            "state": "ready",
+            "slides": warmed,
+            "cacheSize": len(self._slide_png_cache),
+        }
+
+    def _cached_slide_png_bytes(self, slide, render_token: str) -> bytes:
+        if render_token:
+            cached = self._slide_png_cache.get(render_token)
+            if cached is not None:
+                self._slide_png_cache.move_to_end(render_token)
+                return cached
+        data = export_slide_png_bytes(self.ctx, slide)
+        if render_token:
+            self._remember_slide_png(render_token, data)
+        return data
+
+    def _remember_slide_png(self, render_token: str, data: bytes) -> None:
+        self._slide_png_cache[render_token] = data
+        self._slide_png_cache.move_to_end(render_token)
+        while len(self._slide_png_cache) > self._SLIDE_PNG_CACHE_LIMIT:
+            self._slide_png_cache.popitem(last=False)
 
     def _desktop(self):
         service_manager = self.ctx.getServiceManager()

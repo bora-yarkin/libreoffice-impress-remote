@@ -7,7 +7,7 @@ This document defines what "ready to release" means while the project is still p
 
 ## Current Release Posture
 
-`0.6.16` is a pre-1.0 technical preview suitable for hands-on testing by the maintainer and early contributors.
+`0.6.19` is a pre-1.0 technical preview suitable for hands-on testing by the maintainer and early contributors.
 
 It is not yet a stable end-user release because these important areas are still unfinished:
 
@@ -15,7 +15,6 @@ It is not yet a stable end-user release because these important areas are still 
 - Browser-level E2E coverage is still manual.
 - LibreOffice runtime compatibility is not verified across a release matrix.
 - Localization exists only for English and Turkish.
-- Phone-side timer and richer mobile controls are not shipped.
 - GitHub release creation is not automated yet.
 
 ## Support Policy
@@ -119,12 +118,13 @@ Product CI should pass before publishing any preview artifact:
 - run Ruff lint
 - run the full Python unit/integration test suite
 - validate the extension manifest
-- build the versioned `.oxt`
-- verify the versioned `.oxt` exists
+- build the versioned full `.oxt`
+- build the versioned source-only `.oxt`
+- verify both versioned `.oxt` outputs exist
 - build the Python relay bundle
 - build the Cloudflare relay bundle
 - verify both relay bundle archives exist
-- upload the versioned `.oxt` artifact
+- upload the versioned full and source-only `.oxt` artifacts
 
 GitHub Native Security should pass or have an explicitly documented exception:
 
@@ -143,8 +143,10 @@ Packaging:
 - `make test`
 - `make lint`
 - `make oxt`
+- `make source-oxt`
 - `make release-full`
 - confirm `dist/libreoffice-impress-remote-<version>.oxt` exists
+- confirm `dist/libreoffice-impress-remote-<version>-source.oxt` exists
 - confirm the OXT contains matching Python relay, Cloudflare relay, and docs bundles
 - install the generated OXT into LibreOffice
 

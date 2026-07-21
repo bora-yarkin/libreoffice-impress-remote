@@ -208,6 +208,49 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(payload["currentSlideImageUrl"], "/api/local/slide/current?rev=current123")
         self.assertEqual(payload["nextSlideImageUrl"], "/api/local/slide/next?rev=next456")
 
+    def test_prewarm_local_slide_cache_records_controller_status(self) -> None:
+        controller = SimpleNamespace(
+            prewarm_slide_previews=lambda: {
+                "state": "ready",
+                "slides": 4,
+                "cacheSize": 12,
+            },
+        )
+        server = cast(
+            RemoteServer,
+            SimpleNamespace(
+                http_servers=[object()],
+                controller=controller,
+                listener_warnings=[],
+            ),
+        )
+
+        RemoteServer._prewarm_local_slide_cache(server)
+
+        self.assertEqual(
+            server.preload_status,
+            {"state": "ready", "slides": 4, "cacheSize": 12, "lastError": ""},
+        )
+
+    def test_prewarm_local_slide_cache_records_non_fatal_failures(self) -> None:
+        def fail():
+            raise RuntimeError("export failed")
+
+        server = cast(
+            RemoteServer,
+            SimpleNamespace(
+                http_servers=[object()],
+                controller=SimpleNamespace(prewarm_slide_previews=fail),
+                listener_warnings=[],
+            ),
+        )
+
+        RemoteServer._prewarm_local_slide_cache(server)
+
+        self.assertEqual(server.preload_status["state"], "error")
+        self.assertEqual(server.preload_status["lastError"], "export failed")
+        self.assertTrue(server.listener_warnings)
+
     def test_relay_asset_payload_encodes_current_slide_png_for_the_expected_revision(self) -> None:
         state = SimpleNamespace(
             document_kind="impress",

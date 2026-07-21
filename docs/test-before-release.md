@@ -16,6 +16,7 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 - Run `make test`.
 - Run `make release-full`.
 - Confirm `dist/libreoffice-impress-remote-<version>.oxt` exists.
+- Confirm `dist/libreoffice-impress-remote-<version>-source.oxt` exists.
 - Confirm the Python relay, Cloudflare relay, and docs bundles exist in `dist/`.
 - Install the generated `.oxt` into a clean LibreOffice user profile when possible.
 - Use an Impress document with at least five slides, slide titles, presenter notes, and one image-heavy slide.
