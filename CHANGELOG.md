@@ -9,6 +9,14 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-23
+
+### Changed
+
+- Applied Dependabot's GitHub Actions updates to the current workflows, including the release workflow: `actions/checkout` 7.0.1, `actions/setup-python` 7.0.0, and `github/codeql-action` 4.37.2 pinned SHAs.
+- Applied Dependabot's server dependency updates: `aiohttp>=3.14.2` and `ruff>=0.15.22`.
+- Bumped the extension, relay package, and project version to `1.0.1`.
+
 ## [1.0.0] - 2026-07-22
 
 ### Added
