@@ -9,6 +9,14 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-07-23
+
+### Changed
+
+- Added explicit experimental labels to non-local mode names in the LibreOffice UI: LocalTunnel, Direct IPv6, and Relay Server.
+- Updated Remote Help text to state that LocalTunnel, Direct IPv6, and Relay Server are experimental modes for harder networks.
+- Bumped the extension, relay package, and project version to `1.0.3`.
+
 ## [1.0.2] - 2026-07-23
 
 ### Fixed

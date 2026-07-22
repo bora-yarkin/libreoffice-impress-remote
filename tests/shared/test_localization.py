@@ -9,6 +9,7 @@ from impress_remote.localization import (
     normalize_locale,
     translate,
 )
+from impress_remote.config import route_label
 
 
 def test_loads_english_catalog() -> None:
@@ -55,3 +56,9 @@ def test_formats_localized_message_values() -> None:
         )
         == "Ready. Slide 2 of 9."
     )
+
+
+def test_non_local_route_labels_are_marked_experimental() -> None:
+    assert route_label("local") == "Local network"
+    for route in ("tunnel", "ipv6", "relay"):
+        assert "Experimental" in route_label(route)
