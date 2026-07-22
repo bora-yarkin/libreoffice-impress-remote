@@ -183,9 +183,13 @@ class ImpressController:
             return
         if controller is not None:
             if name == "next_slide":
+                if self._call_controller_method(controller, "gotoNextEffect"):
+                    return
                 controller.gotoNextSlide()
                 return
             if name == "previous_slide":
+                if self._call_controller_method(controller, "gotoPreviousEffect"):
+                    return
                 controller.gotoPreviousSlide()
                 return
             if name == "goto_slide" and index is not None:
@@ -446,6 +450,13 @@ class ImpressController:
             helper.executeDispatch(frame, command, "", 0, tuple())
         except Exception:
             return False
+        return True
+
+    def _call_controller_method(self, controller, method_name: str) -> bool:
+        method = getattr(controller, method_name, None)
+        if not callable(method):
+            return False
+        method()
         return True
 
     def _dispatch_frame(self, document):

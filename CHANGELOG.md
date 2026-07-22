@@ -9,6 +9,13 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-23
+
+### Fixed
+
+- Changed remote previous/next controls to trigger slideshow effects first via LibreOffice's effect navigation API, falling back to slide navigation only when effect navigation is unavailable.
+- Bumped the extension, relay package, and project version to `1.0.2`.
+
 ## [1.0.1] - 2026-07-23
 
 ### Changed

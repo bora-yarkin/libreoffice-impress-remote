@@ -121,6 +121,12 @@ class FakeSlideShowController:
     def gotoPreviousSlide(self) -> None:
         self.commands.append(("previous_slide", None))
 
+    def gotoNextEffect(self) -> None:
+        self.commands.append(("next_effect", None))
+
+    def gotoPreviousEffect(self) -> None:
+        self.commands.append(("previous_effect", None))
+
     def gotoSlideIndex(self, index: int) -> None:
         self.commands.append(("goto_slide", index))
 
@@ -373,6 +379,7 @@ class ControllerTests(unittest.TestCase):
         controller.command("goto_last_slide")
         controller.command("goto_first_slide")
         controller.command("next_slide")
+        controller.command("previous_slide")
         controller.command("goto_slide", 2)
 
         self.assertFalse(presentation.started)
@@ -385,8 +392,36 @@ class ControllerTests(unittest.TestCase):
             [
                 ("goto_last_slide", None),
                 ("goto_slide", 0),
-                ("next_slide", None),
+                ("next_effect", None),
+                ("previous_effect", None),
                 ("goto_slide", 2),
+            ],
+        )
+
+    def test_next_previous_fall_back_to_slide_navigation_without_effect_api(self) -> None:
+        class SlideOnlyController:
+            def __init__(self) -> None:
+                self.commands: list[tuple[str, int | None]] = []
+
+            def gotoNextSlide(self) -> None:
+                self.commands.append(("next_slide", None))
+
+            def gotoPreviousSlide(self) -> None:
+                self.commands.append(("previous_slide", None))
+
+        slideshow = SlideOnlyController()
+        presentation = FakePresentation(slideshow)
+        document = FakeDocument(self.slides, presentation, self.slides[0])
+        controller = ImpressController(FakeContext(document, dispatch_helper=None))
+
+        controller.command("next_slide")
+        controller.command("previous_slide")
+
+        self.assertEqual(
+            slideshow.commands,
+            [
+                ("next_slide", None),
+                ("previous_slide", None),
             ],
         )
 

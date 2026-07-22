@@ -17,11 +17,11 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups work without ex
 
 ## Current Status
 
-Version `1.0.1` is the current patch release after the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
+Version `1.0.2` is the current patch release after the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
 
 - Impress-only `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`
 - QR-first pairing with Copy URL fallback in the QR popup
-- phone UI with slide image, notes, previous/next, tap-to-advance, timers, fullscreen, first/last slide, and go-to-slide
+- phone UI with slide image, notes, effect-aware previous/next, tap-to-advance, timers, fullscreen, first/last slide, and go-to-slide
 - Local network mode by default, plus optional LocalTunnel, Direct IPv6, and Relay Server modes
 - encrypted local/direct/tunnel/relay transport when Web Crypto is available
 - Safari-compatible authenticated local fallback for trusted LAN use

@@ -3,7 +3,7 @@
 
 # Feature Matrix
 
-This matrix reflects the `1.0.1` snapshot.
+This matrix reflects the `1.0.2` snapshot.
 
 ## User Workflow
 
@@ -26,7 +26,7 @@ This matrix reflects the `1.0.1` snapshot.
 | --- | --- | --- |
 | Current slide image | Implemented | Served as a rendered PNG asset. |
 | Presenter notes | Implemented | Notes are the only scrollable phone region. |
-| Previous/next controls | Implemented | Buttons are pinned to the bottom; tapping the slide advances. |
+| Previous/next controls | Implemented | Buttons are pinned to the bottom; they trigger slideshow effects first and then move between slides. Tapping the slide uses the same next action. |
 | Timers | Implemented | The phone shows total presentation time and current-slide time while a slideshow is running. |
 | Overflow controls | Implemented | First slide, last slide, timer pause/resume, and go-to-slide. |
 | Fullscreen slide mode | Implemented | Requests fullscreen and landscape orientation when the browser supports it. |

@@ -11,7 +11,7 @@ LibreOffice Impress Remote turns a phone browser into a simple remote for an Imp
 2. Choose `Slide Show -> Start Remote`.
 3. Keep the phone and computer on the same Wi-Fi, or connect the computer to the phone hotspot.
 4. Scan the QR code shown by LibreOffice.
-5. Use the phone for current slide preview, presenter notes, previous, next, tap-to-advance, timers, first slide, last slide, fullscreen, and go-to-slide.
+5. Use the phone for current slide preview, presenter notes, effect-aware previous/next, tap-to-advance, timers, first slide, last slide, fullscreen, and go-to-slide.
 
 The QR popup closes automatically after a non-loopback phone connects. If scanning fails, use `Copy URL` in the QR popup and open the copied link on the phone without editing the `#...` fragment.
 
@@ -49,8 +49,8 @@ The phone page is deliberately not a settings app. It has:
 - the current slide image pinned to the top
 - slide number as `current / total`
 - presenter notes as the scrollable area
-- previous and next controls pinned to the bottom
-- tap-to-advance on the slide image
+- previous and next controls pinned to the bottom; these trigger effects first, then move between slides
+- tap-to-advance on the slide image, using the same effect-aware next action
 - an overflow drawer for first slide, last slide, timer pause/resume, and go-to-slide
 - a fullscreen slide mode button
 - reconnect/offline feedback with retry and reload
