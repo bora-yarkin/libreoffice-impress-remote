@@ -1,1 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#222"/><rect x="14" y="12" width="36" height="26" rx="3" fill="#fff"/><rect x="24" y="44" width="16" height="6" rx="2" fill="#fff"/><circle cx="48" cy="48" r="9" fill="#fff"/><path d="M45 48h6M48 45v6" stroke="#222" stroke-width="2" stroke-linecap="round"/></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Presentation screen and phone remote</title>
+  <desc id="desc">An orange presentation screen connected wirelessly to a dark phone remote</desc>
+  <defs>
+    <linearGradient id="background" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF8A3D"/>
+      <stop offset="1" stop-color="#D94700"/>
+    </linearGradient>
+  </defs>
+  <rect x="20" y="20" width="472" height="472" rx="108" fill="url(#background)"/>
+  <rect x="78" y="94" width="292" height="218" rx="28" fill="#FFF8F2"/>
+  <path d="M116 250l62-70 49 45 52-76 53 101H116z" fill="#F26A21"/>
+  <circle cx="164" cy="151" r="24" fill="#FFC299"/>
+  <path d="M224 312v45m-62 0h124" fill="none" stroke="#FFF8F2" stroke-width="24" stroke-linecap="round"/>
+  <rect x="310" y="224" width="130" height="206" rx="34" fill="#22252A" stroke="#FFF8F2" stroke-width="12"/>
+  <rect x="332" y="261" width="86" height="82" rx="14" fill="#FFF8F2"/>
+  <path d="M353 302h44m-22-22 22 22-22 22" fill="none" stroke="#F26A21" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="375" cy="391" r="12" fill="#FFF8F2"/>
+  <path d="M270 179c32-26 66-21 88 0m-68 28c17-13 33-12 48 0" fill="none" stroke="#FFF8F2" stroke-width="14" stroke-linecap="round"/>
+</svg>

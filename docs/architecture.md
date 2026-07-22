@@ -23,7 +23,7 @@ The extension owns slideshow control, notes extraction, state generation, local 
 
 The relay server owns session matching, hosted relay phone UI delivery, plaintext relay-key negotiation messages, admission-controlled session status, and opaque encrypted frame forwarding.
 
-As of `0.7.7`, local, LocalTunnel, relay, and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation when Web Crypto is available. Local mode uses the same encrypted flow with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style LAN HTTP contexts that cannot run Web Crypto. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and serves the shared web UI with generated asset/localization manifests.
+As of `0.7.8`, local, LocalTunnel, relay, and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation when Web Crypto is available. Local mode uses the same encrypted flow with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style LAN HTTP contexts that cannot run Web Crypto. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and serves the shared web UI with generated asset/localization manifests.
 
 ## Route Responsibilities
 

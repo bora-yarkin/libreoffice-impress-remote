@@ -9,11 +9,21 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.7.8] - 2026-07-22
+
 ### Documentation
 
-- Refreshed the documentation set around the current 0.7.7 UI: Start/Stop Remote, Remote Settings, QR popup Copy URL fallback, Local network, LocalTunnel, Direct IPv6, and Relay Server modes.
+- Refreshed the documentation set around the current 0.7.8 UI: Start/Stop Remote, Remote Settings, QR popup Copy URL fallback, Local network, LocalTunnel, Direct IPv6, and Relay Server modes.
 - Removed redundant standalone LibreOffice extension, compliance, and old planning documents by folding useful content into extension-focused architecture and roadmap docs.
 - Reframed the project docs around the extension-first volunteer direction: local mode is the tested main `1.0.0` gate, while LocalTunnel, Direct IPv6, and relay modes are experimental.
+- Removed README screenshot placeholders.
+- Added store-ready extension listing wording for TDF submission.
+
+### Changed
+
+- Replaced the packaged extension icon with the new presentation-screen and phone-remote SVG.
+- Replaced install-facing English and Turkish extension descriptions with store-ready wording based on the TDF listing details.
+- Bumped the extension, relay package, and project version to `0.7.8`.
 
 ## [0.7.7] - 2026-07-22
 

@@ -1,5 +1,9 @@
-LibreOffice Impress Kumandasi, Impress'i telefonla kontrol edilen bir sunum kumandasina donusturur.
+QR kodunu tarayarak LibreOffice Impress'i telefonunuzdan kontrol edin.
 
-Slayt Gosterisi menusunden kumandayi baslatin, QR kodunu tarayin ve gecerli slayt, sunucu notlari, sure ve gezinme kontrolleri olan hafif bir tarayici sayfasindan sunumunuzu kontrol edin.
+LibreOffice Impress Kumandasi, telefonu LibreOffice Impress icin bir sunum kumandasina donusturur. Kumandayi Slayt Gosterisi menusunden baslatin, gosterilen QR kodunu tarayin ve sunumu telefonunuzun web tarayicisindan kontrol edin. Mobil uygulama gerekmez.
 
-Eklenti yerel ag, LocalTunnel, dogrudan IPv6 ve kendi barindirdiginiz relay modlarini destekler. Eslesen dokumantasyon ve relay paketleri eklenti paketinin icindedir.
+Telefon arayuzu gecerli slayt onizlemesi, sunucu notlari, onceki ve sonraki kontrolleri, slayda dokunarak ilerleme, toplam sunum ve gecerli slayt sureleri, ilk slayt, son slayt, slayda git kontrolleri ve tarayici desteklediginde tam ekran slayt modu sunar.
+
+Varsayilan ve onerilen baglanti modu yerel agdir; ayni Wi-Fi agindaki veya kisisel erisim noktasindaki cihazlar icin uygundur. LocalTunnel, dogrudan IPv6 ve kendi barindirdiginiz relay modlari daha zor ag ortamlarinda deneysel alternatifler olarak dahildir.
+
+Proje GPL-3.0-only lisansli ozgur ve acik kaynak yazilimdir.

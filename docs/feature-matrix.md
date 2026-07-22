@@ -3,7 +3,7 @@
 
 # Feature Matrix
 
-This matrix reflects the `0.7.7` snapshot.
+This matrix reflects the `0.7.8` snapshot.
 
 ## User Workflow
 

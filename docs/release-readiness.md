@@ -7,7 +7,7 @@ This document defines what "ready to release" means for a volunteer pre-1.0 exte
 
 ## Current Release Posture
 
-`0.7.7` is a pre-1.0 maintainer preview.
+`0.7.8` is a pre-1.0 maintainer preview.
 
 Local mode has been tested by the maintainer and works in the current development environment. That does not mean every LibreOffice version, operating system, router, phone browser, or corporate network is covered.
 
