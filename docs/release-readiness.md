@@ -3,130 +3,143 @@
 
 # Release Readiness
 
-This document defines what "ready to release" means while the project is still pre-1.0. It does not claim every planned feature is finished. Instead, it separates technical-preview releases from future beta/stable releases and gives each route its own acceptance gates.
+This document defines what "ready to release" means for a volunteer pre-1.0 extension. It is deliberately practical: local mode is the main product path, while LocalTunnel, Direct IPv6, and relay modes are experimental fallbacks.
 
 ## Current Release Posture
 
-`0.7.6` is a pre-1.0 technical preview suitable for hands-on testing by the maintainer and early contributors.
+`0.7.7` is a pre-1.0 maintainer preview.
 
-It is not yet a stable end-user release because these important areas are still unfinished:
+Local mode has been tested by the maintainer and works in the current development environment. That does not mean every LibreOffice version, operating system, router, phone browser, or corporate network is covered.
 
-- Local HTTPS or signed/pinned frontend delivery is not implemented.
-- Browser-level E2E coverage is still manual.
-- LibreOffice runtime compatibility is not verified across a release matrix.
-- Localization exists only for English and Turkish.
-- GitHub release creation is not automated yet.
+Still unfinished before `1.0.0`:
 
-## Support Policy
+- broader local-mode compatibility evidence across macOS, Windows, Linux, iOS, and Android
+- browser-level E2E coverage for the phone UI
+- accessibility verification
+- local HTTPS, signed assets, pinned assets, or an equivalent frontend-trust improvement
+- GitHub release creation after CI passes
 
-Until `1.0.0`, only the latest development snapshot is supported.
+Experimental and not required for `1.0.0`:
+
+- LocalTunnel mode
+- Direct IPv6 mode
+- Python relay mode
+- Cloudflare relay mode
+
+## Volunteer Support Policy
+
+This is a FOSS project maintained as volunteer time allows.
 
 | Area | Current Policy |
 | --- | --- |
 | Supported extension version | Latest tagged or main-branch preview only. |
-| Security fixes | Applied to the newest preview; no long-term maintenance branches yet. |
-| Compatibility promise | Best-effort within the documented target matrix. |
+| Security fixes | Best-effort on the newest preview; no long-term maintenance branches. |
+| Compatibility promise | No guarantee. Recorded compatibility means "tested there", not "supported forever". |
 | Breaking changes | Allowed before `1.0.0`, but protocol-breaking changes must bump the protocol version. |
-| Relay compatibility | Best-effort for the current Python and Cloudflare relay bundles generated from the same version. |
+| Experimental routes | Best-effort only. They may change, break, or remain lightly tested. |
 
 ## Target Compatibility Matrix
 
-These are release targets, not proof that every cell is already verified.
+These are testing targets, not promises.
 
-| Component | Minimum Target | Release-Readiness Notes |
+| Component | Target | Notes |
 | --- | --- | --- |
-| LibreOffice | 24.8 or newer | First realistic target for broad testing because it is recent and still representative of current UNO behavior. |
-| macOS | macOS 13 or newer | Primary maintainer platform; local/hotspot flow should be verified here before each preview. |
-| Windows | Windows 10 or newer | Extension install, menu registration, local listener, and relay export need manual verification. |
-| Linux desktop | Current Ubuntu LTS or equivalent | Extension install, local listener, and Python relay service scripts need verification. |
-| Phone browsers | Safari on current iOS, Chrome/Android, Firefox/Android | Safari local fallback, encrypted local mode, and relay mode should be checked separately. |
-| Python relay | Python 3.11 or newer | Matches project packaging and CI test target. |
-| Cloudflare relay | Current Cloudflare Workers runtime | Must deploy from the generated Cloudflare bundle without editing shared web UI assets. |
+| LibreOffice | 24.8 or newer | Start with current LibreOffice behavior and expand only when someone tests older versions. |
+| macOS | macOS 13 or newer | Primary maintainer platform. |
+| Windows | Windows 10 or newer | Needs manual extension install and local-mode verification. |
+| Linux desktop | Current Ubuntu LTS or equivalent | Needs manual extension install and local-mode verification. |
+| Phone browsers | Current iOS Safari, Android Chrome, Android Firefox | Local mode and hotspot behavior matter most. |
+| Experimental relay | Python 3.11+ or current Cloudflare Workers runtime | Useful for advanced testing, not a 1.0.0 blocker. |
 
-Older LibreOffice versions may work, but they are not release targets until someone verifies them and adds them to this matrix.
+## 1.0.0 Gate
 
-## Route Release Milestones
+`1.0.0` should be local-first. Do not block it on LocalTunnel, Direct IPv6, or relay maturity.
 
-### Local Mode
+Local mode must satisfy:
 
-Current maturity: closest to preview-ready.
+- OXT installs cleanly in the maintainer's current LibreOffice.
+- Impress shows `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`.
+- Start Remote opens the QR popup.
+- A phone can scan the QR and control a real slideshow.
+- Current slide image and presenter notes update.
+- Previous, next, tap-to-advance, first slide, last slide, goto-slide, fullscreen, and timers work.
+- Phone hotspot pairing works.
+- iOS Safari local compatibility fallback works on a trusted LAN or hotspot.
+- Stop Remote tears down the listener.
+- Copy URL works as QR fallback.
+- Product CI passes.
+- Documentation describes the tested local flow accurately.
 
-Minimum gate for broader preview:
+## Experimental Route Gates
 
-- install OXT on the maintainer machine
-- open Impress, start remote, scan QR, and control a real slideshow
-- verify current slide image and presenter notes update
-- verify previous/next buttons and tap-to-advance
-- verify phone hotspot flow
-- verify Safari local compatibility fallback on LAN HTTP
-- verify encrypted local mode in a Web-Crypto-capable browser
-- verify stop/start remote behavior and QR popup lifecycle
-- verify manual link backup
+These routes can ship in previews, but keep them labeled experimental unless they have real field-test notes.
 
-Minimum gate for beta:
+LocalTunnel:
 
-- embedded local HTTP endpoint tests for encrypted direct state, encrypted commands, slide assets, fallback authentication, stale revisions, and browser security headers remain passing
-- macOS, Windows, and Linux manual verification is recorded
-- reconnect behavior is verified across slideshow start, stop, and document changes
-- user-facing local and hotspot guidance exists in LibreOffice UI
+- tunnel starts and returns a public URL
+- QR opens through the tunnel
+- encrypted state, slide assets, and commands work
+- Stop Remote closes the tunnel
+- provider failures are understandable
 
-### Direct IPv6 Mode
+Direct IPv6:
 
-Current maturity: implemented fallback, needs broader network proof.
+- only global IPv6 addresses are advertised
+- listener self-test passes before showing the route
+- unavailable IPv6 reports useful router/firewall/network guidance
+- encrypted state, slide assets, and commands work on at least one real public-IPv6 network
 
-Minimum gate for broader preview:
+Relay:
 
-- advertise only globally reachable IPv6 addresses
-- self-test listener before offering the route
-- fail gracefully when no public IPv6 is available
-- verify encrypted state, command, and slide assets in at least one working IPv6 environment
-- verify router/firewall guidance in Remote Settings
-
-Minimum gate for beta:
-
-- browser-level handshake and reconnect tests cover direct IPv6 behavior
-- route fallback from Auto is verified on networks with and without usable IPv6
-- documentation explains when direct IPv6 is worth trying and when relay/local is better
-
-### Relay Mode
-
-Current maturity: implemented optional fallback, self-hosting path is viable.
-
-Minimum gate for broader preview:
-
-- generated Python relay bundle runs without repository checkout
-- generated Cloudflare relay bundle deploys without editing shared phone UI files
-- LibreOffice connects as plugin and publishes encrypted state/assets
-- phone connects as relay client and receives state/assets
-- commands round-trip through the relay
-- `/api/session` lets LibreOffice detect a joined phone
+- Python relay bundle runs without a repository checkout
+- Cloudflare relay bundle deploys without editing shared phone UI files
+- LibreOffice and phone connect through the relay
+- commands round-trip
 - relay never decrypts presenter notes, commands, or slide previews
+- relay frontend-delivery trust limitations remain documented
 
-Minimum gate for beta:
+## Automated Release Gates
 
-- VPS reverse-proxy/TLS guide is verified end to end
-- Linux and Windows service helpers are manually tested
-- relay replay, reconnect, admission-token, rate-limit, and cleanup tests remain passing in CI
-- frontend-delivery trust limitation is explicitly accepted or mitigated by signed/pinned assets
-
-## Current Automated Release Gates
-
-Product CI should pass before publishing any preview artifact:
+Before publishing a preview artifact:
 
 - install Python test dependencies
 - compile extension, relay, test, and tool Python sources
 - run Ruff lint
 - run the full Python unit/integration test suite
-- validate the extension manifest
 - build the versioned `.oxt`
 - verify the versioned `.oxt` output exists
-- upload the versioned `.oxt` artifact
+- upload the versioned `.oxt` artifact in CI
 
 GitHub Native Security should pass or have an explicitly documented exception:
 
 - Dependency Review on pull requests
 - CodeQL
 - OpenSSF Scorecard on non-PR runs
+
+## Repository Security And Branch Protection
+
+The repository includes Product CI, Dependency Review, CodeQL for Python and GitHub Actions, OpenSSF Scorecard, Dependabot, and CODEOWNERS.
+
+Recommended `main` protection:
+
+- require pull request before merge
+- require CODEOWNERS review
+- require status checks
+- require branches to be up to date before merge
+- require conversation resolution
+- block force pushes
+- block deletions
+- require signed commits when practical
+
+Recommended required checks:
+
+```text
+Product CI / Build And Smoke Test
+GitHub Native Security / CodeQL
+GitHub Native Security / OpenSSF Scorecard
+```
+
+If GitHub code scanning is disabled for the repository, CodeQL SARIF upload may fail until code scanning is enabled in repository settings.
 
 ## Manual Release Checklist
 
@@ -147,32 +160,22 @@ Local:
 
 - open Impress, start remote, scan QR
 - verify QR popup closes after phone connects
-- verify slide image, notes, previous/next, tap-to-advance
-- verify manual link backup
+- verify slide image, notes, previous/next, tap-to-advance, timers, fullscreen, first/last slide, and goto-slide
+- verify Copy URL backup from the QR popup
 - verify Safari local fallback if testing on iOS
+- verify phone hotspot workflow
 - verify stop remote tears down the route
 
-LocalTunnel:
+Experimental:
 
-- select LocalTunnel mode
-- verify LibreOffice obtains a public tunnel URL
-- scan the tunnel QR and verify encrypted state, slide assets, and commands
-- stop Remote and verify the tunnel closes
-
-Relay:
-
-- export bundled Python relay from Remote Settings while Relay Server mode is selected
-- run relay locally or on a VPS
-- configure relay URL in LibreOffice
-- force Relay only
-- scan relay QR and verify commands plus slide assets
-- export and deploy the bundled Cloudflare relay when validating Cloudflare support
-- verify direct IPv6 in a real public-IPv6 network, or record it as skipped with the network reason
+- test LocalTunnel, Direct IPv6, Python relay, and Cloudflare relay when possible
+- record skipped experimental routes with the reason
+- do not present untested experimental routes as proven
 
 Docs:
 
 - README current status matches the feature matrix
-- test-before-release results are recorded for every supported route that was tested
+- test-before-release results are recorded
 - TODO implemented/planned sections match reality
 - changelog has an entry for the release
 - troubleshooting covers any newly discovered install/runtime failure
@@ -180,29 +183,28 @@ Docs:
 
 ## Release Blockers
 
-Block a broader preview release if any of these are true:
+Block a preview release if any of these are true:
 
 - OXT cannot install cleanly in the maintainer's current LibreOffice.
 - Local mode cannot pair and control a real Impress slideshow.
 - Phone UI cannot show current slide and notes.
 - Product CI fails.
-- The packaged OXT omits the shared phone UI, localization catalogs, or bundled resources.
-- Relay mode decrypts or stores presentation content server-side.
+- The packaged OXT omits the shared phone UI, localization catalogs, documentation, or bundled resources.
 - Known security behavior differs from `docs/security/e2ee.md`.
 
-Block a beta/stable release if any of these are true:
+Block `1.0.0` if any of these are true:
 
-- no Windows or Linux manual verification exists
-- no browser-level E2E coverage exists for core phone UI behavior
-- no recorded test-before-release results exist for local, direct IPv6, and relay target routes
-- local HTTPS or equivalent active-attacker frontend protection is still unresolved
+- local-mode results are not recorded for the target desktop and phone platforms
+- no browser-level E2E coverage exists for essential phone UI behavior
+- accessibility has not been checked
+- local frontend trust remains undocumented or misleading
 
 ## Release Naming
 
 Before `1.0.0`, use preview language:
 
-- `0.x.y technical preview`
 - `0.x.y maintainer preview`
-- `0.x.y relay preview`
+- `0.x.y local-mode preview`
+- `0.x.y experimental-route preview`
 
-Do not call the project "stable" until the beta/stable blockers above are resolved.
+Do not call the project "stable" until the local `1.0.0` blockers above are resolved.

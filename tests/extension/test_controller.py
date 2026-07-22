@@ -115,12 +115,6 @@ class FakeSlideShowController:
     def isEndless(self) -> bool:
         return self.endless
 
-    def gotoNextEffect(self) -> None:
-        self.commands.append(("next_effect", None))
-
-    def gotoPreviousEffect(self) -> None:
-        self.commands.append(("previous_effect", None))
-
     def gotoNextSlide(self) -> None:
         self.commands.append(("next_slide", None))
 
@@ -129,17 +123,6 @@ class FakeSlideShowController:
 
     def gotoSlideIndex(self, index: int) -> None:
         self.commands.append(("goto_slide", index))
-
-    def pause(self) -> None:
-        self.paused = True
-        self.commands.append(("pause", None))
-
-    def resume(self) -> None:
-        self.paused = False
-        self.commands.append(("resume", None))
-
-    def blankScreen(self, color: int) -> None:
-        self.commands.append(("blank_screen", color))
 
     def gotoLastSlide(self) -> None:
         self.commands.append(("goto_last_slide", None))
@@ -312,7 +295,6 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(state.running)
         self.assertTrue(state.active)
         self.assertFalse(state.paused)
-        self.assertFalse(state.blanked)
         self.assertEqual(state.document_kind, "impress")
         self.assertEqual(state.status_message, "Presentation running")
         self.assertEqual(state.current_slide, 1)
@@ -388,26 +370,19 @@ class ControllerTests(unittest.TestCase):
         controller = ImpressController(FakeContext(document, dispatch_helper=dispatch_helper))
 
         controller.command("start_presentation")
-        controller.command("pause_presentation")
-        controller.command("blank_screen")
-        controller.command("resume_presentation")
         controller.command("goto_last_slide")
         controller.command("goto_first_slide")
         controller.command("next_slide")
         controller.command("goto_slide", 2)
-        controller.command("end_presentation")
 
         self.assertFalse(presentation.started)
-        self.assertTrue(presentation.ended)
+        self.assertFalse(presentation.ended)
         self.assertEqual(presentation.properties, {})
         self.assertEqual(len(dispatch_helper.calls), 1)
         self.assertEqual(dispatch_helper.calls[0][1], ".uno:PresentationCurrentSlide")
         self.assertEqual(
             slideshow.commands,
             [
-                ("pause", None),
-                ("blank_screen", 0),
-                ("resume", None),
                 ("goto_last_slide", None),
                 ("goto_slide", 0),
                 ("next_slide", None),
@@ -523,30 +498,23 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(state.next_slide, 2)
         self.assertEqual(state.next_title, "Wrap Up")
 
-    def test_state_tracks_blank_pause_and_end_of_deck_helpers(self) -> None:
+    def test_state_tracks_pause_and_end_of_deck_helpers(self) -> None:
         current_time = [100.0]
         slideshow = FakeSlideShowController(current_index=2, slides=self.slides, paused=True)
         document = FakeDocument(self.slides, FakePresentation(slideshow), self.slides[2])
         controller = ImpressController(FakeContext(document), monotonic=lambda: current_time[0])
 
         controller.state()
-        controller.command("blank_screen")
         current_time[0] = 145.0
 
         state = controller.state()
 
         self.assertTrue(state.running)
         self.assertTrue(state.paused)
-        self.assertTrue(state.blanked)
         self.assertTrue(state.at_end_of_deck)
         self.assertEqual(state.remaining_slides, 0)
         self.assertEqual(state.elapsed_seconds, 45)
-        self.assertEqual(state.status_message, "Presentation paused with the projector blanked")
-
-        controller.command("next_slide")
-        unblanked_state = controller.state()
-
-        self.assertFalse(unblanked_state.blanked)
+        self.assertEqual(state.status_message, "Presentation paused on the last slide")
 
 
 if __name__ == "__main__":

@@ -3,20 +3,18 @@
 
 # Troubleshooting
 
-This guide focuses on extension loading, installation, and first-run problems.
+This guide covers install, pairing, and runtime failures for the current local-first extension.
 
 ## Rebuild And Reinstall Cleanly
-
-Use this baseline when the installed extension behaves differently from the repository:
 
 ```bash
 make oxt
 make install-oxt
 ```
 
-Close LibreOffice before reinstalling. LibreOffice can keep extension code cached while any LibreOffice process is still running.
+Quit LibreOffice before reinstalling. LibreOffice can keep old extension code loaded while any LibreOffice process is still running.
 
-The expected package name is versioned:
+The expected package name is:
 
 ```text
 dist/libreoffice-impress-remote-<version>.oxt
@@ -24,130 +22,108 @@ dist/libreoffice-impress-remote-<version>.oxt
 
 ## `premature end of file ... component.py`
 
-This usually means LibreOffice cached or unpacked a broken `.oxt`, not that `component.py` literally ends early in the repository.
-
-Fix:
+This usually means LibreOffice cached or unpacked a broken OXT.
 
 1. Quit LibreOffice completely.
-2. Remove the extension from `Tools -> Extensions` if it is visible there.
-3. Build a fresh OXT with `make oxt`.
-4. Install `dist/libreoffice-impress-remote-<version>.oxt`.
+2. Remove the extension from `Tools -> Extensions` if visible.
+3. Run `make oxt`.
+4. Install the freshly generated versioned OXT.
 5. Start LibreOffice Impress again.
 
-On macOS, stale extension cache entries live under:
+On macOS, stale unpacked extension cache entries are under:
 
 ```text
 ~/Library/Application Support/LibreOffice/4/user/uno_packages/cache/uno_packages/
 ```
 
-If the error still points to an old temporary `*.tmp_` folder after reinstalling, remove the extension from Extension Manager, quit LibreOffice, and install the freshly built OXT again.
+If an error still points to an old temporary `*.tmp_` folder, remove the extension, quit LibreOffice, and reinstall the fresh OXT.
 
-## `No module named 'impress_remote'`
+## Import Errors During Install
 
-This means LibreOffice loaded `component.py`, but the extension package did not contain the expected Python package layout.
-
-Check:
+`No module named 'impress_remote'` means the OXT package layout is wrong or stale. Check:
 
 ```bash
-make oxt
 unzip -l dist/libreoffice-impress-remote-*.oxt | grep 'python/impress_remote/component.py'
-unzip -l dist/libreoffice-impress-remote-*.oxt | grep 'python/impress_remote/localization'
 ```
 
-If either path is missing, rebuild from a clean repository state and reinstall the generated OXT.
+`No module named 'com'` means a LibreOffice UNO module was imported outside LibreOffice's runtime or too early during registration. Top-level extension imports must remain UNO-loader safe.
 
-## `NameError` During Extension Install
+`NameError` during registration usually means a runtime-only class leaked into an evaluated annotation or top-level import path. Run compile checks, rebuild, and reinstall:
 
-Errors like this:
-
-```text
-NameError: name 'RemoteServer' is not defined
+```bash
+.venv/bin/python -m compileall -q extension/python
+make oxt
 ```
 
-usually come from evaluated type annotations or imports that LibreOffice's Python loader cannot resolve at registration time.
+## Menu Is Missing
 
-Fix:
+The extension is Impress-only.
 
-1. Pull or apply the latest repository changes.
-2. Run `python -m compileall -q extension/python`.
-3. Run `make oxt`.
-4. Reinstall the generated OXT.
-
-The current codebase uses postponed annotations and import-safe component registration paths to avoid this class of failure.
-
-## `No module named 'com'`
-
-LibreOffice UNO modules such as `com.sun.star.*` are only available inside LibreOffice's Python/UNO runtime. Importing them at module load time can break extension registration.
-
-The extension should avoid hard imports from `com.sun.star` in top-level module scope. If you see this error after local edits, move the UNO-specific import behind a runtime guard or into the function that needs it.
-
-## Extension Installs But Menu Is Missing
-
-The remote menu actions are intentionally Impress-only.
-
-Check:
-
-1. Open a real Impress presentation, not Writer, Calc, Draw, or the LibreOffice Start Center.
+1. Open an actual Impress presentation.
 2. Look under `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`.
-3. If it is still missing, restart LibreOffice after installation.
-4. If it remains missing, remove and reinstall the OXT.
+3. Restart LibreOffice after installation.
+4. Reinstall the OXT if the commands remain missing.
 
-Toolbar integration depends on the active LibreOffice UI mode. The Slide Show menu actions are the canonical entry points.
+Toolbar and notebookbar integration depends on LibreOffice UI mode. The Slide Show menu entries are the canonical controls.
 
-## Settings Dialog Does Not Open
-
-Try this sequence:
+## Remote Settings Does Not Open
 
 1. Open an Impress document.
 2. Choose `Slide Show -> Remote Settings`.
-3. If nothing happens, quit LibreOffice and start it again.
-4. Reinstall the extension if the menu exists but every command is inert.
+3. Restart LibreOffice if nothing happens.
+4. Reinstall the OXT if both Start Remote and Remote Settings are inert.
 
-When reporting this bug, include the LibreOffice version, operating system, and whether `Start Remote` works.
+When reporting this, include OS, LibreOffice version, extension version, and whether Start Remote works.
+
+## QR Code Or Copy URL Is Missing
+
+Use `Slide Show -> Start Remote`; the QR popup owns both the QR code and `Copy URL` fallback. Remote Settings only controls mode and relay settings.
+
+If no QR/link is available:
+
+- choose Local network for same-Wi-Fi or hotspot testing
+- choose LocalTunnel only when a public tunnel is desired
+- choose Direct IPv6 only when public IPv6 is available
+- choose Relay Server only after saving a relay URL
+- restart the remote after changing settings
 
 ## Phone Shows `Remote unavailable`
 
-If Safari says:
+If Safari says Web Crypto is unavailable, use Local network mode on same Wi-Fi or hotspot. Local mode can use authenticated LAN-only fallback endpoints.
 
-```text
-This browser does not expose Web Crypto required for encrypted remote transport.
-```
-
-make sure you installed a build at or after `0.6.12`. Local mode should fall back to authenticated plaintext polling when Safari does not expose Web Crypto on a LAN HTTP address.
-
-LocalTunnel, relay, and direct IPv6 still require Web Crypto. If you selected LocalTunnel, Relay Server, or Direct IPv6, use a browser/context that exposes Web Crypto or switch back to Local network mode for same-network testing.
-
-## QR Code Is Empty Or Manual Link Is Missing
-
-Open `Remote Settings` and check:
-
-- Local network mode is selected for same-Wi-Fi or hotspot testing
-- LocalTunnel mode is selected only when you want a temporary public tunnel
-- Relay Server mode has a relay URL configured
-- Direct IPv6 mode is selected only if the network provides public IPv6
-- the remote is running
-
-If the selected mode cannot produce a link, switch back to Local network and restart the remote.
+LocalTunnel, Direct IPv6, and Relay Server modes require Web Crypto and fail closed if the browser does not expose it.
 
 ## Local Pairing Does Not Connect
 
-Try:
+- Put phone and computer on the same Wi-Fi or the same phone hotspot.
+- Disable VPNs that isolate local traffic.
+- Allow inbound connections to the selected local port in the desktop firewall.
+- Use `Copy URL` in the QR popup if the camera scanner fails.
+- If public Wi-Fi blocks device-to-device traffic, use a phone hotspot first. LocalTunnel and Relay Server mode are experimental fallbacks.
 
-1. Put the phone and computer on the same Wi-Fi or the same phone hotspot.
-2. Disable VPNs or firewall rules that block local device connections.
-3. Use the Manual Link in Remote Settings as a backup.
-4. If public Wi-Fi blocks device-to-device traffic, use a phone hotspot or relay mode.
+Local URLs usually start with `192.168.x.x`, `10.x.x.x`, or `172.20.x.x`.
 
-The local URL often starts with a private address such as `192.168.x.x`, `10.x.x.x`, or `172.20.x.x`.
+## LocalTunnel Does Not Connect
+
+- Confirm Remote Settings is set to LocalTunnel.
+- Start the remote again after saving settings.
+- Wait for the tunnel URL before scanning.
+- Treat provider interstitials, rate limits, or blocked tunnel domains as provider issues.
+- Switch back to Local network for same-room testing when possible.
+
+## Direct IPv6 Does Not Connect
+
+- Confirm the desktop has a globally reachable IPv6 address.
+- Confirm the desktop firewall allows the remote port.
+- Confirm the phone network can reach that IPv6 address.
+- If Remote Settings reports missing public IPv6 or failed self-test, use Local network, LocalTunnel, or Relay Server instead.
 
 ## Relay Pairing Does Not Connect
 
-Check:
-
-1. The relay URL is saved in Remote Settings.
-2. The relay is reachable over HTTPS or the expected HTTP test URL.
-3. `/health` works on the relay.
-4. The phone opens the full relay link with the `#mode=relay&s=...&k=...&a=...` fragment intact.
-5. Reverse proxy websocket forwarding is enabled for `/ws`.
+1. Save the relay base URL in Remote Settings while Relay Server mode is selected.
+2. Confirm `/health` works on the relay.
+3. Confirm websocket forwarding works on `/ws` if behind a reverse proxy.
+4. Start the remote again after saving.
+5. Scan the relay QR or copy the full URL with its `#mode=relay&s=...&k=...&a=...` fragment intact.
 
 See [Relay And Deployment](relay.md) for deployment details.

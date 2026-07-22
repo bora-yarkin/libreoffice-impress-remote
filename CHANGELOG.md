@@ -9,6 +9,22 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+### Documentation
+
+- Refreshed the documentation set around the current 0.7.7 UI: Start/Stop Remote, Remote Settings, QR popup Copy URL fallback, Local network, LocalTunnel, Direct IPv6, and Relay Server modes.
+- Removed redundant standalone LibreOffice extension, compliance, and old planning documents by folding useful content into extension-focused architecture and roadmap docs.
+- Reframed the project docs around the extension-first volunteer direction: local mode is the tested main `1.0.0` gate, while LocalTunnel, Direct IPv6, and relay modes are experimental.
+
+## [0.7.7] - 2026-07-22
+
+### Changed
+
+- Removed stale phone-only localization keys for commands no longer exposed by the mobile remote.
+- Removed the redundant standalone manifest-check helper and let Product CI rely on the richer test suite plus OXT build verification.
+- Consolidated GitHub security and branch-protection notes into release readiness documentation.
+- Trimmed no-longer-exposed controller command handlers and removed dead blank-presentation state from controller, component, and local-server payloads.
+- Bumped the extension, relay package, and project version to `0.7.7`.
+
 ## [0.7.6] - 2026-07-22
 
 ### Changed

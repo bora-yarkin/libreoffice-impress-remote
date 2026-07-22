@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `0.7.6` release line.
+This guide matches the `0.7.7` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -34,10 +34,10 @@ Slide Show -> Remote Settings
 ```
 
 1. Open `Remote Settings` if you want to choose Local network, LocalTunnel, Direct IPv6, or Relay Server.
-2. Keep the mode on `Local network` for normal same-Wi-Fi and hotspot testing.
+2. Keep the mode on `Local network` for normal same-Wi-Fi and hotspot testing. LocalTunnel, Direct IPv6, and Relay Server are experimental.
 3. Save any settings changes, then use `Start Remote` to bring up the embedded local server and QR pairing dialog.
 4. Scan the QR code shown by LibreOffice with your phone.
-5. Use the Manual Link shown in `Remote Settings` if you also want to open the current route in a desktop browser.
+5. Use `Copy URL` in the QR popup if you also want to open the current route in a desktop browser.
 
 ## Testing Localization
 
@@ -58,8 +58,8 @@ Then:
 1. Open `Remote Settings` from the Slide Show menu.
 2. Select `Relay Server`, enter the relay base URL, and save.
 3. Use `Start Remote` from the Slide Show menu.
-5. Scan the QR code on the phone, or open the full pairing link with its `#...` fragment intact if you are testing the hosted relay page manually.
-6. When the phone joins successfully, LibreOffice should detect the relay session and start the slideshow automatically.
+4. Scan the QR code on the phone, or open the full pairing link with its `#...` fragment intact if you are testing the hosted relay page manually.
+5. When the phone joins successfully, LibreOffice should detect the relay session and start the slideshow automatically.
 
 The relay host now serves:
 
@@ -71,7 +71,7 @@ The relay host now serves:
 
 ## Extension Packages
 
-- `make oxt` builds the versioned complete extension package, for example `dist/libreoffice-impress-remote-0.7.6.oxt`, with local, LocalTunnel, direct IPv6, relay mode, documentation export, Python relay export, and Cloudflare relay export included.
+- `make oxt` builds the versioned complete extension package, for example `dist/libreoffice-impress-remote-0.7.7.oxt`, with local, LocalTunnel, direct IPv6, relay mode, documentation export, Python relay export, and Cloudflare relay export included.
 - The installed `.oxt` embeds the matching documentation, stripped Python relay bundle, and Cloudflare relay bundle so users can export matching resources from Remote Settings without visiting GitHub.
 
 Useful relay checks:

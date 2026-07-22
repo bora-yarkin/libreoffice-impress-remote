@@ -143,7 +143,6 @@ class FakeServer:
                 running=False,
                 active=False,
                 paused=False,
-                blanked=False,
                 document_kind="none",
                 status_message="Open an Impress presentation to use the remote.",
                 current_slide=0,

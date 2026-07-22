@@ -173,7 +173,6 @@ class LocalServerTests(unittest.TestCase):
             running=True,
             active=True,
             paused=False,
-            blanked=False,
             document_kind="impress",
             status_message="Running",
             current_slide=1,

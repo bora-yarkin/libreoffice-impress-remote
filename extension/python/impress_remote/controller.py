@@ -18,7 +18,6 @@ class PresentationState:
     running: bool
     active: bool
     paused: bool
-    blanked: bool
     document_kind: str
     status_message: str
     current_slide: int
@@ -60,8 +59,6 @@ class ImpressController:
         self._monotonic = monotonic or time.monotonic
         self._running_presentation_key: tuple[int, int] | None = None
         self._presentation_started_at: float | None = None
-        self._blanked_presentation_key: tuple[int, int] | None = None
-        self._blanked_slide_index: int | None = None
         self._slide_png_cache: OrderedDict[str, bytes] = OrderedDict()
 
     def state(self) -> PresentationState:
@@ -85,8 +82,7 @@ class ImpressController:
             if resolved.running
             else None
         )
-        self._sync_runtime_tracking(key, resolved.running, resolved.current_index)
-        blanked = key is not None and self._blanked_presentation_key == key
+        self._sync_runtime_tracking(key, resolved.running)
         current_slide = self._slide_for_index(document, resolved.current_index)
         next_slide = (
             self._slide_for_index(document, resolved.next_index)
@@ -110,7 +106,6 @@ class ImpressController:
         at_end_of_deck = resolved.slide_count > 0 and resolved.next_index is None
         status_message = self._status_message(
             resolved,
-            blanked=blanked,
             at_end_of_deck=at_end_of_deck,
         )
         can_go_previous = resolved.current_index > 0 or (
@@ -122,7 +117,6 @@ class ImpressController:
             running=resolved.running,
             active=resolved.active,
             paused=resolved.paused,
-            blanked=blanked,
             document_kind="impress",
             status_message=status_message,
             current_slide=resolved.current_index,
@@ -146,7 +140,6 @@ class ImpressController:
                 current_preview,
                 resolved.running,
                 resolved.paused,
-                blanked,
             ),
             next_render_token=self._render_token(
                 next_slide,
@@ -154,7 +147,6 @@ class ImpressController:
                 next_title,
                 "",
                 next_preview,
-                False,
                 False,
                 False,
             ),
@@ -189,57 +181,20 @@ class ImpressController:
                 return
             self._start_presentation(document, presentation, first_slide_index=0)
             return
-        if name == "end_presentation" and presentation is not None and hasattr(presentation, "end"):
-            presentation.end()
-            self._reset_runtime_tracking()
-            return
         if controller is not None:
-            key = self._presentation_key(document, controller)
-            if name == "next_effect":
-                self._clear_blank_tracking(key)
-                controller.gotoNextEffect()
-                return
-            if name == "previous_effect":
-                self._clear_blank_tracking(key)
-                controller.gotoPreviousEffect()
-                return
             if name == "next_slide":
-                self._clear_blank_tracking(key)
                 controller.gotoNextSlide()
                 return
             if name == "previous_slide":
-                self._clear_blank_tracking(key)
                 controller.gotoPreviousSlide()
                 return
             if name == "goto_slide" and index is not None:
-                self._clear_blank_tracking(key)
                 controller.gotoSlideIndex(index)
                 return
             if name == "goto_first_slide":
-                self._clear_blank_tracking(key)
                 controller.gotoSlideIndex(0)
                 return
-            if name == "pause_presentation" and hasattr(controller, "pause"):
-                controller.pause()
-                return
-            if name == "resume_presentation" and hasattr(controller, "resume"):
-                self._clear_blank_tracking(key)
-                controller.resume()
-                return
-            if name == "blank_screen" and hasattr(controller, "blankScreen"):
-                self._mark_blank_tracking(
-                    key,
-                    self._current_slide_index(
-                        controller,
-                        document,
-                        self._slide_count(document),
-                        True,
-                    ),
-                )
-                controller.blankScreen(0)
-                return
             if name == "goto_last_slide" and hasattr(controller, "gotoLastSlide"):
-                self._clear_blank_tracking(key)
                 controller.gotoLastSlide()
                 return
 
@@ -281,7 +236,7 @@ class ImpressController:
             notes = extract_notes_for_slide(slide)
             preview = render_slide_preview(slide, index)
             render_tokens = {
-                self._render_token(slide, index, title, notes, preview, True, False, False),
+                self._render_token(slide, index, title, notes, preview, True, False),
                 self._render_token(
                     slide,
                     index,
@@ -290,9 +245,8 @@ class ImpressController:
                     preview,
                     resolved.running,
                     resolved.paused,
-                    False,
                 ),
-                self._render_token(slide, index, title, "", preview, False, False, False),
+                self._render_token(slide, index, title, "", preview, False, False),
             }
             render_tokens.discard("")
             missing_tokens = [
@@ -599,7 +553,6 @@ class ImpressController:
             running=False,
             active=False,
             paused=False,
-            blanked=False,
             document_kind=document_kind,
             status_message=status_message,
             current_slide=0,
@@ -648,16 +601,11 @@ class ImpressController:
         self,
         resolved: _ResolvedPresentation,
         *,
-        blanked: bool,
         at_end_of_deck: bool,
     ) -> str:
         if resolved.slide_count <= 0:
             return translate("state.emptyDeck")
         if resolved.running:
-            if blanked and resolved.paused:
-                return translate("state.pausedBlank")
-            if blanked:
-                return translate("state.blank")
             if resolved.paused and at_end_of_deck:
                 return translate("state.pausedLast")
             if resolved.paused:
@@ -678,7 +626,6 @@ class ImpressController:
         preview: str,
         running: bool,
         paused: bool,
-        blanked: bool,
     ) -> str:
         if slide is None or index is None or index < 0:
             return ""
@@ -690,7 +637,6 @@ class ImpressController:
             preview,
             str(int(running)),
             str(int(paused)),
-            str(int(blanked)),
         ):
             digest.update(value.encode("utf-8", errors="ignore"))
             digest.update(b"\0")
@@ -703,48 +649,17 @@ class ImpressController:
         self,
         presentation_key: tuple[int, int] | None,
         running: bool,
-        current_index: int,
     ) -> None:
         if not running or presentation_key is None:
             self._reset_runtime_tracking()
             return
         if self._running_presentation_key != presentation_key:
-            preserve_blank = self._blanked_presentation_key == presentation_key
             self._running_presentation_key = presentation_key
             self._presentation_started_at = self._monotonic()
-            if not preserve_blank:
-                self._blanked_presentation_key = None
-                self._blanked_slide_index = None
-            return
-        if (
-            self._blanked_presentation_key == presentation_key
-            and self._blanked_slide_index is not None
-            and self._blanked_slide_index != current_index
-        ):
-            self._clear_blank_tracking(presentation_key)
 
     def _reset_runtime_tracking(self) -> None:
         self._running_presentation_key = None
         self._presentation_started_at = None
-        self._blanked_presentation_key = None
-        self._blanked_slide_index = None
-
-    def _mark_blank_tracking(
-        self,
-        presentation_key: tuple[int, int] | None,
-        current_index: int,
-    ) -> None:
-        if presentation_key is None:
-            return
-        self._blanked_presentation_key = presentation_key
-        self._blanked_slide_index = current_index
-
-    def _clear_blank_tracking(self, presentation_key: tuple[int, int] | None) -> None:
-        if presentation_key is None:
-            return
-        if self._blanked_presentation_key == presentation_key:
-            self._blanked_presentation_key = None
-            self._blanked_slide_index = None
 
     def _elapsed_seconds(self, running: bool) -> int:
         if not running or self._presentation_started_at is None:

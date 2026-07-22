@@ -378,7 +378,6 @@ try:
                 "running": presentation_state.running,
                 "active": presentation_state.active,
                 "paused": presentation_state.paused,
-                "blanked": presentation_state.blanked,
                 "documentKind": presentation_state.document_kind,
                 "statusMessage": presentation_state.status_message,
                 "currentSlide": presentation_state.current_slide,

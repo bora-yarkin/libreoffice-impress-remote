@@ -46,8 +46,6 @@ jobs:
         run: python -m pytest tests
         env:
           PYTHONPATH: extension/python:server/src
-      - name: Validate Extension Manifest
-        run: python tools/check_manifest.py
       - name: Build Extension Package
         run: python tools/build_oxt.py
       - name: Verify Extension Artifact

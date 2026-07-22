@@ -3,7 +3,7 @@
 
 # Protocol
 
-This document describes the current encrypted transport protocol implemented in `0.7.6`.
+This document describes the current encrypted transport protocol implemented in `0.7.7`.
 
 It is intentionally small and versioned so that the reference relay server can remain replaceable and the same message contract can be reused by other transports.
 
@@ -13,7 +13,7 @@ The current encrypted protocol definition applies to relay, direct IPv6, and loc
 
 ## Pairing Link
 
-Local, LocalTunnel, and direct-IPv6 pairing links carry their session metadata in the URL fragment:
+Local, LocalTunnel, and direct-IPv6 pairing links carry their session metadata in the URL fragment. Users normally receive this link by scanning the QR code or using `Copy URL` in the QR popup.
 
 ```text
 #mode=<route>&s=<session-id>&k=<pairing-verifier>
@@ -137,7 +137,7 @@ Example:
 
 ## Key Derivation
 
-The current `0.7.6` bootstrap uses ephemeral P-256 ECDH.
+The current `0.7.7` bootstrap uses ephemeral P-256 ECDH.
 
 Inputs:
 
@@ -204,7 +204,7 @@ Local, LocalTunnel, and direct IPv6 routes use the same `hello` and `frame` payl
 - `/api/direct/command?s=<session-id>` accepts encrypted `command` frames from the phone
 - `/api/direct/slide/current?s=<session-id>&rev=<revision>` and `/api/direct/slide/next?s=<session-id>&rev=<revision>` return encrypted `asset` frames that contain PNG slide data
 
-The embedded server intentionally does not expose the old unauthenticated plaintext state, command, event, or slide-image endpoints. Direct encrypted endpoints require the session id from the QR/manual-link fragment before the request is treated as paired client activity. This does not replace encryption or reveal the pairing verifier, but it prevents unrelated LAN probes from triggering connected-client behavior.
+The embedded server intentionally does not expose the old unauthenticated plaintext state, command, event, or slide-image endpoints. Direct encrypted endpoints require the session id from the QR/Copy URL fragment before the request is treated as paired client activity. This does not replace encryption or reveal the pairing verifier, but it prevents unrelated LAN probes from triggering connected-client behavior.
 
 Local mode has one compatibility exception for Safari and other browsers that do not expose Web Crypto on plain LAN HTTP origins:
 

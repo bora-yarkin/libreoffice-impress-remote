@@ -3,7 +3,9 @@
 
 # Relay And Deployment
 
-Relay Server mode is the optional path for networks where Local network, LocalTunnel, and Direct IPv6 do not fit. The relay stays thin: it serves the phone page, forwards encrypted websocket envelopes, exposes health/session status, and never decrypts presenter notes, commands, or slide images.
+Relay Server mode is an experimental path for networks where Local network mode does not fit. The relay stays thin: it serves the phone page, forwards encrypted websocket envelopes, exposes health/session status, and never decrypts presenter notes, commands, or slide images.
+
+Local network mode is the main product path. Use relay mode only if you are comfortable self-hosting or deploying experimental infrastructure.
 
 The installed OXT contains matching bundles for its own version:
 

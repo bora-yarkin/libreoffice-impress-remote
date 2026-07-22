@@ -10,7 +10,7 @@
 - LibreOffice version:
 - Operating system:
 - Browser:
-- Mode: local / relay / direct IPv6
+- Mode: Local network / LocalTunnel / Direct IPv6 / Relay Server
 
 ## Steps To Reproduce
 

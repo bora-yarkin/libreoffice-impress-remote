@@ -350,7 +350,6 @@ class RemoteServer:
             "running": state.running,
             "presentationActive": state.active,
             "presentationPaused": state.paused,
-            "presentationBlanked": state.blanked,
             "documentKind": state.document_kind,
             "statusMessage": state.status_message,
             "currentSlide": state.current_slide,
