@@ -74,6 +74,7 @@ main{
 .nav-button:focus-visible,
 .connection-button:focus-visible,
 .more-button:focus-visible,
+.fullscreen-button:focus-visible,
 .drawer-button:focus-visible,
 #goto-input:focus-visible{
   outline:2px solid #7ab7ff;
@@ -107,10 +108,20 @@ main{
   letter-spacing:.02em;
 }
 
-.timer-chip{
+.timer-stack{
   position:absolute;
   left:10px;
   bottom:10px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.timer-stack[hidden]{
+  display:none;
+}
+
+.timer-chip{
   margin:0;
   padding:6px 10px;
   border-radius:999px;
@@ -122,14 +133,15 @@ main{
   letter-spacing:.04em;
 }
 
-.timer-chip[hidden]{
-  display:none;
+.drawer-button-active{
+  background:#0f6ad9;
+  color:#f7fbff;
 }
 
-.more-button{
+.more-button,
+.fullscreen-button{
   position:absolute;
   top:10px;
-  right:10px;
   width:42px;
   height:42px;
   border:0;
@@ -141,7 +153,16 @@ main{
   color:#f1f5f9;
 }
 
-.more-button svg{
+.more-button{
+  right:10px;
+}
+
+.fullscreen-button{
+  right:60px;
+}
+
+.more-button svg,
+.fullscreen-button svg{
   width:26px;
   height:26px;
   stroke:currentColor;
@@ -315,6 +336,10 @@ main{
   padding-bottom:env(safe-area-inset-bottom);
 }
 
+.side-controls{
+  display:none;
+}
+
 .nav-button{
   display:flex;
   align-items:center;
@@ -326,6 +351,66 @@ main{
   background:#161d2a;
   color:#f1f5f9;
   transition:transform .12s ease,opacity .12s ease,background .12s ease;
+}
+
+body.presentation-fullscreen main{
+  padding:0;
+  gap:0;
+  background:#02050a;
+}
+
+body.presentation-fullscreen .stage-card{
+  flex:1 1 auto;
+  min-height:100dvh;
+}
+
+body.presentation-fullscreen .slide-frame{
+  width:100vw;
+  height:100dvh;
+  aspect-ratio:auto;
+}
+
+body.presentation-fullscreen .notes-card,
+body.presentation-fullscreen .primary-controls{
+  display:none;
+}
+
+body.presentation-fullscreen .side-controls{
+  position:fixed;
+  top:50%;
+  z-index:6;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  transform:translateY(-50%);
+  pointer-events:auto;
+}
+
+body.presentation-fullscreen .side-controls-left{
+  left:calc(8px + env(safe-area-inset-left));
+}
+
+body.presentation-fullscreen .side-controls-right{
+  right:calc(8px + env(safe-area-inset-right));
+}
+
+body.presentation-fullscreen .side-controls .nav-button{
+  width:58px;
+  height:58px;
+  min-height:58px;
+  background:rgba(10,14,20,.72);
+}
+
+body.presentation-fullscreen .side-controls .nav-button-primary{
+  background:rgba(15,106,217,.86);
+}
+
+body.presentation-fullscreen .command-drawer{
+  left:50%;
+  right:auto;
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  width:min(420px,calc(100vw - 96px));
+  transform:translateX(-50%);
 }
 
 .nav-button svg{
@@ -365,14 +450,22 @@ button:active{
     bottom:8px;
   }
 
-  .timer-chip{
+  .timer-stack{
     left:8px;
     bottom:8px;
   }
 
-  .more-button{
+  .more-button,
+  .fullscreen-button{
     top:8px;
+  }
+
+  .more-button{
     right:8px;
+  }
+
+  .fullscreen-button{
+    right:58px;
   }
 }
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 COMPONENT_PATH = ROOT / "extension/python/impress_remote/component.py"
 COMPONENT_DIR = str(COMPONENT_PATH.parent)
 PYTHON_DIR = str(COMPONENT_PATH.parent.parent)

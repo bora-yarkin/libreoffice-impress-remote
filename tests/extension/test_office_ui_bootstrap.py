@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 OFFICE_UI_PATH = ROOT / "extension/python/impress_remote/office_ui.py"
 PYTHON_DIR = str(OFFICE_UI_PATH.parent.parent)
 
@@ -58,7 +58,6 @@ class OfficeUiBootstrapTests(unittest.TestCase):
         awt_module = types.ModuleType("com.sun.star.awt")
         cast(Any, awt_module).XActionListener = type("XActionListener", (), {})
         cast(Any, awt_module).XItemListener = type("XItemListener", (), {})
-        cast(Any, awt_module).XTextListener = type("XTextListener", (), {})
 
         com_module = types.ModuleType("com")
         sun_module = types.ModuleType("com.sun")

@@ -159,7 +159,7 @@ class ConfigTests(unittest.TestCase):
         assert access is not None
         self.assertTrue(access.committed)
 
-    def test_remote_config_defaults_unknown_route_to_auto(self) -> None:
+    def test_remote_config_defaults_unknown_route_to_local(self) -> None:
         config = RemoteConfig.from_dict({"preferredRoute": "surprise"})
 
-        self.assertEqual(config.preferred_route, "auto")
+        self.assertEqual(config.preferred_route, "local")

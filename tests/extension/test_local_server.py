@@ -8,6 +8,7 @@ from typing import cast
 
 from types import SimpleNamespace
 
+from impress_remote.config import RemoteConfig
 from impress_remote.local_server import RemoteServer, SecureDirectSession, _url_with_fragment_params
 from impress_remote.protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
 
@@ -24,6 +25,8 @@ class PairingServerStub:
     _direct_ipv6_status = RemoteServer._direct_ipv6_status
     _direct_ipv6_hint = RemoteServer._direct_ipv6_hint
     _network_settings = RemoteServer._network_settings
+    _route_mode = RemoteServer._route_mode
+    _route_uses_local_listener = RemoteServer._route_uses_local_listener
 
     def __init__(
         self,
@@ -33,8 +36,9 @@ class PairingServerStub:
         direct_urls: list[str] | None = None,
         enable_relay: bool = False,
         relay_url: str = "",
-        preferred_route: str = "auto",
+        preferred_route: str = "local",
         enable_local_listener: bool = True,
+        enable_tunnel: bool = True,
         enable_ipv6_direct: bool = True,
         local_port: int = 17865,
     ) -> None:
@@ -54,14 +58,18 @@ class PairingServerStub:
         self.url = ""
         self.bound_port = local_port
         self.commands: list[tuple[str, int | None]] = []
-        self.config = SimpleNamespace(
+        self.config = RemoteConfig(
             local_port=local_port,
             enable_relay=enable_relay,
             relay_url=relay_url,
             preferred_route=preferred_route,
             enable_local_listener=enable_local_listener,
+            enable_tunnel=enable_tunnel,
+            tunnel_host="https://localtunnel.me",
+            tunnel_subdomain="",
             enable_ipv6_direct=enable_ipv6_direct,
         )
+        self.tunnel_client = None
         self.controller = SimpleNamespace(
             state=lambda: SimpleNamespace(
                 document_kind="impress",
@@ -70,11 +78,7 @@ class PairingServerStub:
             ),
             command=lambda name, index=None: self.commands.append((name, index)),
         )
-        self._active_network_settings = (
-            local_port,
-            enable_local_listener,
-            enable_ipv6_direct,
-        )
+        self._active_network_settings = (local_port, preferred_route)
         self.client_connected = False
         self.client_connection_source = ""
         self.last_client_seen_at = 0.0
@@ -293,7 +297,7 @@ class LocalServerTests(unittest.TestCase):
 
         self.assertIsNone(payload)
 
-    def test_pairing_target_prefers_local_route_for_auto_mode(self) -> None:
+    def test_pairing_target_uses_local_route_by_default(self) -> None:
         server = PairingServerStub(
             local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],
             direct_urls=["http://[2606:4700:4700::1111]:17865/#mode=ipv6&s=demo123&k=pairsecret"],
@@ -301,46 +305,34 @@ class LocalServerTests(unittest.TestCase):
             relay_url="https://relay.example.com",
         )
 
-        pairing = server.pairing_target("auto")
+        pairing = server.pairing_target()
 
-        self.assertEqual(pairing["requestedRoute"], "auto")
+        self.assertEqual(pairing["requestedRoute"], "local")
         self.assertEqual(pairing["selectedRoute"], "local")
         self.assertEqual(
             pairing["selectedUrl"],
             "http://192.168.1.20:17865/#s=demo123&k=pairsecret",
         )
 
-    def test_pairing_target_falls_back_to_relay_in_auto_mode(self) -> None:
+    def test_pairing_target_uses_explicit_relay_mode(self) -> None:
         server = PairingServerStub(
             local_urls=[],
             direct_urls=[],
             enable_relay=True,
             relay_url="https://relay.example.com/base",
+            preferred_route="relay",
         )
 
-        pairing = server.pairing_target("auto")
+        pairing = server.pairing_target()
 
+        self.assertEqual(pairing["requestedRoute"], "relay")
         self.assertEqual(pairing["selectedRoute"], "relay")
         self.assertEqual(
             pairing["selectedUrl"],
             "https://relay.example.com/base#mode=relay&s=demo123&k=pairsecret&a=relaytoken",
         )
 
-    def test_pairing_target_hides_local_route_when_local_listener_is_disabled(self) -> None:
-        server = PairingServerStub(
-            local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],
-            direct_urls=["http://[2606:4700:4700::1111]:17865/#mode=ipv6&s=demo123&k=pairsecret"],
-            enable_relay=True,
-            relay_url="https://relay.example.com/base",
-            enable_local_listener=False,
-        )
-
-        pairing = server.pairing_target("local")
-
-        self.assertEqual(pairing["selectedUrl"], "")
-        self.assertIn("disabled", pairing["hint"])
-
-    def test_console_url_falls_back_to_auto_when_manual_route_is_unavailable(self) -> None:
+    def test_console_url_is_empty_when_selected_route_is_unavailable(self) -> None:
         server = PairingServerStub(
             local_urls=["http://192.168.1.20:17865/#s=demo123&k=pairsecret"],
             direct_urls=[],
@@ -349,10 +341,7 @@ class LocalServerTests(unittest.TestCase):
             preferred_route="ipv6",
         )
 
-        self.assertEqual(
-            server.console_url(),
-            "http://192.168.1.20:17865/#s=demo123&k=pairsecret",
-        )
+        self.assertEqual(server.console_url(), "")
 
     def test_mark_client_activity_ignores_loopback_requests(self) -> None:
         server = PairingServerStub()
@@ -380,7 +369,7 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(server.commands, [("start_presentation_from_first_slide", None)])
 
     def test_direct_ipv6_hint_reports_missing_public_ipv6(self) -> None:
-        server = PairingServerStub(direct_urls=[])
+        server = PairingServerStub(direct_urls=[], preferred_route="ipv6")
         server.direct_ipv6_addresses = []
         server.direct_ipv6_ready_addresses = []
 
@@ -389,7 +378,7 @@ class LocalServerTests(unittest.TestCase):
         self.assertIn("globally reachable ipv6 address", hint.lower())
 
     def test_direct_ipv6_hint_reports_self_test_failures(self) -> None:
-        server = PairingServerStub(direct_urls=[])
+        server = PairingServerStub(direct_urls=[], preferred_route="ipv6")
         server.direct_ipv6_addresses = ["2606:4700:4700::1111"]
         server.direct_ipv6_ready_addresses = []
 

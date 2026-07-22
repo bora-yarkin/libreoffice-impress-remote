@@ -215,6 +215,10 @@ class ImpressController:
                 self._clear_blank_tracking(key)
                 controller.gotoSlideIndex(index)
                 return
+            if name == "goto_first_slide":
+                self._clear_blank_tracking(key)
+                controller.gotoSlideIndex(0)
+                return
             if name == "pause_presentation" and hasattr(controller, "pause"):
                 controller.pause()
                 return
@@ -243,6 +247,8 @@ class ImpressController:
             self._set_editing_slide(document, self._editing_slide_index(document) + 1)
         elif name == "previous_slide":
             self._set_editing_slide(document, self._editing_slide_index(document) - 1)
+        elif name == "goto_first_slide":
+            self._set_editing_slide(document, 0)
         elif name == "goto_slide" and index is not None:
             self._set_editing_slide(document, index)
 

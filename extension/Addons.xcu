@@ -9,32 +9,31 @@
           <prop oor:name="MergeFallback" oor:type="xs:string"><value>AddLast</value></prop>
           <prop oor:name="MergeContext" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
           <node oor:name="MenuItems">
-            <node oor:name="presentation_remote" oor:op="replace">
-              <prop oor:name="Title" oor:type="xs:string">
-                <value xml:lang="en">Presentation Remote</value>
-                <value xml:lang="tr">Sunum Kumandasi</value>
-              </prop>
+            <node oor:name="separator_before_remote" oor:op="replace">
+              <prop oor:name="URL" oor:type="xs:string"><value>private:separator</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
-              <node oor:name="Submenu">
-                <node oor:name="toggle" oor:op="replace">
-                  <prop oor:name="Title" oor:type="xs:string">
-                    <value xml:lang="en">Start Remote</value>
-                    <value xml:lang="tr">Kumandayi Baslat</value>
-                  </prop>
-                  <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:toggle</value></prop>
-                  <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
-                  <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
-                </node>
-                <node oor:name="settings" oor:op="replace">
-                  <prop oor:name="Title" oor:type="xs:string">
-                    <value xml:lang="en">Advanced Remote Settings</value>
-                    <value xml:lang="tr">Gelismis Kumanda Ayarlari</value>
-                  </prop>
-                  <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:settings</value></prop>
-                  <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
-                  <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
-                </node>
-              </node>
+            </node>
+            <node oor:name="toggle" oor:op="replace">
+              <prop oor:name="Title" oor:type="xs:string">
+                <value xml:lang="en">Start Remote</value>
+                <value xml:lang="tr">Kumandayi Baslat</value>
+              </prop>
+              <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:toggle</value></prop>
+              <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+              <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
+            </node>
+            <node oor:name="settings" oor:op="replace">
+              <prop oor:name="Title" oor:type="xs:string">
+                <value xml:lang="en">Remote Settings</value>
+                <value xml:lang="tr">Kumanda Ayarlari</value>
+              </prop>
+              <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:settings</value></prop>
+              <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+              <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
+            </node>
+            <node oor:name="separator_after_remote" oor:op="replace">
+              <prop oor:name="URL" oor:type="xs:string"><value>private:separator</value></prop>
+              <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
             </node>
           </node>
         </node>
@@ -61,8 +60,8 @@
             <node oor:name="advanced_settings" oor:op="replace">
               <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:settings</value></prop>
               <prop oor:name="Title" oor:type="xs:string">
-                <value xml:lang="en">Advanced Remote Settings</value>
-                <value xml:lang="tr">Gelismis Kumanda Ayarlari</value>
+                <value xml:lang="en">Remote Settings</value>
+                <value xml:lang="tr">Kumanda Ayarlari</value>
               </prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
@@ -90,8 +89,8 @@
             <node oor:name="advanced_settings" oor:op="replace">
               <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:settings</value></prop>
               <prop oor:name="Title" oor:type="xs:string">
-                <value xml:lang="en">Advanced Remote Settings</value>
-                <value xml:lang="tr">Gelismis Kumanda Ayarlari</value>
+                <value xml:lang="en">Remote Settings</value>
+                <value xml:lang="tr">Kumanda Ayarlari</value>
               </prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
@@ -119,8 +118,8 @@
             <node oor:name="advanced_settings" oor:op="replace">
               <prop oor:name="URL" oor:type="xs:string"><value>vnd.org.borayarkin.impressremote:settings</value></prop>
               <prop oor:name="Title" oor:type="xs:string">
-                <value xml:lang="en">Advanced Remote Settings</value>
-                <value xml:lang="tr">Gelismis Kumanda Ayarlari</value>
+                <value xml:lang="en">Remote Settings</value>
+                <value xml:lang="tr">Kumanda Ayarlari</value>
               </prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>

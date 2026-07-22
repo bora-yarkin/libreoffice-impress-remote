@@ -5,7 +5,7 @@
 
 The extension is packaged as an `.oxt` archive. It should remain as self-contained as possible.
 
-As of `0.6.19`, the extension owns Impress-only Slide Show menu and supported-toolbar integration, pairing, route selection, QR generation, transport settings, encrypted ECDH local/direct transport with a Safari-compatible authenticated local fallback, relay pairing verifiers, encrypted relay asset publishing, relay session-status probing, runtime issue reporting, local full-deck preview prewarming, bundled Python relay/Cloudflare relay/documentation export, source-only packaging, and English/Turkish localization plumbing. The phone UI is intentionally lightweight and settings-free, but now includes a phone timer and compact icon-only slideshow controls from the shared `shared/webui/` source that is vendored into the `.oxt` at build time.
+As of `0.7.6`, the extension owns Impress-only Slide Show menu and supported-toolbar integration, pairing, explicit mode selection, QR generation, encrypted ECDH local/direct/tunnel transport with a Safari-compatible authenticated local fallback, vendored LocalTunnel-compatible fallback, relay pairing verifiers, encrypted relay asset publishing, relay session-status probing, copyable diagnostic error reporting, local full-deck preview prewarming, bundled documentation/relay export, dynamic localization catalogs, polished install metadata, and shared frontend asset manifests. The phone UI is intentionally lightweight and settings-free, but now includes presentation and slide timers, compact icon-only slideshow controls, and a fullscreen slide mode from the shared `shared/webui/` source that is vendored into the `.oxt` at build time.
 
 ## Rules
 
@@ -31,16 +31,16 @@ LibreOffice -> Tools -> Extensions -> Add
 
 ## Bundled Resources
 
-The `.oxt` includes version-matched support bundles under `resources/`:
+The `.oxt` includes version-matched resource bundles under `resources/`:
 
+- `impress-remote-docs-<version>.zip`
 - `impress-remote-relay-python-<version>.zip`
 - `impress-remote-relay-cloudflare-<version>.zip`
-- `impress-remote-docs-<version>.zip`
 
-Users do not need GitHub to get the matching relay server or documentation for the installed extension. Open:
+Users do not need GitHub to get the matching documentation or relay server for the installed extension. Open:
 
 ```text
-Slide Show -> Presentation Remote -> Advanced Remote Settings
+Slide Show -> Remote Settings
 ```
 
-Then use `Get Relay Server`, `Get Cloudflare Relay`, or `Get Documentation`. LibreOffice asks for an export folder when the platform folder picker is available and otherwise falls back to the user's Downloads folder.
+Then select Relay Server mode and use `Get Documentation`, `Get Relay Server`, or `Get Cloudflare Relay`. LibreOffice asks for an export folder when the platform folder picker is available and otherwise falls back to the user's Downloads folder.

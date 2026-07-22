@@ -2,7 +2,6 @@
   "include": [
     "extension/python",
     "server/src",
-    "server/tests",
     "tests",
     "tools"
   ],

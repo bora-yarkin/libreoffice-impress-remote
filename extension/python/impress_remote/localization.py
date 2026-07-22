@@ -14,7 +14,6 @@ from typing import Any
 from impress_remote.paths import module_file_path
 
 DEFAULT_LOCALE = "en"
-SUPPORTED_LOCALES = ("en", "tr")
 
 
 def localization_root() -> Path:
@@ -22,7 +21,7 @@ def localization_root() -> Path:
     packaged_root = module_path.parents[2] / "web" / "localizations"
     if _has_catalog(packaged_root):
         return packaged_root
-    shared_root = module_path.parents[3] / "localizations"
+    shared_root = module_path.parents[3] / "shared" / "localizations"
     if _has_catalog(shared_root):
         return shared_root
     return packaged_root
@@ -30,6 +29,22 @@ def localization_root() -> Path:
 
 def _has_catalog(path: Path) -> bool:
     return (path / f"{DEFAULT_LOCALE}.json").is_file()
+
+
+def available_locales() -> tuple[str, ...]:
+    root = localization_root()
+    locales = sorted(path.stem for path in root.glob("*.json") if path.name != "manifest.json")
+    if DEFAULT_LOCALE not in locales and (root / f"{DEFAULT_LOCALE}.json").is_file():
+        locales.insert(0, DEFAULT_LOCALE)
+    return tuple(locales or (DEFAULT_LOCALE,))
+
+
+def localization_manifest() -> dict[str, object]:
+    return {
+        "version": 1,
+        "defaultLocale": DEFAULT_LOCALE,
+        "locales": list(available_locales()),
+    }
 
 
 def current_locale() -> str:
@@ -49,7 +64,7 @@ def current_locale() -> str:
 
 def normalize_locale(value: str) -> str:
     language = value.strip().replace("-", "_").split(".", 1)[0].split("_", 1)[0].lower()
-    return language if language in SUPPORTED_LOCALES else ""
+    return language if language in available_locales() else ""
 
 
 @lru_cache(maxsize=16)

@@ -4,7 +4,7 @@
 from pathlib import Path
 import runpy
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_tool_scripts_can_be_loaded_like_direct_entrypoints() -> None:
@@ -12,5 +12,7 @@ def test_tool_scripts_can_be_loaded_like_direct_entrypoints() -> None:
         "tools/build_oxt.py",
         "tools/build_release_bundle.py",
         "tools/build_cloudflare_bundle.py",
+        "tools/import_localizations.py",
+        "tools/validate_relay_compat.py",
     ):
         runpy.run_path(str(ROOT / script), run_name="not_main")

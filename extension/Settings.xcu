@@ -18,6 +18,15 @@
     <prop oor:name="EnableRelay" oor:type="xs:boolean">
         <value>false</value>
     </prop>
+    <prop oor:name="EnableTunnel" oor:type="xs:boolean">
+        <value>true</value>
+    </prop>
+    <prop oor:name="TunnelHost" oor:type="xs:string">
+        <value>https://localtunnel.me</value>
+    </prop>
+    <prop oor:name="TunnelSubdomain" oor:type="xs:string">
+        <value></value>
+    </prop>
     <prop oor:name="EnableIpv6Direct" oor:type="xs:boolean">
         <value>true</value>
     </prop>
@@ -25,6 +34,6 @@
         <value>true</value>
     </prop>
     <prop oor:name="PreferredRoute" oor:type="xs:string">
-        <value>auto</value>
+        <value>local</value>
     </prop>
 </oor:component-data>

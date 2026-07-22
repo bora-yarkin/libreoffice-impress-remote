@@ -3,7 +3,7 @@
 
 # End-to-End Encryption
 
-Current local, direct IPv6, and relay profile in `0.6.19`:
+Current local, LocalTunnel, direct IPv6, and relay profile in `0.7.6`:
 
 ```text
 Pairing verifier in QR/manual-link fragment
@@ -31,6 +31,7 @@ The long-term goal is still one shared encrypted message format across local, re
 | --- | --- | --- | --- |
 | Local with Web Crypto | AES-256-GCM encrypted frames for state, commands, and slide assets. | Ephemeral P-256 ECDH plus pairing verifier; direct HTTP requests must also carry the session id. | Static web shell is still served over HTTP. |
 | Local Safari compatibility | Plaintext state, commands, and slide assets. | Every `/api/local/*` request must include the session id and pairing verifier headers and come from a local-network client. | Same-LAN observers can see traffic; use only on trusted local networks. |
+| LocalTunnel | AES-256-GCM encrypted frames for state, commands, and slide assets through the tunnel. | Ephemeral P-256 ECDH plus pairing verifier; direct HTTP requests must also carry the session id. | The tunnel provider and public URL must be trusted as frontend delivery infrastructure. |
 | Direct IPv6 | AES-256-GCM encrypted frames for state, commands, and slide assets. | Ephemeral P-256 ECDH plus pairing verifier; direct HTTP requests must also carry the session id. | Public reachability and firewall exposure must be handled carefully. |
 | Relay | AES-256-GCM encrypted frames through the relay. | Ephemeral P-256 ECDH plus pairing verifier and relay admission token. | Relay-hosted frontend delivery still has to be trusted or verified. |
 
@@ -38,18 +39,20 @@ The long-term goal is still one shared encrypted message format across local, re
 
 If the phone UI is loaded from the relay server, a malicious relay can serve hostile JavaScript. The E2E design protects against passive or honest-but-curious relays, not against a relay that controls frontend delivery unless the frontend is pinned, audited, or installed from a trusted source.
 
-For `0.6.19`, the supported relay trust model is:
+For `0.7.6`, the supported relay trust model is:
 
 - self-host the published Python or Cloudflare relay bundle
 - verify `asset-manifest.json` against the published release artifact before trusting the hosted phone UI
+- use the packaged page with subresource-integrity attributes for the shared CSS and JavaScript assets
 
-For local and direct IPv6, the supported trust model is:
+For local, LocalTunnel, and direct IPv6, the supported trust model is:
 
 - the QR/manual link carries the pairing verifier in the fragment, which is not sent in HTTP requests
 - presenter state, slide assets, and commands use encrypted frames after the web shell loads
-- direct local/IPv6 endpoints require the session id from the pairing fragment before being treated as paired client activity
+- direct local/tunnel/IPv6 endpoints require the session id from the pairing fragment before being treated as paired client activity
 - Safari local compatibility can use local-network-only authenticated plaintext `/api/local/*` polling only when the browser does not expose Web Crypto
-- direct IPv6 and relay mode still require Web Crypto and fail closed when encrypted transport is unavailable
+- LocalTunnel, direct IPv6, and relay mode still require Web Crypto and fail closed when encrypted transport is unavailable
 - the web shell itself is still served over HTTP, so this protects against passive local-network observers but not an active local attacker that can modify JavaScript in transit
+- LocalTunnel serves the same web shell through the tunnel provider, so treat the public tunnel URL as secret and trust the provider as frontend delivery infrastructure
 
-That is a practical deployment policy, not a cryptographic frontend pinning scheme. Stronger frontend trust still depends on future work such as local HTTPS, signed frontend assets, or another explicit trusted-frontend distribution story.
+That is a practical deployment policy and a frontend-integrity baseline, not a complete defense against an attacker that can replace the initial HTML page. Stronger local frontend trust still depends on future work such as local HTTPS or an installed/trusted phone shell.

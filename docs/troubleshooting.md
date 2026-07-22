@@ -83,23 +83,23 @@ The extension should avoid hard imports from `com.sun.star` in top-level module 
 
 ## Extension Installs But Menu Is Missing
 
-The Presentation Remote menu is intentionally Impress-only.
+The remote menu actions are intentionally Impress-only.
 
 Check:
 
 1. Open a real Impress presentation, not Writer, Calc, Draw, or the LibreOffice Start Center.
-2. Look under `Slide Show -> Presentation Remote`.
+2. Look under `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`.
 3. If it is still missing, restart LibreOffice after installation.
 4. If it remains missing, remove and reinstall the OXT.
 
-Toolbar integration depends on the active LibreOffice UI mode. The Slide Show submenu is the canonical entry point.
+Toolbar integration depends on the active LibreOffice UI mode. The Slide Show menu actions are the canonical entry points.
 
 ## Settings Dialog Does Not Open
 
 Try this sequence:
 
 1. Open an Impress document.
-2. Choose `Slide Show -> Presentation Remote -> Advanced Remote Settings`.
+2. Choose `Slide Show -> Remote Settings`.
 3. If nothing happens, quit LibreOffice and start it again.
 4. Reinstall the extension if the menu exists but every command is inert.
 
@@ -115,18 +115,19 @@ This browser does not expose Web Crypto required for encrypted remote transport.
 
 make sure you installed a build at or after `0.6.12`. Local mode should fall back to authenticated plaintext polling when Safari does not expose Web Crypto on a LAN HTTP address.
 
-Relay and direct IPv6 still require Web Crypto. If you forced Relay only or Direct IPv6 only, use a browser/context that exposes Web Crypto or switch back to Auto/Local for same-network testing.
+LocalTunnel, relay, and direct IPv6 still require Web Crypto. If you selected LocalTunnel, Relay Server, or Direct IPv6, use a browser/context that exposes Web Crypto or switch back to Local network mode for same-network testing.
 
 ## QR Code Is Empty Or Manual Link Is Missing
 
-Open `Advanced Remote Settings` and check:
+Open `Remote Settings` and check:
 
-- local listener is enabled for local mode
-- relay is enabled only if a relay URL is configured
-- direct IPv6 is enabled only if the network provides public IPv6
+- Local network mode is selected for same-Wi-Fi or hotspot testing
+- LocalTunnel mode is selected only when you want a temporary public tunnel
+- Relay Server mode has a relay URL configured
+- Direct IPv6 mode is selected only if the network provides public IPv6
 - the remote is running
 
-If Auto cannot find any route, enable local mode and restart the remote.
+If the selected mode cannot produce a link, switch back to Local network and restart the remote.
 
 ## Local Pairing Does Not Connect
 
@@ -134,7 +135,7 @@ Try:
 
 1. Put the phone and computer on the same Wi-Fi or the same phone hotspot.
 2. Disable VPNs or firewall rules that block local device connections.
-3. Use the Manual Link in Advanced Remote Settings as a backup.
+3. Use the Manual Link in Remote Settings as a backup.
 4. If public Wi-Fi blocks device-to-device traffic, use a phone hotspot or relay mode.
 
 The local URL often starts with a private address such as `192.168.x.x`, `10.x.x.x`, or `172.20.x.x`.
@@ -143,10 +144,10 @@ The local URL often starts with a private address such as `192.168.x.x`, `10.x.x
 
 Check:
 
-1. The relay URL is saved in Advanced Remote Settings.
+1. The relay URL is saved in Remote Settings.
 2. The relay is reachable over HTTPS or the expected HTTP test URL.
 3. `/health` works on the relay.
 4. The phone opens the full relay link with the `#mode=relay&s=...&k=...&a=...` fragment intact.
 5. Reverse proxy websocket forwarding is enabled for `/ws`.
 
-See [Relay Server](relay-server.md) for deployment details.
+See [Relay And Deployment](relay.md) for deployment details.

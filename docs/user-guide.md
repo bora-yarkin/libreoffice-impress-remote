@@ -8,7 +8,7 @@ LibreOffice Impress Remote is local-first. The normal path is: open a presentati
 ## Recommended Local Workflow
 
 1. Open the presentation in LibreOffice Impress.
-2. Choose `Slide Show -> Presentation Remote -> Start Remote`.
+2. Choose `Slide Show -> Start Remote`.
 3. Keep your phone on the same Wi-Fi, or connect the computer to the phone hotspot.
 4. Scan the QR code from the phone camera.
 5. Use the phone UI for previous, next, tap-to-advance, and presenter notes.
@@ -28,20 +28,20 @@ If the phone opens a URL like `http://172.20.10.8:17865/#...`, that is normal fo
 
 ## Route Choices
 
-Use `Advanced Remote Settings` when you need to force a route:
+Use `Slide Show -> Remote Settings` when you need to force a route:
 
 | Route | Use When | Notes |
 | --- | --- | --- |
-| Auto | Normal use | Tries local, then direct IPv6, then relay. |
 | Local only | Same Wi-Fi or hotspot testing | Recommended primary path. |
+| LocalTunnel only | Phone cannot reach local mode | Uses a temporary public tunnel URL and does not require the project relay server. Treat the generated URL like a secret pairing link. |
 | Direct IPv6 only | Both devices have public IPv6 | Requires firewall/router support and is not common on every network. |
-| Relay only | Local and IPv6 do not work | Requires a self-hosted relay URL. |
+| Relay only | Self-hosted relay testing | Requires saving a relay URL in Remote Settings. |
 
 ## Manual Link Backup
 
 The QR code is preferred because it preserves the full pairing fragment. If scanning fails:
 
-1. Open `Advanced Remote Settings`.
+1. Open `Remote Settings`.
 2. Copy the Manual Link.
 3. Send it to the phone without changing the `#...` fragment.
 

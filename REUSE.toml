@@ -21,7 +21,7 @@ path = [
   "extension/Addons.xcu",
   "extension/ProtocolHandler.xcu",
   "shared/webui/**",
-  "localizations/**",
+  "shared/localizations/**",
   "extension/icons/**",
 ]
 precedence = "override"

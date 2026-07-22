@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 import hmac
+import base64
+import hashlib
 import ipaddress
 import socket
 import threading
@@ -14,7 +16,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from impress_remote.build_features import localtunnel_enabled, relay_enabled
 from impress_remote.config import (
+    DEFAULT_PREFERRED_ROUTE,
     RemoteConfig,
     normalize_preferred_route,
     relay_join_url,
@@ -29,7 +33,13 @@ from impress_remote.network import (
     format_http_url,
     probe_ipv6_listener,
 )
-from impress_remote.localization import localization_root, translate
+from impress_remote.localization import (
+    available_locales,
+    localization_manifest,
+    localization_root,
+    translate,
+)
+from impress_remote.localtunnel_client import LocalTunnelClient
 from impress_remote.paths import resolve_packaged_or_shared_dir
 from impress_remote.protocol import (
     RELAY_KIND_COMMAND,
@@ -47,7 +57,6 @@ WEB_ROOT = resolve_packaged_or_shared_dir(
     ("shared", "webui"),
 )
 LOCALIZATION_ROOT = localization_root()
-AUTO_ROUTE_PRIORITY = ("local", "ipv6", "relay")
 MAX_JSON_BODY_BYTES = 16 * 1024
 
 
@@ -69,6 +78,42 @@ def _json_object(raw: str) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError(translate("error.configJson"))
     return payload
+
+
+def _asset_entry(data: bytes) -> dict[str, object]:
+    digest = hashlib.sha256(data)
+    return {
+        "sha256": digest.hexdigest(),
+        "sha256SRI": "sha256-" + base64.b64encode(digest.digest()).decode("ascii"),
+        "bytes": len(data),
+    }
+
+
+def _web_asset_manifest() -> dict[str, object]:
+    files: dict[str, dict[str, object]] = {}
+    bundle_hash = hashlib.sha256()
+    for path in sorted(WEB_ROOT.rglob("*")):
+        if not path.is_file() or path.name == "asset-manifest.json":
+            continue
+        relative_name = str(path.relative_to(WEB_ROOT)).replace("\\", "/")
+        data = path.read_bytes()
+        entry = _asset_entry(data)
+        digest = str(entry["sha256"])
+        files[relative_name] = entry
+        bundle_hash.update(relative_name.encode("utf-8"))
+        bundle_hash.update(b"\0")
+        bundle_hash.update(digest.encode("ascii"))
+    manifest_data = json.dumps(localization_manifest(), indent=2, sort_keys=True).encode("utf-8")
+    manifest_entry = _asset_entry(manifest_data)
+    manifest_digest = str(manifest_entry["sha256"])
+    files["localizations/manifest.json"] = manifest_entry
+    bundle_hash.update(b"localizations/manifest.json\0")
+    bundle_hash.update(manifest_digest.encode("ascii"))
+    return {
+        "version": 1,
+        "bundleSha256": bundle_hash.hexdigest(),
+        "files": files,
+    }
 
 
 def _is_local_compatibility_client(client_host: str | None) -> bool:
@@ -187,13 +232,10 @@ class RemoteServer:
         self.direct_ipv6_ready_addresses: list[str] = []
         self.listener_warnings: list[str] = []
         self.bound_port = self.config.local_port
-        self._active_network_settings = (
-            self.config.local_port,
-            self.config.enable_local_listener,
-            self.config.enable_ipv6_direct,
-        )
+        self._active_network_settings = self._network_settings(self.config)
         self.pending_restart = False
         self.relay_client: RelayClient | None = None
+        self.tunnel_client: LocalTunnelClient | None = None
         self._runtime_requested = False
         self.client_connected = False
         self.client_connection_source = ""
@@ -207,7 +249,8 @@ class RemoteServer:
 
     def is_running(self) -> bool:
         relay_running = self.relay_client is not None and self.relay_client.is_running()
-        return bool(self.http_servers) or relay_running
+        tunnel_running = self.tunnel_client is not None and self.tunnel_client.is_running()
+        return bool(self.http_servers) or relay_running or tunnel_running
 
     def start(self) -> None:
         if self.is_running():
@@ -238,6 +281,7 @@ class RemoteServer:
                 thread.start()
                 self.threads.append(thread)
 
+            self._sync_tunnel_client()
             self._sync_relay_client()
             self._refresh_urls()
             self._prewarm_local_slide_cache()
@@ -249,6 +293,7 @@ class RemoteServer:
 
     def stop(self) -> None:
         self._runtime_requested = False
+        self._stop_tunnel_client()
         self._stop_relay_client()
         for server in self.http_servers:
             server.shutdown()
@@ -366,7 +411,7 @@ class RemoteServer:
         preferred = self.pairing_target(self.config.preferred_route)
         if preferred["selectedUrl"]:
             return preferred["selectedUrl"]
-        fallback = self.pairing_target("auto")
+        fallback = self.pairing_target(DEFAULT_PREFERRED_ROUTE)
         if fallback["selectedUrl"]:
             return fallback["selectedUrl"]
         return self.url
@@ -515,16 +560,27 @@ class RemoteServer:
         relay_status = {"state": "disabled", "lastError": ""}
         if self.relay_client is not None:
             relay_status = self.relay_client.status()
+        tunnel_status = {"state": "disabled", "lastError": "", "url": ""}
+        if self.tunnel_client is not None:
+            tunnel_status = self.tunnel_client.status()
         pairing = self.pairing_target(self.config.preferred_route)
         route_urls = self.route_urls()
-        join_url = route_urls["relay"]
+        relay_join = route_urls["relay"]
+        tunnel_join = route_urls["tunnel"]
         return {
             "session": self.session_id,
             "running": self.is_running(),
             "localPort": self.bound_port,
             "requestedLocalPort": self.config.local_port,
-            "enableLocalListener": self.config.enable_local_listener,
-            "enableIpv6Direct": self.config.enable_ipv6_direct,
+            "enableLocalListener": self._route_uses_local_listener(self.config),
+            "enableTunnel": self.config.enable_tunnel,
+            "tunnelHost": self.config.tunnel_host,
+            "tunnelSubdomain": self.config.tunnel_subdomain,
+            "tunnelUrl": tunnel_status["url"],
+            "tunnelJoinUrl": tunnel_join,
+            "tunnelStatus": tunnel_status["state"],
+            "tunnelLastError": tunnel_status["lastError"],
+            "enableIpv6Direct": self._route_mode(self.config) == "ipv6",
             "localUrls": list(self.local_urls),
             "directUrls": list(self.direct_urls),
             "ipv6GlobalAddresses": list(self.direct_ipv6_addresses),
@@ -533,10 +589,11 @@ class RemoteServer:
             "ipv6Hint": self._direct_ipv6_hint(),
             "listenerWarnings": list(self.listener_warnings),
             "configPendingRestart": self.pending_restart,
-            "relayEnabled": self.config.enable_relay,
+            "relayAvailable": relay_enabled(),
+            "relayEnabled": self._route_mode(self.config) == "relay",
             "relayConfigured": bool(self.config.relay_url),
             "relayUrl": self.config.relay_url,
-            "relayJoinUrl": join_url,
+            "relayJoinUrl": relay_join,
             "relaySessionStatusUrl": (
                 relay_session_status_url(
                     self.config.relay_url,
@@ -554,6 +611,7 @@ class RemoteServer:
             "pairingUrl": pairing["selectedUrl"],
             "pairingHint": pairing["hint"],
             "routeLocalUrl": route_urls["local"],
+            "routeTunnelUrl": route_urls["tunnel"],
             "routeIpv6Url": route_urls["ipv6"],
             "routeRelayUrl": route_urls["relay"],
             "relayStatus": relay_status["state"],
@@ -590,25 +648,42 @@ class RemoteServer:
 
     def preview_route_urls(self, config: RemoteConfig) -> dict[str, str]:
         if not self.is_running():
-            return {"local": "", "ipv6": "", "relay": ""}
+            return {"local": "", "tunnel": "", "ipv6": "", "relay": ""}
         listeners_match = self._network_settings(config) == self._active_network_settings
         relay_url = ""
-        if config.enable_relay and config.relay_url:
+        if relay_enabled() and self._route_mode(config) == "relay" and config.relay_url:
             relay_url = relay_join_url(
                 config.relay_url,
                 self.session_id,
                 self.pairing_secret,
                 self.relay_admission_token,
             )
+        tunnel_url = ""
+        if (
+            localtunnel_enabled()
+            and listeners_match
+            and self._route_mode(config) == "tunnel"
+            and self.tunnel_client is not None
+        ):
+            status = self.tunnel_client.status()
+            public_url = str(status.get("url", "")).strip()
+            if public_url and status.get("state") == "ready":
+                tunnel_url = _url_with_fragment_params(
+                    public_url,
+                    mode="tunnel",
+                    s=self.session_id,
+                    k=self.pairing_secret,
+                )
         return {
             "local": (
                 self.local_urls[0]
-                if listeners_match and config.enable_local_listener and self.local_urls
+                if listeners_match and self._route_mode(config) == "local" and self.local_urls
                 else ""
             ),
+            "tunnel": tunnel_url,
             "ipv6": (
                 self.direct_urls[0]
-                if listeners_match and config.enable_ipv6_direct and self.direct_urls
+                if listeners_match and self._route_mode(config) == "ipv6" and self.direct_urls
                 else ""
             ),
             "relay": relay_url,
@@ -623,21 +698,18 @@ class RemoteServer:
         route_mode: str | None = None,
     ) -> dict[str, str]:
         requested = normalize_preferred_route(route_mode or config.preferred_route)
-        route_urls = self.preview_route_urls(config)
+        if requested == "relay" and not relay_enabled():
+            requested = DEFAULT_PREFERRED_ROUTE
+        preview_config = config.merge({"preferredRoute": requested})
+        route_urls = self.preview_route_urls(preview_config)
         selected = requested
-        if requested == "auto":
-            selected = ""
-            for candidate in AUTO_ROUTE_PRIORITY:
-                if route_urls[candidate]:
-                    selected = candidate
-                    break
         selected_url = route_urls.get(selected, "") if selected else ""
         return {
             "requestedRoute": requested,
             "selectedRoute": selected,
             "selectedLabel": route_label(selected) if selected else "",
             "selectedUrl": selected_url,
-            "hint": self._pairing_hint(requested, selected, route_urls, config),
+            "hint": self._pairing_hint(requested, selected, route_urls, preview_config),
         }
 
     def update_config(self, updated: RemoteConfig, restart_runtime: bool) -> None:
@@ -651,14 +723,14 @@ class RemoteServer:
             return
 
         self.pending_restart = self.is_running() and network_changed
+        self._sync_tunnel_client()
         self._sync_relay_client()
         self._refresh_urls()
 
-    def _network_settings(self, config: RemoteConfig) -> tuple[int, bool, bool]:
+    def _network_settings(self, config: RemoteConfig) -> tuple[int, str]:
         return (
             config.local_port,
-            config.enable_local_listener,
-            config.enable_ipv6_direct,
+            normalize_preferred_route(config.preferred_route),
         )
 
     def _refresh_urls(self) -> None:
@@ -686,6 +758,8 @@ class RemoteServer:
         route_urls = self.route_urls()
         if route_urls["local"]:
             self.url = route_urls["local"]
+        elif route_urls["tunnel"]:
+            self.url = route_urls["tunnel"]
         elif route_urls["ipv6"]:
             self.url = route_urls["ipv6"]
         elif route_urls["relay"]:
@@ -788,31 +862,29 @@ class RemoteServer:
         if selected_route and route_urls.get(selected_route):
             if selected_route == "ipv6":
                 return translate("localServer.hint.directIPv6")
-            if requested_route == "auto" and selected_route != "local":
-                return translate(
-                    "localServer.hint.autoSelected",
-                    route=route_label(selected_route).lower(),
-                )
             return translate("localServer.hint.route", route=route_label(selected_route).lower())
         if self._network_settings(config) != self._active_network_settings:
             return translate("localServer.hint.restart")
+        if requested_route == "tunnel":
+            if not localtunnel_enabled():
+                return translate("localServer.hint.tunnelUnavailable")
+            status = self.tunnel_client.status() if self.tunnel_client is not None else {}
+            if status.get("state") == "error" and status.get("lastError"):
+                return translate("localServer.hint.tunnelError", error=status["lastError"])
+            return translate("localServer.hint.tunnelStarting")
         if requested_route == "relay":
-            if not config.enable_relay:
-                return translate("localServer.hint.relayDisabled")
+            if not relay_enabled():
+                return translate("localServer.hint.relayUnavailable")
             return translate("localServer.hint.relayMissing")
         if requested_route == "ipv6":
-            if not config.enable_ipv6_direct:
-                return translate("localServer.directIPv6.disabled")
             return self._direct_ipv6_hint(config)
         if requested_route == "local":
-            if not config.enable_local_listener:
-                return translate("localServer.hint.localDisabled")
             return translate("localServer.hint.localUnavailable")
         return translate("localServer.hint.noRoute")
 
     def _direct_ipv6_status(self, config: RemoteConfig | None = None) -> str:
         candidate = config or self.config
-        if not candidate.enable_ipv6_direct:
+        if self._route_mode(candidate) != "ipv6":
             return "disabled"
         if not any(server.address_family == socket.AF_INET6 for server in self.http_servers):
             return "listener-unavailable"
@@ -834,15 +906,20 @@ class RemoteServer:
             return translate("localServer.directIPv6.selfTestFailed", port=self.bound_port)
         return translate("localServer.directIPv6.ready")
 
+    def _should_run_tunnel(self, config: RemoteConfig) -> bool:
+        return localtunnel_enabled() and self._route_mode(config) == "tunnel"
+
     def _start_http_servers(self, handler_cls) -> list[ThreadingHTTPServer]:
         started_servers: list[ThreadingHTTPServer] = []
-        if self.config.enable_local_listener:
+        route = self._route_mode(self.config)
+        needs_ipv4_listener = self._route_uses_local_listener(self.config)
+        if needs_ipv4_listener:
             ipv4_server = self._bind_ipv4_server(handler_cls)
             started_servers.append(ipv4_server)
-        elif self.config.enable_ipv6_direct:
+        elif route == "ipv6":
             started_servers.append(self._bind_ipv6_server(handler_cls))
 
-        if self.config.enable_local_listener and self.config.enable_ipv6_direct and started_servers:
+        if route == "ipv6" and needs_ipv4_listener and started_servers:
             try:
                 started_servers.append(
                     IPv6ThreadingHTTPServer(
@@ -906,7 +983,11 @@ class RemoteServer:
         if not self._runtime_requested:
             self._stop_relay_client()
             return
-        relay_is_enabled = self.config.enable_relay and bool(self.config.relay_url)
+        relay_is_enabled = (
+            relay_enabled()
+            and self._route_mode(self.config) == "relay"
+            and bool(self.config.relay_url)
+        )
         if not relay_is_enabled:
             self._stop_relay_client()
             return
@@ -934,6 +1015,54 @@ class RemoteServer:
             self.relay_client.stop()
             self.relay_client = None
 
+    def _sync_tunnel_client(self) -> None:
+        if not self._runtime_requested:
+            self._stop_tunnel_client()
+            return
+        tunnel_is_enabled = (
+            localtunnel_enabled()
+            and self._should_run_tunnel(self.config)
+            and bool(self.http_servers)
+        )
+        if not tunnel_is_enabled:
+            self._stop_tunnel_client()
+            return
+
+        desired_host = self.config.tunnel_host
+        desired_subdomain = self.config.tunnel_subdomain
+        current = self.tunnel_client
+        if (
+            current is not None
+            and current.tunnel_host == desired_host
+            and current.subdomain == desired_subdomain
+            and current.local_port == self.bound_port
+        ):
+            return
+
+        self._stop_tunnel_client()
+        self.tunnel_client = LocalTunnelClient(
+            local_host="127.0.0.1",
+            local_port=self.bound_port,
+            tunnel_host=desired_host,
+            subdomain=desired_subdomain,
+            activity_callback=self.mark_client_activity,
+        )
+        self.tunnel_client.start()
+
+    def _stop_tunnel_client(self) -> None:
+        if self.tunnel_client is not None:
+            self.tunnel_client.stop()
+            self.tunnel_client = None
+
+    def _route_mode(self, config: RemoteConfig) -> str:
+        route = normalize_preferred_route(config.preferred_route)
+        if route == "relay" and not relay_enabled():
+            return DEFAULT_PREFERRED_ROUTE
+        return route
+
+    def _route_uses_local_listener(self, config: RemoteConfig) -> bool:
+        return self._route_mode(config) in {"local", "tunnel"}
+
 
 class RemoteRequestHandler(BaseHTTPRequestHandler):
     server_ref: RemoteServer
@@ -949,12 +1078,8 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self._send_file(WEB_ROOT / "app.css", "text/css; charset=utf-8")
         elif parsed.path == "/app.js":
             self._send_file(WEB_ROOT / "app.js", "application/javascript; charset=utf-8")
-        elif parsed.path == "/manifest.webmanifest":
-            self._send_file(WEB_ROOT / "manifest.webmanifest", "application/manifest+json")
-        elif parsed.path == "/sw.js":
-            self._send_file(WEB_ROOT / "sw.js", "application/javascript; charset=utf-8")
-        elif parsed.path == "/icons/remote.svg":
-            self._send_file(WEB_ROOT / "icons" / "remote.svg", "image/svg+xml")
+        elif parsed.path == "/asset-manifest.json":
+            self._json(_web_asset_manifest())
         elif parsed.path.startswith("/localizations/"):
             self._localization_file(parsed.path)
         elif parsed.path == "/api/direct/handshake":
@@ -1102,7 +1227,10 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def _localization_file(self, path: str) -> None:
         name = Path(path).name
-        if name not in {"en.json", "tr.json"}:
+        if name == "manifest.json":
+            self._json(localization_manifest())
+            return
+        if name.removesuffix(".json") not in available_locales():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         self._send_file(

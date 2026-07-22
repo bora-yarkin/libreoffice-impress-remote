@@ -152,7 +152,7 @@ async def test_root_serves_lightweight_relay_ui() -> None:
         body = await response.text()
         assert 'id="slide-frame"' in body
         assert 'id="notes"' in body
-        assert 'rel="manifest"' in body
+        assert 'rel="manifest"' not in body
         assert 'id="connection-panel"' in body
     finally:
         await client.close()
@@ -169,33 +169,30 @@ async def test_asset_manifest_is_served() -> None:
         payload = await response.json()
         assert "files" in payload
         assert "app.js" in payload["files"]
-        assert "manifest.webmanifest" in payload["files"]
-        assert "sw.js" in payload["files"]
-        assert "icons/remote.svg" in payload["files"]
+        assert "manifest.webmanifest" not in payload["files"]
+        assert "sw.js" not in payload["files"]
+        assert "icons/remote.svg" not in payload["files"]
         assert "localizations/en.json" in payload["files"]
+        assert "localizations/manifest.json" in payload["files"]
+        assert "sha256SRI" in payload["files"]["app.js"]
     finally:
         await client.close()
 
 
 @pytest.mark.asyncio
-async def test_pwa_assets_are_served() -> None:
+async def test_pwa_assets_are_not_served() -> None:
     server = TestServer(create_app(RelayState()))
     client = TestClient(server)
     await client.start_server()
     try:
         manifest = await client.get("/manifest.webmanifest")
-        assert manifest.status == 200
-        manifest_payload = await manifest.json()
-        assert manifest_payload["display"] == "standalone"
+        assert manifest.status == 404
 
         worker = await client.get("/sw.js")
-        assert worker.status == 200
-        assert worker.headers["Service-Worker-Allowed"] == "/"
-        assert "impress-remote-shell" in await worker.text()
+        assert worker.status == 404
 
         icon = await client.get("/icons/remote.svg")
-        assert icon.status == 200
-        assert "<svg" in await icon.text()
+        assert icon.status == 404
     finally:
         await client.close()
 
@@ -210,6 +207,12 @@ async def test_localization_catalog_is_served() -> None:
         assert response.status == 200
         payload = await response.json()
         assert payload["component.menu.startRemote"] == "Kumandayi Baslat"
+
+        manifest_response = await client.get("/localizations/manifest.json")
+        assert manifest_response.status == 200
+        manifest = await manifest_response.json()
+        assert manifest["defaultLocale"] == "en"
+        assert "tr" in manifest["locales"]
     finally:
         await client.close()
 

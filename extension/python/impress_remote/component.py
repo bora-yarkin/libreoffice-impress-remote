@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from types import SimpleNamespace
 import sys
 import traceback
@@ -295,7 +296,7 @@ try:
                     _ensure_python_root()
                     from impress_remote.office_ui import show_error_message
 
-                    show_error_message(self.ctx, message)
+                    show_error_message(self.ctx, message, details=traceback.format_exc())
                 except Exception:
                     pass
                 traceback.print_exc()
@@ -401,11 +402,11 @@ try:
 
         def apply_settings(
             self,
-            payload: dict[str, object],
+            payload: Mapping[str, object],
             restart_runtime: bool,
         ) -> dict[str, object]:
             server = self._ensure_server()
-            updated = server.config.merge(payload)
+            updated = server.config.merge(dict(payload))
             updated.save(ctx=self.ctx)
             server.update_config(updated, restart_runtime=restart_runtime)
             self.clear_runtime_error()
@@ -419,11 +420,11 @@ try:
 
         def preview_pairing_target(
             self,
-            payload: dict[str, object],
+            payload: Mapping[str, object],
             route_mode: str | None = None,
         ) -> dict[str, str]:
             server = self._ensure_server()
-            updated = server.config.merge(payload)
+            updated = server.config.merge(dict(payload))
             return server.preview_pairing_target(updated, route_mode)
 
         def report_runtime_error(self, message: str) -> None:

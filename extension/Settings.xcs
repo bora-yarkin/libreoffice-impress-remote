@@ -16,6 +16,9 @@
         <prop oor:name="LocalPort" oor:type="xs:int"/>
         <prop oor:name="RelayUrl" oor:type="xs:string"/>
         <prop oor:name="EnableRelay" oor:type="xs:boolean"/>
+        <prop oor:name="EnableTunnel" oor:type="xs:boolean"/>
+        <prop oor:name="TunnelHost" oor:type="xs:string"/>
+        <prop oor:name="TunnelSubdomain" oor:type="xs:string"/>
         <prop oor:name="EnableIpv6Direct" oor:type="xs:boolean"/>
         <prop oor:name="EnableLocalListener" oor:type="xs:boolean"/>
         <prop oor:name="PreferredRoute" oor:type="xs:string"/>

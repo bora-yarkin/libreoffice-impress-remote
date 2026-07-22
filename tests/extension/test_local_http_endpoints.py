@@ -170,6 +170,18 @@ def test_static_phone_ui_uses_browser_security_headers(remote_server: RemoteServ
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
 
 
+def test_static_asset_manifest_is_served_for_local_frontend_verification(
+    remote_server: RemoteServer,
+) -> None:
+    payload = _json_request(remote_server, "/asset-manifest.json")
+
+    assert payload["version"] == 1
+    files = payload["files"]
+    assert isinstance(files, dict)
+    assert "app.js" in files
+    assert "localizations/manifest.json" in files
+
+
 def test_direct_state_requires_session_token(remote_server: RemoteServer) -> None:
     with pytest.raises(HTTPError) as exc_info:
         _json_request(remote_server, "/api/direct/state")

@@ -3,22 +3,24 @@
 
 # Getting Started
 
-This guide matches the `0.6.19` release line.
+This guide matches the `0.7.6` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
 cd libreoffice-impress-remote
 make venv
+make refresh
 make sdk-download
 make test
 make oxt
-make source-oxt
 make install-oxt
-make release-bundle
-make cloudflare-bundle
+make localization-import ARGS="path/to/de-DE.json"
+make relay-compat RELAY_URL=https://relay.example.com
 ```
 
 On macOS, `make sdk-download` downloads the matching LibreOffice SDK disk image from the official archive and installs its SDK directory into `third_party/libreoffice-sdk/`.
+
+Use `make refresh` when the local environment feels stale. It runs the full generated-file cleanup, removes `.venv` and the project uv cache, then recreates the uv-managed environment.
 
 Close LibreOffice before running `make install-oxt` so `unopkg` can replace the existing extension cleanly.
 
@@ -27,18 +29,19 @@ Close LibreOffice before running `make install-oxt` so `unopkg` can replace the 
 After `make install-oxt`, open LibreOffice Impress and use:
 
 ```text
-Slide Show -> Presentation Remote
+Slide Show -> Start Remote
+Slide Show -> Remote Settings
 ```
 
-1. Open `Advanced Remote Settings` if you want to review the route, set a relay URL, or disable local mode for route-specific testing.
-2. Keep the route on `Auto (Local -> IPv6 -> Relay)` unless you are forcing a specific path, and disable `Enable local` only when you want a relay-only or direct-IPv6-only test.
-3. Save any settings changes, then use `Start Remote` from the same `Presentation Remote` submenu to bring up the embedded local server and QR pairing dialog.
+1. Open `Remote Settings` if you want to choose Local network, LocalTunnel, Direct IPv6, or Relay Server.
+2. Keep the mode on `Local network` for normal same-Wi-Fi and hotspot testing.
+3. Save any settings changes, then use `Start Remote` to bring up the embedded local server and QR pairing dialog.
 4. Scan the QR code shown by LibreOffice with your phone.
-5. Use the Manual Link shown in `Advanced Remote Settings` if you also want to open the current route in a desktop browser.
+5. Use the Manual Link shown in `Remote Settings` if you also want to open the current route in a desktop browser.
 
 ## Testing Localization
 
-The extension ships English and Turkish catalogs in `localizations/`.
+The extension ships English and Turkish catalogs in `shared/localizations/`.
 
 - Set `IMPRESS_REMOTE_LANG=tr` before launching LibreOffice to force Turkish extension strings during development.
 - Add `?lang=tr` to the phone UI URL, or `lang=tr` in the pairing fragment, to force Turkish browser strings.
@@ -52,10 +55,9 @@ make server-dev
 
 Then:
 
-1. Open `Advanced Remote Settings` from the extension menu.
-2. Enable relay mode, enter the relay base URL, and save.
-3. Use `Start Remote` from the same `Presentation Remote` submenu.
-4. Change the route dropdown to `Relay server only` if you want to force relay mode during testing.
+1. Open `Remote Settings` from the Slide Show menu.
+2. Select `Relay Server`, enter the relay base URL, and save.
+3. Use `Start Remote` from the Slide Show menu.
 5. Scan the QR code on the phone, or open the full pairing link with its `#...` fragment intact if you are testing the hosted relay page manually.
 6. When the phone joins successfully, LibreOffice should detect the relay session and start the slideshow automatically.
 
@@ -67,19 +69,10 @@ The relay host now serves:
 - `/health` for runtime and limit checks
 - `/asset-manifest.json` for bundle verification
 
-## Release Bundles
+## Extension Packages
 
-```bash
-make release-bundle
-make cloudflare-bundle
-```
-
-- `make release-bundle` produces a stripped standalone Python relay bundle with the relay Python sources, bundled phone web UI, and Linux or Windows service helper scripts under `dist/`.
-- `make cloudflare-bundle` produces a Cloudflare Worker plus Durable Object relay bundle that serves the same shared phone UI from a `public/` assets directory.
-- `make oxt` builds only the versioned full extension package, for example `dist/libreoffice-impress-remote-0.6.19.oxt`.
-- `make source-oxt` builds the versioned source-only extension package, for example `dist/libreoffice-impress-remote-0.6.19-source.oxt`, without embedded relay or documentation archives.
-- `make release-full` builds the versioned full OXT, source-only OXT, and both standalone relay bundle variants in one command.
-- The `.oxt` itself embeds the matching stripped Python relay bundle, Cloudflare relay bundle, and documentation bundle so users can export them from Advanced Remote Settings without visiting GitHub.
+- `make oxt` builds the versioned complete extension package, for example `dist/libreoffice-impress-remote-0.7.6.oxt`, with local, LocalTunnel, direct IPv6, relay mode, documentation export, Python relay export, and Cloudflare relay export included.
+- The installed `.oxt` embeds the matching documentation, stripped Python relay bundle, and Cloudflare relay bundle so users can export matching resources from Remote Settings without visiting GitHub.
 
 Useful relay checks:
 

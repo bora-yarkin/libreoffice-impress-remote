@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 COMPONENT_PATH = ROOT / "extension/python/impress_remote/component.py"
 COMPONENT_DIR = str(COMPONENT_PATH.parent)
 PYTHON_DIR = str(COMPONENT_PATH.parent.parent)
@@ -164,7 +164,7 @@ class FakeServer:
             "enableIpv6Direct": True,
             "enableRelay": False,
             "relayUrl": "",
-            "preferredRoute": "auto",
+            "preferredRoute": "local",
             "restartRequired": False,
             "activeLocalPort": 17865,
         }
@@ -188,7 +188,7 @@ class FakeServer:
             "relaySessionStatusUrl": "",
             "consoleUrl": "http://127.0.0.1:17865/#s=demo123&k=pairsecret",
             "settingsUrl": "http://127.0.0.1:17865/#s=demo123&k=pairsecret&view=settings",
-            "pairingRouteRequested": "auto",
+            "pairingRouteRequested": "local",
             "pairingRoute": "local",
             "pairingRouteLabel": "Local network",
             "pairingUrl": "http://127.0.0.1:17865/#s=demo123&k=pairsecret",
@@ -207,7 +207,7 @@ class FakeServer:
 
     def pairing_target(self, route_mode=None):
         return {
-            "requestedRoute": route_mode or "auto",
+            "requestedRoute": route_mode or "local",
             "selectedRoute": "local",
             "selectedLabel": "Local network",
             "selectedUrl": "http://127.0.0.1:17865/#s=demo123&k=pairsecret",

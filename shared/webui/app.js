@@ -6,7 +6,7 @@ const RELAY_KIND_ASSET = 'asset'
 const REPLAY_CACHE_SIZE = 1024
 
 const DEFAULT_LOCALE = 'en'
-const SUPPORTED_LOCALES = new Set(['en', 'tr'])
+let supportedLocales = new Set([DEFAULT_LOCALE])
 let activeLocale = DEFAULT_LOCALE
 let messages = {}
 
@@ -20,6 +20,15 @@ let lastImageUrl = ''
 let lastNextImageUrl = ''
 let currentImageObjectUrl = ''
 let nextImageObjectUrl = ''
+let previousSlideForTimer = null
+let totalTimerBaseSeconds = 0
+let totalTimerBaseMs = Date.now()
+let totalTimerRunning = false
+let slideTimerBaseMs = Date.now()
+let frozenTotalTimerSeconds = 0
+let frozenSlideTimerSeconds = 0
+let timerPaused = false
+let presentationFullscreen = false
 const nextImagePreload = new Image()
 
 const routeParams = hashParams()
@@ -47,7 +56,7 @@ const relayState = {
 
 function normalizeLocale(value){
   const language = String(value || '').trim().replace('-', '_').split(/[._]/)[0].toLowerCase()
-  return SUPPORTED_LOCALES.has(language) ? language : ''
+  return supportedLocales.has(language) ? language : ''
 }
 
 function preferredLocale(){
@@ -59,6 +68,7 @@ function preferredLocale(){
 }
 
 async function loadLocalization(){
+  await loadLocalizationManifest()
   activeLocale = preferredLocale()
   messages = await fetchLocalization(DEFAULT_LOCALE)
   if(activeLocale !== DEFAULT_LOCALE){
@@ -66,6 +76,26 @@ async function loadLocalization(){
   }
   document.documentElement.lang = activeLocale
   applyDocumentLocalization()
+}
+
+async function loadLocalizationManifest(){
+  try{
+    const response = await fetch('/localizations/manifest.json', {cache: 'no-store'})
+    if(!response.ok){
+      return
+    }
+    const payload = await response.json()
+    if(!payload || typeof payload !== 'object' || !Array.isArray(payload.locales)){
+      return
+    }
+    const locales = payload.locales
+      .map(locale => String(locale || '').trim().replace('-', '_').split(/[._]/)[0].toLowerCase())
+      .filter(Boolean)
+    if(locales.includes(DEFAULT_LOCALE)){
+      supportedLocales = new Set(locales)
+    }
+  }catch(_error){
+  }
 }
 
 async function fetchLocalization(locale){
@@ -158,17 +188,27 @@ function setConnectionPhase(nextPhase){
   document.querySelectorAll('[data-command]').forEach(button => {
     button.disabled = !commandsEnabled
   })
-  document.getElementById('prev-button').disabled = !commandsEnabled
-  document.getElementById('next-button').disabled = !commandsEnabled
+  syncNavigationButtons(lastState)
   const gotoButton = document.getElementById('goto-button')
-  const blankButton = document.getElementById('blank-button')
+  const timerButton = document.getElementById('timer-toggle-button')
   if(gotoButton){
     gotoButton.disabled = !commandsEnabled
   }
-  if(blankButton){
-    blankButton.disabled = !commandsEnabled
+  if(timerButton){
+    timerButton.disabled = !commandsEnabled
   }
   renderBanner()
+}
+
+function syncNavigationButtons(state){
+  const previousDisabled = connectionPhase !== 'live' || !state || !state.canGoPrevious
+  const nextDisabled = connectionPhase !== 'live' || !state || !state.canGoNext
+  document.querySelectorAll('[data-command="previous_slide"]').forEach(button => {
+    button.disabled = previousDisabled
+  })
+  document.querySelectorAll('[data-command="next_slide"]').forEach(button => {
+    button.disabled = nextDisabled
+  })
 }
 
 function messageFromError(error){
@@ -287,16 +327,86 @@ function formatElapsed(seconds){
   return `${two(minutes)}:${two(remainingSeconds)}`
 }
 
-function renderTimer(state){
-  const timer = document.getElementById('timer-chip')
-  if(!timer){
+function currentTimerValues(state = lastState){
+  if(!state || !state.running){
+    return {total: 0, slide: 0}
+  }
+  if(timerPaused){
+    return {
+      total: frozenTotalTimerSeconds,
+      slide: frozenSlideTimerSeconds,
+    }
+  }
+  const now = Date.now()
+  return {
+    total: totalTimerBaseSeconds + Math.floor((now - totalTimerBaseMs) / 1000),
+    slide: Math.floor((now - slideTimerBaseMs) / 1000),
+  }
+}
+
+function renderTimers(state){
+  const stack = document.getElementById('timer-stack')
+  const totalTimer = document.getElementById('total-timer-chip')
+  const slideTimer = document.getElementById('slide-timer-chip')
+  if(!stack || !totalTimer || !slideTimer){
     return
   }
   const shouldShow = !!(state && state.running)
-  timer.hidden = !shouldShow
+  stack.hidden = !shouldShow
   if(shouldShow){
-    timer.textContent = formatElapsed(Number(state.elapsedSeconds || 0))
+    const values = currentTimerValues(state)
+    totalTimer.textContent = `Σ ${formatElapsed(values.total)}`
+    slideTimer.textContent = `↻ ${formatElapsed(values.slide)}`
   }
+}
+
+function syncTimerState(state){
+  if(!state || !state.running){
+    previousSlideForTimer = null
+    totalTimerBaseSeconds = 0
+    totalTimerBaseMs = Date.now()
+    totalTimerRunning = false
+    slideTimerBaseMs = Date.now()
+    frozenTotalTimerSeconds = 0
+    frozenSlideTimerSeconds = 0
+    timerPaused = false
+    renderTimers(state)
+    syncTimerButton()
+    return
+  }
+  const currentSlide = typeof state.currentSlide === 'number' ? state.currentSlide : null
+  if(!totalTimerRunning){
+    const elapsedSeconds = Number(state.elapsedSeconds || 0)
+    totalTimerBaseSeconds = Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0
+    totalTimerBaseMs = Date.now()
+    totalTimerRunning = true
+  }
+  if(previousSlideForTimer !== currentSlide){
+    previousSlideForTimer = currentSlide
+    slideTimerBaseMs = Date.now()
+    frozenSlideTimerSeconds = 0
+  }
+  renderTimers(state)
+  syncTimerButton()
+}
+
+function toggleTimers(){
+  if(!lastState || !lastState.running){
+    return
+  }
+  if(timerPaused){
+    timerPaused = false
+    totalTimerBaseSeconds = frozenTotalTimerSeconds
+    totalTimerBaseMs = Date.now()
+    slideTimerBaseMs = Date.now() - frozenSlideTimerSeconds * 1000
+  }else{
+    const values = currentTimerValues(lastState)
+    frozenTotalTimerSeconds = values.total
+    frozenSlideTimerSeconds = values.slide
+    timerPaused = true
+  }
+  renderTimers(lastState)
+  syncTimerButton()
 }
 
 function setDrawerOpen(open){
@@ -322,14 +432,89 @@ function toggleDrawer(){
   setDrawerOpen(!drawerOpen())
 }
 
-function syncBlankButton(state){
-  const button = document.getElementById('blank-button')
+function fullscreenElement(){
+  return document.fullscreenElement || document.webkitFullscreenElement || null
+}
+
+async function requestFullscreenMode(){
+  const root = document.documentElement
+  try{
+    if(root.requestFullscreen){
+      await root.requestFullscreen()
+    }else if(root.webkitRequestFullscreen){
+      root.webkitRequestFullscreen()
+    }
+  }catch(_error){
+  }
+  try{
+    if(screen.orientation && screen.orientation.lock){
+      await screen.orientation.lock('landscape')
+    }
+  }catch(_error){
+  }
+  setPresentationFullscreen(true)
+}
+
+async function exitFullscreenMode(){
+  try{
+    if(screen.orientation && screen.orientation.unlock){
+      screen.orientation.unlock()
+    }
+  }catch(_error){
+  }
+  try{
+    if(document.exitFullscreen && fullscreenElement()){
+      await document.exitFullscreen()
+    }else if(document.webkitExitFullscreen && fullscreenElement()){
+      document.webkitExitFullscreen()
+    }
+  }catch(_error){
+  }
+  setPresentationFullscreen(false)
+}
+
+function setPresentationFullscreen(enabled){
+  presentationFullscreen = !!enabled
+  document.body.classList.toggle('presentation-fullscreen', presentationFullscreen)
+  document.querySelectorAll('.side-controls').forEach(node => {
+    node.setAttribute('aria-hidden', presentationFullscreen ? 'false' : 'true')
+  })
+  syncFullscreenButton()
+  syncNavigationButtons(lastState)
+}
+
+function syncFullscreenButton(){
+  const button = document.getElementById('fullscreen-button')
   if(!button){
     return
   }
-  const label = state && state.presentationBlanked ? t('aria.resumePresentation') : t('aria.blankScreen')
+  const label = presentationFullscreen ? t('aria.exitFullscreen') : t('aria.enterFullscreen')
   button.setAttribute('aria-label', label)
   button.title = label
+  button.classList.toggle('drawer-button-active', presentationFullscreen)
+}
+
+function togglePresentationFullscreen(){
+  closeDrawer()
+  if(presentationFullscreen){
+    exitFullscreenMode()
+    return
+  }
+  requestFullscreenMode()
+}
+
+function syncTimerButton(){
+  const button = document.getElementById('timer-toggle-button')
+  if(!button){
+    return
+  }
+  const label = timerPaused ? t('aria.resumeTimer') : t('aria.pauseTimer')
+  button.setAttribute('aria-label', label)
+  button.title = label
+  button.classList.toggle('drawer-button-active', !timerPaused)
+  button.innerHTML = timerPaused
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5v14l10-7z"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6v12M15 6v12"/></svg>'
 }
 
 function revokeObjectUrl(value){
@@ -465,7 +650,7 @@ function showPlaceholderMessage(message){
   document.querySelectorAll('.slide-label').forEach(node => {
     node.textContent = '-- / --'
   })
-  renderTimer(null)
+  syncTimerState(null)
   clearSlideImage()
 }
 
@@ -483,8 +668,8 @@ function renderState(state){
   document.getElementById('notes').textContent = state.notes || ''
   document.getElementById('prev-button').disabled = connectionPhase !== 'live' || !state.canGoPrevious
   document.getElementById('next-button').disabled = connectionPhase !== 'live' || !state.canGoNext
-  renderTimer(state)
-  syncBlankButton(state)
+  syncNavigationButtons(state)
+  syncTimerState(state)
   updateSlideImage(state).catch(showTransportError)
   preloadNextSlide(state).catch(showTransportError)
   if(isRelayMode()){
@@ -642,9 +827,25 @@ document.getElementById('more-button').addEventListener('click', event => {
   toggleDrawer()
 })
 
-document.getElementById('blank-button').addEventListener('click', () => {
-  const commandName = lastState && lastState.presentationBlanked ? 'resume_presentation' : 'blank_screen'
-  command(commandName).then(closeDrawer).catch(showTransportError)
+document.getElementById('fullscreen-button').addEventListener('click', event => {
+  event.stopPropagation()
+  togglePresentationFullscreen()
+})
+
+document.addEventListener('fullscreenchange', () => {
+  if(!fullscreenElement()){
+    setPresentationFullscreen(false)
+  }
+})
+
+document.addEventListener('webkitfullscreenchange', () => {
+  if(!fullscreenElement()){
+    setPresentationFullscreen(false)
+  }
+})
+
+document.getElementById('timer-toggle-button').addEventListener('click', () => {
+  toggleTimers()
 })
 
 document.getElementById('goto-button').addEventListener('click', () => {
@@ -662,6 +863,10 @@ document.getElementById('goto-button').addEventListener('click', () => {
     .then(closeDrawer)
     .catch(showTransportError)
 })
+
+window.setInterval(() => {
+  renderTimers(lastState)
+}, 1000)
 
 document.getElementById('goto-input').addEventListener('keydown', event => {
   if(event.key !== 'Enter'){
@@ -1298,16 +1503,8 @@ async function connectRelay(){
   })
 }
 
-function registerServiceWorker(){
-  if(!('serviceWorker' in navigator) || !window.isSecureContext){
-    return
-  }
-  navigator.serviceWorker.register('/sw.js').catch(() => {})
-}
-
 async function bootstrap(){
   await loadLocalization()
-  registerServiceWorker()
   setConnectionPhase('connecting')
   if(isRelayMode() || isSecureDirectMode() || isLocalFallbackMode()){
     if(!pairingSecret || !routeSession){

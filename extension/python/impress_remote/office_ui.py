@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 import threading
 import webbrowser
 from typing import TYPE_CHECKING, Any, cast
@@ -11,7 +13,6 @@ from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
 import unohelper
-
 from impress_remote.config import (
     DEFAULT_PREFERRED_ROUTE,
     ROUTE_LABELS,
@@ -40,14 +41,6 @@ class _XItemListenerBase:
         return None
 
 
-class _XTextListenerBase:
-    def disposing(self, _event) -> None:
-        return None
-
-    def textChanged(self, text_event) -> None:
-        return None
-
-
 if not TYPE_CHECKING:
     try:
         from com.sun.star.awt import XActionListener as _XActionListenerBase  # pyright: ignore[reportMissingImports]
@@ -55,10 +48,6 @@ if not TYPE_CHECKING:
         pass
     try:
         from com.sun.star.awt import XItemListener as _XItemListenerBase  # pyright: ignore[reportMissingImports]
-    except Exception:
-        pass
-    try:
-        from com.sun.star.awt import XTextListener as _XTextListenerBase  # pyright: ignore[reportMissingImports]
     except Exception:
         pass
 
@@ -81,6 +70,61 @@ def open_external_url(ctx, url: str) -> bool:
         return True
     except Exception:
         return bool(webbrowser.open(url, new=2))
+
+
+class _PlainTextTransferable(unohelper.Base):
+    def __init__(self, text: str):
+        self.text = text
+        self._flavor = self._create_plain_text_flavor()
+
+    def getTransferData(self, flavor):
+        if self.isDataFlavorSupported(flavor):
+            return self.text
+        raise ValueError("Unsupported clipboard flavor")
+
+    def getTransferDataFlavors(self):
+        return (self._flavor,)
+
+    def isDataFlavorSupported(self, flavor) -> bool:
+        return str(getattr(flavor, "MimeType", "")) == "text/plain;charset=utf-16"
+
+    def _create_plain_text_flavor(self):
+        try:
+            import uno  # pyright: ignore[reportMissingImports]
+
+            flavor = cast(Any, uno.createUnoStruct("com.sun.star.datatransfer.DataFlavor"))
+        except Exception:
+            flavor = cast(Any, type("DataFlavor", (), {})())
+        flavor.MimeType = "text/plain;charset=utf-16"
+        flavor.HumanPresentableName = "Text"
+        return flavor
+
+
+def copy_text_to_clipboard(ctx, text: str) -> bool:
+    if not text:
+        return False
+    try:
+        clipboard = _service_manager(ctx).createInstanceWithContext(
+            "com.sun.star.datatransfer.clipboard.SystemClipboard",
+            ctx,
+        )
+        clipboard.setContents(_PlainTextTransferable(text), None)
+        return True
+    except Exception:
+        pass
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["pbcopy"], input=text, text=True, check=True)
+            return True
+        if sys.platform.startswith("linux"):
+            subprocess.run(["xclip", "-selection", "clipboard"], input=text, text=True, check=True)
+            return True
+        if sys.platform == "win32":
+            subprocess.run(["clip"], input=text, text=True, check=True)
+            return True
+    except Exception:
+        return False
+    return False
 
 
 def _file_url_to_path(value: str) -> Path:
@@ -111,23 +155,81 @@ def choose_export_directory(ctx, title: str) -> Path:
     return default_export_directory()
 
 
-def show_error_message(ctx, message: str, title: str | None = None) -> None:
+def show_error_message(ctx, message: str, title: str | None = None, details: str = "") -> None:
     if not message:
         return
     title = title or translate("app.title")
+    diagnostic_text = message if not details else f"{message}\n\n{details}"
     try:
-        desktop = _service_manager(ctx).createInstanceWithContext(
-            "com.sun.star.frame.Desktop",
+        smgr = _service_manager(ctx)
+        dialog_model = smgr.createInstanceWithContext(
+            "com.sun.star.awt.UnoControlDialogModel",
             ctx,
         )
-        frame = desktop.getCurrentFrame() if hasattr(desktop, "getCurrentFrame") else None
-        window = frame.getContainerWindow() if frame is not None else None
-        parent = window.getPeer() if window is not None and hasattr(window, "getPeer") else None
-        toolkit = _service_manager(ctx).createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
-        message_box = toolkit.createMessageBox(parent, 3, 1, title, message)
-        message_box.execute()
+        dialog_model.PositionX = 50
+        dialog_model.PositionY = 50
+        dialog_model.Width = 220
+        dialog_model.Height = 132
+        dialog_model.Closeable = True
+        dialog_model.Sizeable = True
+
+        label = dialog_model.createInstance("com.sun.star.awt.UnoControlFixedTextModel")
+        label.Name = "message_label"
+        label.Label = translate("office.error.copyable")
+        label.PositionX = 8
+        label.PositionY = 8
+        label.Width = 204
+        label.Height = 14
+        label.MultiLine = True
+        dialog_model.insertByName("message_label", label)
+
+        log = dialog_model.createInstance("com.sun.star.awt.UnoControlEditModel")
+        log.Name = "diagnostic_text"
+        log.Text = diagnostic_text
+        log.PositionX = 8
+        log.PositionY = 26
+        log.Width = 204
+        log.Height = 78
+        log.ReadOnly = True
+        log.MultiLine = True
+        log.VScroll = True
+        log.HScroll = True
+        dialog_model.insertByName("diagnostic_text", log)
+
+        button = dialog_model.createInstance("com.sun.star.awt.UnoControlButtonModel")
+        button.Name = "close_button"
+        button.Label = translate("common.close")
+        button.PositionX = 168
+        button.PositionY = 112
+        button.Width = 44
+        button.Height = 14
+        button.PushButtonType = 2
+        dialog_model.insertByName("close_button", button)
+
+        dialog = smgr.createInstanceWithContext("com.sun.star.awt.UnoControlDialog", ctx)
+        dialog.setModel(dialog_model)
+        toolkit = smgr.createInstanceWithContext("com.sun.star.awt.ExtToolkit", ctx)
+        dialog.setVisible(False)
+        dialog.createPeer(toolkit, None)
+        dialog.setTitle(title)
+        dialog.execute()
+        dialog.dispose()
     except Exception:
-        return
+        try:
+            desktop = _service_manager(ctx).createInstanceWithContext(
+                "com.sun.star.frame.Desktop",
+                ctx,
+            )
+            frame = desktop.getCurrentFrame() if hasattr(desktop, "getCurrentFrame") else None
+            window = frame.getContainerWindow() if frame is not None else None
+            parent = window.getPeer() if window is not None and hasattr(window, "getPeer") else None
+            toolkit = _service_manager(ctx).createInstanceWithContext(
+                "com.sun.star.awt.Toolkit", ctx
+            )
+            message_box = toolkit.createMessageBox(parent, 3, 1, title, diagnostic_text)
+            message_box.execute()
+        except Exception:
+            return
 
 
 class DialogButtonListener(unohelper.Base, _XActionListenerBase):
@@ -152,18 +254,6 @@ class DialogItemListener(unohelper.Base, _XItemListenerBase):
     def itemStateChanged(self, item_event):
         control_name = item_event.Source.getModel().Name
         self.dialog.handle_item_change(control_name)
-
-
-class DialogTextListener(unohelper.Base, _XTextListenerBase):
-    def __init__(self, dialog):
-        self.dialog = dialog
-
-    def disposing(self, _event):
-        return None
-
-    def textChanged(self, text_event):
-        control_name = text_event.Source.getModel().Name
-        self.dialog.handle_text_change(control_name)
 
 
 class RemoteDialogBase:
@@ -204,6 +294,21 @@ class RemoteDialogBase:
     def _dialog_model(self) -> Any:
         return self._dialog().getModel()
 
+    def _has_control_model(self, name: str) -> bool:
+        return bool(getattr(self._dialog_model(), "hasByName", lambda _name: False)(name))
+
+    def _set_control_visible(self, name: str, visible: bool) -> None:
+        if not self._has_control_model(name):
+            return
+        try:
+            self._dialog().getControl(name).setVisible(visible)
+        except Exception:
+            pass
+        try:
+            self._dialog_model().getByName(name).EnableVisible = visible
+        except Exception:
+            pass
+
     def _set_label(self, name: str, value: str) -> None:
         self._dialog_model().getByName(name).Label = value
 
@@ -211,13 +316,9 @@ class RemoteDialogBase:
         self._dialog_model().getByName(name).Text = value
 
     def _get_text(self, name: str) -> str:
+        if not self._has_control_model(name):
+            return ""
         return str(self._dialog_model().getByName(name).Text)
-
-    def _set_checkbox(self, name: str, checked: bool) -> None:
-        self._dialog_model().getByName(name).State = 1 if checked else 0
-
-    def _get_checkbox(self, name: str) -> bool:
-        return bool(self._dialog_model().getByName(name).State)
 
     def _add_fixed_text(
         self,
@@ -259,25 +360,6 @@ class RemoteDialogBase:
         control.Width = width
         control.Height = height
         control.ReadOnly = readonly
-        dialog_model.insertByName(name, control)
-
-    def _add_checkbox(
-        self,
-        dialog_model,
-        name: str,
-        label: str,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-    ) -> None:
-        control = dialog_model.createInstance("com.sun.star.awt.UnoControlCheckBoxModel")
-        control.Name = name
-        control.Label = label
-        control.PositionX = x
-        control.PositionY = y
-        control.Width = width
-        control.Height = height
         dialog_model.insertByName(name, control)
 
     def _add_button(
@@ -327,7 +409,9 @@ class RemoteDialogBase:
         y: int,
         width: int,
         height: int,
+        route_keys: tuple[str, ...] | None = None,
     ) -> None:
+        route_keys = route_keys or tuple(ROUTE_LABELS)
         control = dialog_model.createInstance("com.sun.star.awt.UnoControlListBoxModel")
         control.Name = name
         control.PositionX = x
@@ -335,10 +419,10 @@ class RemoteDialogBase:
         control.Width = width
         control.Height = height
         control.Dropdown = True
-        control.LineCount = len(ROUTE_LABELS)
+        control.LineCount = len(route_keys)
         control.MultiSelection = False
-        control.StringItemList = tuple(route_label(key) for key in ROUTE_LABELS)
-        control.SelectedItems = (tuple(ROUTE_LABELS).index(route),)
+        control.StringItemList = tuple(route_label(key) for key in route_keys)
+        control.SelectedItems = (route_keys.index(route) if route in route_keys else 0,)
         dialog_model.insertByName(name, control)
 
 
@@ -347,12 +431,15 @@ class RemotePairingDialog(RemoteDialogBase):
         super().__init__(ctx, handler)
         self.qr_error = ""
         self.qr_image_path: Path | None = None
+        self.current_pairing_url = ""
+        self.listeners: dict[str, DialogButtonListener] = {}
         self._closed = threading.Event()
         self._monitor_thread: threading.Thread | None = None
 
     def show(self) -> None:
         dialog = self._create_dialog()
         self.dialog = dialog
+        self._add_listeners()
         self.refresh()
         self._start_monitor()
         try:
@@ -361,18 +448,36 @@ class RemotePairingDialog(RemoteDialogBase):
             self._closed.set()
             if self._monitor_thread is not None:
                 self._monitor_thread.join(timeout=1)
+            self._remove_listeners()
             self._cleanup_qr_image()
             dialog.dispose()
+
+    def handle_action(self, control_name: str) -> None:
+        if control_name != "copy_url_button":
+            return
+        if not self.current_pairing_url:
+            self._set_label("pairing_status", translate("office.copyUrl.unavailable"))
+            return
+        if copy_text_to_clipboard(self.ctx, self.current_pairing_url):
+            self._set_label("pairing_status", translate("office.copyUrl.done"))
+            return
+        show_error_message(
+            self.ctx,
+            translate("office.copyUrl.failed"),
+            translate("office.start.title"),
+            details=self.current_pairing_url,
+        )
 
     def refresh(self) -> None:
         snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
         connection = cast(dict[str, Any], snapshot["connection"])
         pairing = self.handler.pairing_target()
+        self.current_pairing_url = pairing["selectedUrl"]
         self._set_qr_image(pairing["selectedUrl"])
         self._set_label("pairing_status", self._pairing_status_text(pairing, connection))
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(176, 194, translate("office.start.title"))
+        dialog = self._create_dialog_shell(176, 214, translate("office.start.title"))
         dialog_model = dialog.getModel()
         self._add_image(dialog_model, "pairing_qr_value", 8, 8, 160, 160)
         self._add_fixed_text(
@@ -385,7 +490,30 @@ class RemotePairingDialog(RemoteDialogBase):
             14,
             multiline=True,
         )
+        self._add_button(
+            dialog_model,
+            "copy_url_button",
+            translate("office.button.copyUrl"),
+            48,
+            192,
+            80,
+            14,
+        )
         return dialog
+
+    def _add_listeners(self) -> None:
+        control = self._dialog().getControl("copy_url_button")
+        listener = DialogButtonListener(self)
+        control.addActionListener(listener)
+        self.listeners["copy_url_button"] = listener
+
+    def _remove_listeners(self) -> None:
+        for control_name, listener in self.listeners.items():
+            try:
+                self._dialog().getControl(control_name).removeActionListener(listener)
+            except Exception:
+                pass
+        self.listeners = {}
 
     def _set_qr_image(self, pairing_url: str) -> None:
         image_model = self._dialog_model().getByName("pairing_qr_value")
@@ -456,13 +584,105 @@ class RemotePairingDialog(RemoteDialogBase):
                 return
 
 
+class RemoteHelpDialog(RemoteDialogBase):
+    def show(self) -> None:
+        dialog = self._create_dialog()
+        self.dialog = dialog
+        listener = DialogButtonListener(self)
+        close_control = dialog.getControl("close_button")
+        close_control.addActionListener(listener)
+        try:
+            dialog.execute()
+        finally:
+            try:
+                close_control.removeActionListener(listener)
+            except Exception:
+                pass
+            dialog.dispose()
+
+    def handle_action(self, control_name: str) -> None:
+        if control_name == "close_button":
+            self._dialog().endExecute()
+
+    def _create_dialog(self):
+        dialog = self._create_dialog_shell(288, 214, translate("office.help.title"))
+        dialog_model = dialog.getModel()
+        self._add_fixed_text(
+            dialog_model,
+            "help_intro",
+            translate("office.help.intro"),
+            8,
+            8,
+            272,
+            28,
+            multiline=True,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "help_modes_title",
+            translate("office.help.modesTitle"),
+            8,
+            42,
+            272,
+            10,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "help_modes_body",
+            translate("office.help.modesBody"),
+            8,
+            54,
+            272,
+            58,
+            multiline=True,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "help_pairing_title",
+            translate("office.help.pairingTitle"),
+            8,
+            118,
+            272,
+            10,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "help_pairing_body",
+            translate("office.help.pairingBody"),
+            8,
+            130,
+            272,
+            34,
+            multiline=True,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "help_errors_title",
+            translate("office.help.errorsTitle"),
+            8,
+            170,
+            272,
+            10,
+        )
+        self._add_fixed_text(
+            dialog_model,
+            "help_errors_body",
+            translate("office.help.errorsBody"),
+            8,
+            182,
+            220,
+            24,
+            multiline=True,
+        )
+        self._add_button(dialog_model, "close_button", translate("common.close"), 236, 196, 44, 14)
+        return dialog
+
+
 class RemoteAdvancedOptionsDialog(RemoteDialogBase):
     def __init__(self, ctx, handler: ImpressRemoteProtocolHandler):
         super().__init__(ctx, handler)
         self.listeners: dict[str, DialogButtonListener] = {}
         self.item_listeners: dict[str, DialogItemListener] = {}
-        self.text_listeners: dict[str, DialogTextListener] = {}
-        self.preview_error = ""
         self._updating_route = False
 
     def show(self) -> None:
@@ -483,6 +703,9 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             if control_name == "save_button":
                 self._save_settings()
                 return
+            if control_name == "help_button":
+                RemoteHelpDialog(self.ctx, self.handler).show()
+                return
             if control_name == "export_relay_button":
                 self._export_resource("relay")
                 return
@@ -495,31 +718,20 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         except Exception as exc:
             message = translate("error.dialogActionFailed", error=exc)
             self.handler.report_runtime_error(message)
-            show_error_message(self.ctx, message)
+            show_error_message(self.ctx, message, details=self._diagnostic_details())
             self.refresh(message)
 
     def handle_item_change(self, control_name: str) -> None:
         if self._updating_route:
             return
-        if control_name in {"route_value", "local_value", "ipv6_value", "relay_value"}:
-            self._refresh_pairing_preview()
-
-    def handle_text_change(self, control_name: str) -> None:
-        if control_name in {"relay_url_value", "local_port_value"}:
-            self._refresh_pairing_preview()
+        if control_name == "route_value":
+            self._sync_mode_visibility()
 
     def refresh(self, status_line: str | None = None) -> None:
         snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
         config = cast(dict[str, Any], snapshot["config"])
-        connection = cast(dict[str, Any], snapshot["connection"])
 
-        self._set_label("status_value", status_line or str(snapshot["statusLine"]))
-        self._set_text("local_port_value", str(config["localPort"]))
         self._set_text("relay_url_value", str(config["relayUrl"]))
-        self._set_checkbox("local_value", bool(config["enableLocalListener"]))
-        self._set_checkbox("ipv6_value", bool(config["enableIpv6Direct"]))
-        self._set_checkbox("relay_value", bool(config["enableRelay"]))
-        self._set_label("warning_value", self._issues_text(snapshot, connection))
         self._updating_route = True
         try:
             self._set_route_selection(
@@ -530,168 +742,46 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             )
         finally:
             self._updating_route = False
-        self._refresh_pairing_preview(snapshot)
+        self._sync_mode_visibility()
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(346, 286, translate("office.advanced.title"))
+        dialog = self._create_dialog_shell(286, 112, translate("office.settings.title"))
         dialog_model = dialog.getModel()
         self._add_fixed_text(
             dialog_model,
-            "status_title",
-            translate("office.label.status"),
-            8,
-            8,
-            50,
-            10,
-        )
-        self._add_fixed_text(dialog_model, "status_value", "", 8, 18, 330, 18, multiline=True)
-        self._add_fixed_text(
-            dialog_model,
-            "manual_link_title",
-            translate("office.label.manualLink"),
-            8,
-            42,
-            58,
-            10,
-        )
-        self._add_edit(dialog_model, "manual_link_value", "", 72, 40, 266, 12, readonly=True)
-        self._add_fixed_text(
-            dialog_model,
-            "pairing_title",
-            translate("office.label.currentRoute"),
-            8,
-            60,
-            68,
-            10,
-        )
-        self._add_fixed_text(
-            dialog_model,
-            "pairing_route_value",
-            "",
-            82,
-            60,
-            256,
-            12,
-        )
-        self._add_fixed_text(
-            dialog_model,
-            "pairing_hint_value",
-            "",
-            82,
-            72,
-            256,
-            24,
-            multiline=True,
-        )
-        self._add_fixed_text(
-            dialog_model,
-            "howto_title",
-            translate("office.label.howToUse"),
-            8,
-            102,
-            60,
-            10,
-        )
-        self._add_fixed_text(
-            dialog_model,
-            "howto_value",
-            "",
-            8,
-            112,
-            330,
-            32,
-            multiline=True,
-        )
-        self._add_fixed_text(
-            dialog_model,
             "route_title",
-            translate("office.label.pairingRoute"),
+            translate("office.label.mode"),
             8,
-            150,
-            68,
+            12,
+            50,
             10,
         )
         self._add_route_list_box(
             dialog_model,
             "route_value",
             normalize_preferred_route(DEFAULT_PREFERRED_ROUTE),
-            82,
-            148,
-            156,
+            72,
+            10,
+            184,
             14,
-        )
-        self._add_fixed_text(
-            dialog_model,
-            "local_port_title",
-            translate("office.label.localPort"),
-            246,
-            150,
-            40,
-            10,
-        )
-        self._add_edit(dialog_model, "local_port_value", "", 292, 148, 46, 12)
-        self._add_checkbox(
-            dialog_model,
-            "local_value",
-            translate("office.toggle.enableLocal"),
-            8,
-            170,
-            82,
-            10,
-        )
-        self._add_checkbox(
-            dialog_model,
-            "ipv6_value",
-            translate("office.toggle.enableDirectIPv6"),
-            96,
-            170,
-            108,
-            10,
-        )
-        self._add_checkbox(
-            dialog_model,
-            "relay_value",
-            translate("office.toggle.enableRelay"),
-            222,
-            170,
-            70,
-            10,
+            self._route_keys(),
         )
         self._add_fixed_text(
             dialog_model,
             "relay_url_title",
             translate("office.label.relayServer"),
             8,
-            188,
-            58,
+            36,
+            64,
             10,
         )
-        self._add_edit(dialog_model, "relay_url_value", "", 72, 186, 266, 12)
-        self._add_fixed_text(
-            dialog_model,
-            "warning_title",
-            translate("office.label.issues"),
-            8,
-            206,
-            52,
-            10,
-        )
-        self._add_fixed_text(
-            dialog_model,
-            "warning_value",
-            "",
-            8,
-            216,
-            330,
-            20,
-            multiline=True,
-        )
+        self._add_edit(dialog_model, "relay_url_value", "", 82, 34, 196, 12)
         self._add_fixed_text(
             dialog_model,
             "resources_title",
             translate("office.label.resources"),
             8,
-            242,
+            58,
             58,
             10,
         )
@@ -700,7 +790,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             "export_relay_button",
             translate("office.button.exportRelay"),
             72,
-            240,
+            56,
             74,
             14,
         )
@@ -709,7 +799,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             "export_cloudflare_button",
             translate("office.button.exportCloudflare"),
             150,
-            240,
+            56,
             86,
             14,
         )
@@ -717,18 +807,28 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             dialog_model,
             "export_docs_button",
             translate("office.button.exportDocs"),
-            240,
-            240,
-            84,
+            72,
+            74,
+            74,
             14,
         )
-        self._add_button(dialog_model, "save_button", translate("common.save"), 244, 264, 44, 14)
-        self._add_button(dialog_model, "close_button", translate("common.close"), 294, 264, 44, 14)
+        self._add_button(
+            dialog_model,
+            "help_button",
+            translate("office.button.help"),
+            8,
+            94,
+            44,
+            14,
+        )
+        self._add_button(dialog_model, "save_button", translate("common.save"), 186, 94, 44, 14)
+        self._add_button(dialog_model, "close_button", translate("common.close"), 236, 94, 44, 14)
         return dialog
 
     def _add_listeners(self) -> None:
         dialog = self._dialog()
         for control_name in (
+            "help_button",
             "save_button",
             "close_button",
             "export_relay_button",
@@ -745,18 +845,6 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         route_control.addItemListener(route_listener)
         self.item_listeners["route_value"] = route_listener
 
-        for control_name in ("local_value", "ipv6_value", "relay_value"):
-            control = dialog.getControl(control_name)
-            listener = DialogItemListener(self)
-            control.addItemListener(listener)
-            self.item_listeners[control_name] = listener
-
-        for control_name in ("relay_url_value", "local_port_value"):
-            control = dialog.getControl(control_name)
-            listener = DialogTextListener(self)
-            control.addTextListener(listener)
-            self.text_listeners[control_name] = listener
-
     def _remove_listeners(self) -> None:
         dialog = self._dialog()
         for control_name, listener in self.listeners.items():
@@ -767,30 +855,23 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             dialog.getControl(control_name).removeItemListener(listener)
         self.item_listeners = {}
 
-        for control_name, listener in self.text_listeners.items():
-            dialog.getControl(control_name).removeTextListener(listener)
-        self.text_listeners = {}
-
     def _save_settings(self) -> None:
-        local_port_text = self._get_text("local_port_value").strip()
-        if not local_port_text.isdigit() or not 1 <= int(local_port_text) <= 65535:
-            self.refresh(translate("error.localPortRange"))
-            return
-
-        payload = {
-            "localPort": int(local_port_text),
-            "enableLocalListener": self._get_checkbox("local_value"),
-            "enableIpv6Direct": self._get_checkbox("ipv6_value"),
-            "enableRelay": self._get_checkbox("relay_value"),
-            "relayUrl": self._get_text("relay_url_value").strip(),
-            "preferredRoute": self._selected_route(),
-        }
+        payload: dict[str, object] = {"preferredRoute": self._selected_route()}
+        if payload["preferredRoute"] == "relay":
+            payload["relayUrl"] = self._get_text("relay_url_value").strip()
+        snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
+        should_stop = bool(snapshot.get("running")) and self._settings_changed(
+            payload,
+            cast(dict[str, Any], snapshot.get("config", {})),
+        )
         try:
-            self.handler.apply_settings(payload, restart_runtime=True)
+            self.handler.apply_settings(payload, restart_runtime=False)
         except ValueError as exc:
-            self.refresh(str(exc))
+            show_error_message(self.ctx, str(exc), translate("office.settings.title"))
             return
-        self.refresh(translate("component.settingsSaved"))
+        if should_stop:
+            self.handler.stop()
+        self._dialog().endExecute()
 
     def _export_resource(self, kind: str) -> None:
         from impress_remote.resources import export_packaged_resource
@@ -824,7 +905,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         )
 
     def _set_route_selection(self, name: str, route: str) -> None:
-        route_keys = tuple(ROUTE_LABELS)
+        route_keys = self._route_keys()
         try:
             selected_index = route_keys.index(route)
         except ValueError:
@@ -839,116 +920,56 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
                 selected_index = int(selected_items[0])
             except (TypeError, ValueError):
                 selected_index = -1
-            route_keys = tuple(ROUTE_LABELS)
+            route_keys = self._route_keys()
             if 0 <= selected_index < len(route_keys):
                 return route_keys[selected_index]
         return normalize_preferred_route(fallback, fallback)
 
-    def _refresh_pairing_preview(self, snapshot: dict[str, Any] | None = None) -> None:
-        if snapshot is None:
-            snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
-        connection = cast(dict[str, Any], snapshot["connection"])
-        self.preview_error = ""
+    def _route_keys(self) -> tuple[str, ...]:
+        return tuple(ROUTE_LABELS) or (DEFAULT_PREFERRED_ROUTE,)
+
+    def _sync_mode_visibility(self) -> None:
+        relay_selected = self._selected_route() == "relay"
+        for name in (
+            "relay_url_title",
+            "relay_url_value",
+            "resources_title",
+            "export_relay_button",
+            "export_cloudflare_button",
+            "export_docs_button",
+        ):
+            self._set_control_visible(name, relay_selected)
+
+    def _settings_changed(self, payload: dict[str, object], config: dict[str, Any]) -> bool:
+        if normalize_preferred_route(payload.get("preferredRoute")) != normalize_preferred_route(
+            config.get("preferredRoute")
+        ):
+            return True
+        if "relayUrl" in payload and str(payload["relayUrl"]).strip() != str(
+            config.get("relayUrl", "")
+        ).strip():
+            return True
+        return False
+
+    def _diagnostic_details(self) -> str:
         try:
-            pairing = self.handler.preview_pairing_target(
-                self._draft_payload(),
-                self._selected_route(),
+            snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
+        except Exception as exc:
+            return f"snapshot: unavailable ({exc})"
+        connection = cast(dict[str, Any], snapshot.get("connection", {}))
+        config = cast(dict[str, Any], snapshot.get("config", {}))
+        return "\n".join(
+            (
+                f"running: {snapshot.get('running')}",
+                f"status: {snapshot.get('statusLine')}",
+                f"lastError: {snapshot.get('lastError')}",
+                f"preferredRoute: {config.get('preferredRoute')}",
+                f"pairingRoute: {connection.get('pairingRoute')}",
+                f"relayStatus: {connection.get('relayStatus')}",
+                f"tunnelStatus: {connection.get('tunnelStatus')}",
+                f"ipv6Status: {connection.get('ipv6Status')}",
             )
-        except ValueError as exc:
-            self.preview_error = str(exc)
-            pairing = self.handler.pairing_target(self._selected_route())
-
-        self._set_label(
-            "pairing_route_value",
-            self._pairing_route_text(pairing, bool(snapshot["running"])),
         )
-        self._set_label("pairing_hint_value", self._pairing_hint_text(pairing, connection))
-        self._set_label(
-            "howto_value",
-            self._how_to_use_text(pairing, bool(snapshot["running"])),
-        )
-        self._set_text(
-            "manual_link_value",
-            pairing["selectedUrl"] or translate("office.manualLink.start"),
-        )
-
-    def _pairing_route_text(self, pairing: dict[str, str], running: bool) -> str:
-        if not running:
-            return translate("office.pairing.routeAfterStart")
-        if pairing["selectedRoute"]:
-            if pairing["requestedRoute"] == "auto":
-                return translate("office.pairing.autoUsing", route=pairing["selectedLabel"])
-            return translate("office.pairing.manualRoute", route=pairing["selectedLabel"])
-        if pairing["requestedRoute"] == "auto":
-            return translate("office.pairing.autoNoRoute")
-        return translate("office.pairing.routeUnavailable")
-
-    def _pairing_hint_text(self, pairing: dict[str, str], connection: dict[str, Any]) -> str:
-        if self.preview_error:
-            return translate(
-                "office.pairing.draftError",
-                hint=pairing["hint"],
-                error=self.preview_error,
-            )
-        if (
-            pairing["selectedRoute"] == "ipv6"
-            and connection.get("ipv6Status") == "ready"
-            and connection.get("ipv6Hint")
-        ):
-            return f"{pairing['hint']} {connection['ipv6Hint']}"
-        if pairing["selectedUrl"]:
-            return pairing["hint"]
-        if connection["relayStatus"] == "error" and connection["relayLastError"]:
-            return translate(
-                "office.relayError",
-                hint=pairing["hint"],
-                error=connection["relayLastError"],
-            )
-        return pairing["hint"]
-
-    def _how_to_use_text(self, pairing: dict[str, str], running: bool) -> str:
-        if not running:
-            return translate("office.howTo.notRunning")
-        if pairing["selectedRoute"] in {"", "local"} or pairing["requestedRoute"] == "auto":
-            return translate("office.howTo.local")
-        if pairing["selectedRoute"] == "ipv6":
-            return translate("office.howTo.directIPv6")
-        if pairing["selectedRoute"] == "relay":
-            return translate("office.howTo.relay")
-        return translate("office.howTo.routeFallback")
-
-    def _issues_text(self, snapshot: dict[str, Any], connection: dict[str, Any]) -> str:
-        issues: list[str] = []
-        last_error = str(snapshot.get("lastError", "")).strip()
-        if last_error:
-            issues.append(last_error)
-        warnings = cast(list[str], connection["listenerWarnings"])
-        if warnings:
-            issues.append(str(warnings[0]))
-        ipv6_status = str(connection.get("ipv6Status", ""))
-        ipv6_hint = str(connection.get("ipv6Hint", "")).strip()
-        if (
-            bool(connection.get("enableIpv6Direct"))
-            and ipv6_hint
-            and ipv6_status not in {"", "disabled", "ready"}
-        ):
-            issues.append(ipv6_hint)
-        if bool(connection.get("configPendingRestart")):
-            issues.append(translate("office.issues.restart"))
-        return " ".join(issues) if issues else translate("office.issues.none")
-
-    def _draft_payload(self) -> dict[str, object]:
-        payload: dict[str, object] = {
-            "enableLocalListener": self._get_checkbox("local_value"),
-            "enableIpv6Direct": self._get_checkbox("ipv6_value"),
-            "enableRelay": self._get_checkbox("relay_value"),
-            "relayUrl": self._get_text("relay_url_value").strip(),
-            "preferredRoute": self._selected_route(),
-        }
-        local_port_text = self._get_text("local_port_value").strip()
-        if local_port_text.isdigit() and 1 <= int(local_port_text) <= 65535:
-            payload["localPort"] = int(local_port_text)
-        return payload
 
 
 def show_remote_pairing_dialog(ctx, handler: ImpressRemoteProtocolHandler) -> None:

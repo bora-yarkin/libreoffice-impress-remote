@@ -1,0 +1,5 @@
+LibreOffice Impress Remote turns Impress into a phone-controlled presenter remote.
+
+Start the remote from the Slide Show menu, scan the QR code, and control your presentation from a lightweight browser page with the current slide, presenter notes, timer, and navigation controls.
+
+The extension supports local network, LocalTunnel, direct IPv6, and self-hosted relay modes. Matching documentation and relay bundles are included inside the extension package.

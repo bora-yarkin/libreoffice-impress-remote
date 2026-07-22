@@ -8,7 +8,7 @@ from impress_remote import __version__ as extension_version
 from impress_remote_relay import __version__ as relay_version
 from tools.project_version import read_project_version
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_python_runtime_versions_come_from_root_version_file() -> None:

@@ -1,9 +1,0 @@
-<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
-<!-- SPDX-License-Identifier: GPL-3.0-only -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Impress Remote">
-  <rect width="512" height="512" rx="112" fill="#090c13"/>
-  <rect x="96" y="92" width="320" height="190" rx="28" fill="#f8fbff"/>
-  <rect x="126" y="122" width="260" height="130" rx="12" fill="#0f6ad9"/>
-  <path d="M196 342h120" stroke="#f8fbff" stroke-width="34" stroke-linecap="round"/>
-  <path d="m284 300 62 42-62 42" fill="none" stroke="#f8fbff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>

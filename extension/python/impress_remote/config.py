@@ -13,17 +13,18 @@ from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from impress_remote.localization import translate
+from impress_remote.localtunnel_client import DEFAULT_TUNNEL_HOST, normalize_tunnel_host
 
 APP_NAME = "libreoffice-impress-remote"
 CONFIG_NODE_PATH = "org.borayarkin.libreoffice.impressremote.Settings"
 DEFAULT_LOCAL_HOST = "0.0.0.0"
 DEFAULT_LOCAL_PORT = 17865
-DEFAULT_PREFERRED_ROUTE = "auto"
+DEFAULT_PREFERRED_ROUTE = "local"
 ROUTE_LABELS = {
-    "auto": "route.auto",
     "local": "route.local",
     "ipv6": "route.ipv6",
     "relay": "route.relay",
+    "tunnel": "route.localtunnel",
 }
 ROUTE_LABEL_KEYS = {
     route: key for route, key in ROUTE_LABELS.items()
@@ -33,6 +34,9 @@ OFFICE_CONFIG_PROPERTIES = {
     "LocalPort": "local_port",
     "RelayUrl": "relay_url",
     "EnableRelay": "enable_relay",
+    "EnableTunnel": "enable_tunnel",
+    "TunnelHost": "tunnel_host",
+    "TunnelSubdomain": "tunnel_subdomain",
     "EnableIpv6Direct": "enable_ipv6_direct",
     "EnableLocalListener": "enable_local_listener",
     "PreferredRoute": "preferred_route",
@@ -135,6 +139,10 @@ def normalize_preferred_route(value: Any, default: str = DEFAULT_PREFERRED_ROUTE
             "direct-ipv6": "ipv6",
             "ipv6_direct": "ipv6",
             "ipv6-direct": "ipv6",
+            "localtunnel": "tunnel",
+            "local_tunnel": "tunnel",
+            "local-tunnel": "tunnel",
+            "auto": DEFAULT_PREFERRED_ROUTE,
         }
         normalized = aliases.get(normalized, normalized)
         if normalized in ROUTE_LABELS:
@@ -240,6 +248,9 @@ class RemoteConfig:
     local_port: int = DEFAULT_LOCAL_PORT
     relay_url: str = ""
     enable_relay: bool = False
+    enable_tunnel: bool = True
+    tunnel_host: str = DEFAULT_TUNNEL_HOST
+    tunnel_subdomain: str = ""
     enable_ipv6_direct: bool = True
     enable_local_listener: bool = True
     preferred_route: str = DEFAULT_PREFERRED_ROUTE
@@ -256,6 +267,24 @@ class RemoteConfig:
                 payload.get("enable_relay", payload.get("enableRelay")),
                 False,
             ),
+            enable_tunnel=_coerce_bool(
+                payload.get("enable_tunnel", payload.get("enableTunnel")),
+                True,
+            ),
+            tunnel_host=normalize_tunnel_host(
+                str(
+                    payload.get(
+                        "tunnel_host",
+                        payload.get("tunnelHost", DEFAULT_TUNNEL_HOST),
+                    )
+                    or DEFAULT_TUNNEL_HOST
+                )
+            ),
+            tunnel_subdomain=str(
+                payload.get("tunnel_subdomain", payload.get("tunnelSubdomain", ""))
+            )
+            .strip()
+            .lower(),
             enable_ipv6_direct=_coerce_bool(
                 payload.get("enable_ipv6_direct", payload.get("enableIpv6Direct")),
                 True,
@@ -313,6 +342,9 @@ class RemoteConfig:
             "localPort": self.local_port,
             "relayUrl": self.relay_url,
             "enableRelay": self.enable_relay,
+            "enableTunnel": self.enable_tunnel,
+            "tunnelHost": self.tunnel_host,
+            "tunnelSubdomain": self.tunnel_subdomain,
             "enableIpv6Direct": self.enable_ipv6_direct,
             "enableLocalListener": self.enable_local_listener,
             "preferredRoute": self.preferred_route,

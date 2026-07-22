@@ -7,11 +7,11 @@ import sys
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.build_oxt import DIST, build_oxt, build_source_oxt, project_version  # noqa: E402
+from tools.build_oxt import DIST, build_oxt, project_version  # noqa: E402
 
 DESCRIPTION_NS = "{http://openoffice.org/extensions/description/2006}"
 
@@ -21,9 +21,9 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
 
     build_oxt(output)
     version = project_version()
+    docs_archive_name = f"resources/impress-remote-docs-{version}.zip"
     relay_archive_name = f"resources/impress-remote-relay-python-{version}.zip"
     cloudflare_archive_name = f"resources/impress-remote-relay-cloudflare-{version}.zip"
-    docs_archive_name = f"resources/impress-remote-docs-{version}.zip"
 
     with ZipFile(output) as package:
         names = set(package.namelist())
@@ -31,11 +31,19 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         assert "web/index.html" in names
         assert "web/app.css" in names
         assert "web/app.js" in names
-        assert "web/manifest.webmanifest" in names
-        assert "web/sw.js" in names
-        assert "web/icons/remote.svg" in names
+        assert "web/manifest.webmanifest" not in names
+        assert "web/sw.js" not in names
+        assert "web/icons/remote.svg" not in names
         assert "web/localizations/en.json" in names
         assert "web/localizations/tr.json" in names
+        assert "web/localizations/manifest.json" in names
+        assert "icons/icon.svg" in names
+        assert "descriptions/description-en.txt" in names
+        assert "descriptions/description-tr.txt" in names
+        assert not any(".DS_Store" in name for name in names)
+        index_html = package.read("web/index.html").decode("utf-8")
+        asset_manifest = package.read("web/asset-manifest.json").decode("utf-8")
+        build_features = package.read("python/impress_remote/BUILD_FEATURES.json").decode("utf-8")
         assert relay_archive_name in names
         assert cloudflare_archive_name in names
         assert docs_archive_name in names
@@ -59,6 +67,11 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
     version_node = description.find(f"{DESCRIPTION_NS}version")
     assert version_node is not None
     assert version_node.attrib["value"] == version
+    assert 'href="/app.css" integrity="sha256-' in index_html
+    assert 'src="/app.js" integrity="sha256-' in index_html
+    assert "localizations/manifest.json" in asset_manifest
+    assert '"localtunnel": true' in build_features
+    assert '"relay": true' in build_features
 
 
 def test_build_oxt_defaults_to_versioned_filename_and_cleans_intermediates() -> None:
@@ -94,38 +107,3 @@ def test_build_oxt_defaults_to_versioned_filename_and_cleans_intermediates() -> 
         assert after - before == {Path(output.name)}
     finally:
         output.unlink(missing_ok=True)
-
-
-def test_build_source_oxt_excludes_embedded_support_bundles(tmp_path) -> None:
-    version = project_version()
-    output = tmp_path / f"libreoffice-impress-remote-{version}-source.oxt"
-
-    build_source_oxt(output)
-
-    with ZipFile(output) as package:
-        names = set(package.namelist())
-        assert "description.xml" in names
-        assert "python/impress_remote/component.py" in names
-        assert "python/impress_remote/VERSION" in names
-        assert "web/index.html" in names
-        assert "web/app.js" in names
-        assert "web/localizations/en.json" in names
-        assert not any(name.startswith("resources/") for name in names)
-
-
-def test_build_source_oxt_keeps_full_oxt_when_built_alongside() -> None:
-    version = project_version()
-    full_output = DIST / f"libreoffice-impress-remote-{version}.oxt"
-    source_output = DIST / f"libreoffice-impress-remote-{version}-source.oxt"
-
-    full_result = build_oxt()
-    source_result = build_source_oxt(clean_dist=True)
-
-    try:
-        assert full_result == full_output
-        assert source_result == source_output
-        assert full_output.exists()
-        assert source_output.exists()
-    finally:
-        full_output.unlink(missing_ok=True)
-        source_output.unlink(missing_ok=True)

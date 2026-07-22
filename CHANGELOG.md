@@ -9,6 +9,120 @@ The project is pre-1.0. Early entries are recorded as development milestones ins
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-07-22
+
+### Changed
+
+- Fixed the phone total timer so slide updates no longer reset it back to zero while the presentation is running.
+- Removed the phone drawer blank-screen control.
+- Bumped the extension, relay package, and project version to `0.7.6`.
+
+## [0.7.5] - 2026-07-22
+
+### Changed
+
+- Replaced the confusing phone drawer timer and blank-screen glyphs with clearer pause/play and screen-off/screen-on icons.
+- Bumped the extension, relay package, and project version to `0.7.5`.
+
+## [0.7.4] - 2026-07-22
+
+### Added
+
+- Added a phone fullscreen slide mode button next to the controls drawer button.
+- Fullscreen slide mode hides presenter notes, expands the slide, requests fullscreen/landscape orientation when supported, and shows duplicated previous/next controls on both left and right edges.
+- Bumped the extension, relay package, and project version to `0.7.4`.
+
+## [0.7.3] - 2026-07-22
+
+### Changed
+
+- Simplified the phone UI command drawer by removing duplicate effect-step controls and slideshow start/end controls.
+- Added explicit first-slide and last-slide drawer controls.
+- Replaced the ambiguous monitor-style blank/resume icon with a clearer blackout-style control.
+- Added separate presentation and current-slide timers, plus a drawer toggle to pause/resume the displayed timers.
+- Changed the jump-to-slide button from `#` text to an icon button.
+- Bumped the extension, relay package, and project version to `0.7.3`.
+
+## [0.7.2] - 2026-07-22
+
+### Fixed
+
+- Added explicit separators before Start/Stop Remote and after Remote Settings in the Impress Slide Show menu merge.
+- Fixed Pylance diagnostics for the dynamic UNO clipboard `DataFlavor` struct used by the QR popup Copy URL action.
+- Bumped the extension, relay package, and project version to `0.7.2`.
+
+## [0.7.1] - 2026-07-22
+
+### Changed
+
+- Added install-facing OXT metadata with packaged icon and localized extension descriptions.
+- Simplified Remote Settings into a settings-only dialog with mode selection and relay-only relay URL/resource controls.
+- Replaced the settings Help text box with a static structured LibreOffice help dialog.
+- Moved manual-link fallback to a Copy URL button in the QR pairing popup.
+- Changed settings saves so changed settings stop a running remote and take effect on the next explicit Start Remote.
+- Added `make refresh` and expanded `make clean` to remove the uv-managed venv and project cache.
+- Bumped the extension, relay package, and project version to `0.7.1`.
+
+## [0.7.0] - 2026-07-22
+
+### Changed
+
+- Removed the dual OXT product path: `make oxt` now builds one complete extension that includes the matching documentation, Python relay, and Cloudflare relay export bundles.
+- Simplified LibreOffice remote settings to a single mode selector with Local network, Direct IPv6, Relay Server, and LocalTunnel modes.
+- Changed the default route from Auto to Local network and made Start Remote obey the saved mode directly.
+- Flattened the Impress Slide Show menu integration to direct Start/Stop Remote and Remote Settings actions.
+- Relay URL and bundled relay/documentation export controls now appear only when Relay Server mode is selected.
+- Added an in-product Help popup that explains the modes, pairing flow, and common failure paths.
+- Product CI now builds and verifies the single versioned OXT artifact instead of separate relay-enabled/release bundle artifacts.
+- Reorganized automated tests into grouped `tests/extension`, `tests/shared`, `tests/tools`, and `tests/relay` folders.
+- Moved shared localization catalogs from the repository root into `shared/localizations`.
+- Removed the source-only OXT packaging path so `make oxt` is the single extension build artifact.
+- Removed installable PWA behavior from the phone UI, including web app manifest, service worker, icon assets, and matching local/relay routes.
+- Consolidated relay, deployment, and compatibility documentation into `docs/relay.md` and removed duplicate/oversized legacy docs.
+- Replaced scattered LibreOffice failure messages with a copyable diagnostic error popup for command and settings failures.
+- Bumped the extension, relay package, and project version to `0.7.0`.
+
+## [0.6.22] - 2026-07-22
+
+### Added
+
+- Added a vendored pure-Python LocalTunnel-compatible client for tunnel fallback without requiring Node.js or npm at LibreOffice runtime.
+- Added `tunnel` as a first-class route that reuses the encrypted local/direct ECDH HTTP transport through a temporary public tunnel URL.
+- Added LocalTunnel settings in LibreOffice Advanced Remote Settings, including tunnel enablement, tunnel host, requested subdomain, tunnel status, and tunnel-specific guidance.
+- Added dual OXT build modes: the default OXT hides experimental relay UI/resources, while `make relay-oxt` builds an experimental relay-enabled OXT with Python relay and Cloudflare support preserved.
+
+### Changed
+
+- `make oxt` now builds the simpler local-plus-LocalTunnel default extension, and `make release-full` also builds the relay-enabled experimental OXT.
+- Auto route selection now prefers local first, then LocalTunnel when local is unavailable, then direct IPv6, with relay kept for relay-enabled builds.
+- Product CI now builds both default and relay-enabled OXT artifacts.
+- Bumped the extension, relay package, and project version to `0.6.22`.
+
+## [0.6.21] - 2026-07-22
+
+### Fixed
+
+- Fixed Pylance diagnostics in localization manifest tests and relay compatibility validation by narrowing dynamic JSON values before membership checks.
+
+### Changed
+
+- Bumped the extension, relay package, and project version to `0.6.21`.
+
+## [0.6.20] - 2026-07-22
+
+### Added
+
+- Added dynamic localization discovery with generated `/localizations/manifest.json` for the extension local server, Python relay, Cloudflare/shared web bundles, and packaged OXT assets.
+- Added `make localization-import` plus a translation import validator that checks locale tags, unknown keys, missing keys, and placeholder compatibility before writing catalogs.
+- Added generated asset manifests with SHA-256 and SRI metadata for shared web UI assets, plus packaged SRI attributes for `app.css` and `app.js`.
+- Added `make relay-compat` and a stdlib relay compatibility validator for checking third-party or self-hosted relay HTTP contracts.
+- Added localization and relay compatibility documentation.
+
+### Changed
+
+- The phone UI now reads the localization manifest before choosing the browser locale, so adding supported languages no longer requires editing `shared/webui/app.js`.
+- Bumped the extension, relay package, and project version to `0.6.20`.
+
 ### Documentation
 
 - Added a user guide for local-first pairing, hotspot usage, route selection, and manual-link backup.

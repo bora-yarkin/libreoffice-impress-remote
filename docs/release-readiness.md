@@ -7,7 +7,7 @@ This document defines what "ready to release" means while the project is still p
 
 ## Current Release Posture
 
-`0.6.19` is a pre-1.0 technical preview suitable for hands-on testing by the maintainer and early contributors.
+`0.7.6` is a pre-1.0 technical preview suitable for hands-on testing by the maintainer and early contributors.
 
 It is not yet a stable end-user release because these important areas are still unfinished:
 
@@ -80,7 +80,7 @@ Minimum gate for broader preview:
 - self-test listener before offering the route
 - fail gracefully when no public IPv6 is available
 - verify encrypted state, command, and slide assets in at least one working IPv6 environment
-- verify router/firewall guidance in Advanced Remote Settings
+- verify router/firewall guidance in Remote Settings
 
 Minimum gate for beta:
 
@@ -118,13 +118,9 @@ Product CI should pass before publishing any preview artifact:
 - run Ruff lint
 - run the full Python unit/integration test suite
 - validate the extension manifest
-- build the versioned full `.oxt`
-- build the versioned source-only `.oxt`
-- verify both versioned `.oxt` outputs exist
-- build the Python relay bundle
-- build the Cloudflare relay bundle
-- verify both relay bundle archives exist
-- upload the versioned full and source-only `.oxt` artifacts
+- build the versioned `.oxt`
+- verify the versioned `.oxt` output exists
+- upload the versioned `.oxt` artifact
 
 GitHub Native Security should pass or have an explicitly documented exception:
 
@@ -143,10 +139,7 @@ Packaging:
 - `make test`
 - `make lint`
 - `make oxt`
-- `make source-oxt`
-- `make release-full`
 - confirm `dist/libreoffice-impress-remote-<version>.oxt` exists
-- confirm `dist/libreoffice-impress-remote-<version>-source.oxt` exists
 - confirm the OXT contains matching Python relay, Cloudflare relay, and docs bundles
 - install the generated OXT into LibreOffice
 
@@ -159,9 +152,16 @@ Local:
 - verify Safari local fallback if testing on iOS
 - verify stop remote tears down the route
 
+LocalTunnel:
+
+- select LocalTunnel mode
+- verify LibreOffice obtains a public tunnel URL
+- scan the tunnel QR and verify encrypted state, slide assets, and commands
+- stop Remote and verify the tunnel closes
+
 Relay:
 
-- export bundled Python relay from Advanced Remote Settings
+- export bundled Python relay from Remote Settings while Relay Server mode is selected
 - run relay locally or on a VPS
 - configure relay URL in LibreOffice
 - force Relay only
@@ -195,8 +195,7 @@ Block a beta/stable release if any of these are true:
 - no Windows or Linux manual verification exists
 - no browser-level E2E coverage exists for core phone UI behavior
 - no recorded test-before-release results exist for local, direct IPv6, and relay target routes
-- localization expansion has no import workflow
-- local frontend trust decisions are still unresolved
+- local HTTPS or equivalent active-attacker frontend protection is still unresolved
 
 ## Release Naming
 

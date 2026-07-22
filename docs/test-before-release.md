@@ -14,10 +14,9 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 - Run `make venv`.
 - Run `make lint`.
 - Run `make test`.
-- Run `make release-full`.
+- Run `make oxt`.
 - Confirm `dist/libreoffice-impress-remote-<version>.oxt` exists.
-- Confirm `dist/libreoffice-impress-remote-<version>-source.oxt` exists.
-- Confirm the Python relay, Cloudflare relay, and docs bundles exist in `dist/`.
+- Confirm the generated OXT contains the Python relay, Cloudflare relay, and docs bundles under `resources/`.
 - Install the generated `.oxt` into a clean LibreOffice user profile when possible.
 - Use an Impress document with at least five slides, slide titles, presenter notes, and one image-heavy slide.
 
@@ -25,31 +24,49 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 
 - Open LibreOffice Impress.
 - Install the generated `.oxt` through Extension Manager.
+- Confirm Extension Manager shows the extension icon, localized name, publisher, and useful description.
 - Restart LibreOffice.
-- Confirm `Slide Show -> Presentation Remote` appears in Impress.
-- Confirm the Presentation Remote menu does not appear in Writer, Calc, or the LibreOffice start center.
+- Confirm `Slide Show -> Start Remote` and `Slide Show -> Remote Settings` appear in Impress.
+- Confirm the remote menu actions do not appear in Writer, Calc, or the LibreOffice start center.
 - Confirm `Start Remote` is visible before the server starts.
 - Start the remote and confirm the same menu item changes to `Stop Remote`.
 - Stop the remote and confirm the menu item changes back to `Start Remote`.
-- Confirm `Advanced Remote Settings` opens from the Presentation Remote submenu.
+- Confirm `Remote Settings` opens from the Slide Show menu.
 - Confirm toolbar or notebookbar buttons appear near the built-in slideshow controls where LibreOffice supports addon toolbar merging.
 
-## Advanced Remote Settings
+## Remote Settings
 
-- Open `Advanced Remote Settings`.
-- Confirm route selection includes Auto, Local, Direct IPv6, and Relay.
-- Confirm local port, local listener, direct IPv6, and relay settings persist after closing and reopening the dialog.
-- Confirm route status shows useful guidance when IPv6 or relay is unavailable.
-- Confirm the manual link is available as a backup.
-- Export the bundled Python relay package and confirm the zip filename matches the extension version.
-- Export the bundled Cloudflare relay package and confirm the zip filename matches the extension version.
-- Export the bundled documentation package and confirm the zip filename matches the extension version.
+- Open `Remote Settings`.
+- Confirm the mode selector includes Local network, Direct IPv6, Relay Server, and LocalTunnel.
+- Confirm Local network is selected by default on a clean profile.
+- Confirm the relay URL field and Get Relay Server/Get Cloudflare Relay/Get Documentation buttons are hidden until Relay Server mode is selected.
+- Select Relay Server and confirm the relay URL field and export buttons appear.
+- Confirm the settings dialog does not show live status, current route, issue summaries, how-to text, or a manual-link field.
+- Change a setting while the remote is running, save, and confirm the remote stops so the next Start Remote uses the saved mode.
+- Open Help and confirm it renders as a static information page rather than a single-line text box.
+- Start the remote and confirm the QR popup includes a Copy URL button below the QR code.
+- Export the bundled documentation and relay packages from Relay Server mode and confirm the zip filenames match the extension version.
 - Confirm export to Downloads works when folder selection is unavailable.
+
+## LocalTunnel Mode
+
+- Install the generated OXT.
+- Open Remote Settings.
+- Confirm LocalTunnel is enabled and points at the configured tunnel host.
+- Select LocalTunnel mode manually.
+- Start Remote.
+- Wait for the tunnel route to report a public URL.
+- Scan the QR code or open the manual tunnel link on the phone.
+- Confirm the phone loads over HTTPS from the tunnel URL.
+- Confirm encrypted state, slide assets, previous/next commands, and tap-to-advance work.
+- Confirm LibreOffice starts the slideshow from the first slide after pairing.
+- Stop Remote and confirm the tunnel closes.
+- Record the tunnel provider, assigned URL domain, phone browser, and whether any provider interstitial or rate limit appeared.
 
 ## Local Same-Wi-Fi Mode
 
 - Connect the desktop and phone to the same Wi-Fi network.
-- In Impress, choose Auto or Local route.
+- In Impress, choose Local network mode.
 - Start Remote.
 - Scan the QR code from the phone.
 - Confirm the QR popup closes when the phone connects.
@@ -67,7 +84,7 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 
 - Turn on phone hotspot.
 - Connect the desktop to the phone hotspot.
-- Start Remote in Auto or Local route.
+- Start Remote in Local network mode.
 - Scan the QR code.
 - Confirm pairing works through the hotspot address.
 - Confirm slide image, notes, tap-to-advance, previous, and next all work.
@@ -85,19 +102,19 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 ## Direct IPv6 Mode
 
 - Test on a network where the desktop has a globally reachable IPv6 address.
-- Enable Direct IPv6 in Advanced Remote Settings.
+- Select Direct IPv6 in Remote Settings.
 - Select Direct IPv6 manually.
 - Start Remote.
 - Confirm LibreOffice advertises only global IPv6 addresses, not link-local or private addresses.
 - Scan the QR code from a phone on a network that can reach the desktop IPv6 address.
 - Confirm encrypted state, slide assets, and commands work.
 - Disconnect the phone and reconnect with the same QR/manual link.
-- Confirm Auto route falls back cleanly when Direct IPv6 is unavailable.
+- Confirm Direct IPv6 reports useful guidance when it is unavailable.
 - If no public IPv6 environment is available, record this test as skipped with the network reason.
 
 ## Python Relay Mode
 
-- Export the bundled Python relay package from Advanced Remote Settings.
+- Export the bundled Python relay package from Remote Settings while Relay Server mode is selected.
 - Extract it outside the repository.
 - Run the foreground relay helper.
 - Confirm `/health` returns successfully.
@@ -124,7 +141,7 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 
 ## Cloudflare Relay Mode
 
-- Export the bundled Cloudflare relay package from Advanced Remote Settings.
+- Export the bundled Cloudflare relay package from Remote Settings while Relay Server mode is selected.
 - Deploy the Worker and Durable Object from the generated bundle.
 - Confirm the deployed `/health` endpoint returns successfully.
 - Configure the Cloudflare relay URL in LibreOffice.
@@ -145,7 +162,7 @@ Record the date, OS, LibreOffice version, phone browser, route, and result for e
 - Confirm presenter notes are the only scrollable region.
 - Confirm button icons are understandable without translated labels.
 - Confirm offline, reconnect, retry, and reload states are visible when the server disappears.
-- Confirm the PWA metadata does not break normal browser usage.
+- Confirm the phone UI opens as a normal browser page and does not prompt for PWA installation.
 
 ## Presentation State And Controls
 

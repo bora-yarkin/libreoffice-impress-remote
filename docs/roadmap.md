@@ -5,7 +5,7 @@
 
 This roadmap turns the project goals into a concrete delivery plan.
 
-It reflects the repository state as of `2026-07-21` and the current `0.6.19` snapshot.
+It reflects the repository state as of `2026-07-22` and the current `0.7.6` snapshot.
 
 ## Product Direction
 
@@ -77,7 +77,7 @@ This is the base for the remaining work, not the finish line.
 
 ### M1 - Local Mode Complete
 
-Status: in progress after `0.6.19`
+Status: in progress after `0.7.6`
 
 Target outcome:
 
@@ -107,7 +107,7 @@ Exit criteria:
 
 ### M2 - LibreOffice-quality UX, Guidance, Localization, and Accessibility
 
-Status: in progress after `0.6.19`
+Status: in progress after `0.7.6`
 
 Target outcome:
 
@@ -117,7 +117,7 @@ Target outcome:
 
 Main work:
 
-- expand the initial English and Turkish catalogs into importable translation packs
+- continue expanding the initial English and Turkish catalogs with the localization import workflow
 - keep menu labels, dialog copy, status text, errors, and help text aligned with translation keys
 - extend keyboard, focus, and status-feedback verification across supported desktop platforms
 - add LibreOffice help and troubleshooting content
@@ -139,7 +139,7 @@ Exit criteria:
 
 ### M3 - Protocol and Security Foundation
 
-Status: in progress after `0.6.19`
+Status: in progress after `0.7.6`
 
 Target outcome:
 
@@ -176,7 +176,7 @@ Exit criteria:
 
 ### M4 - Optional Direct IPv6 Hardening
 
-Status: completed in the current repository snapshot after `0.6.19`
+Status: completed in the current repository snapshot after `0.7.6`
 
 Target outcome:
 
@@ -186,7 +186,7 @@ Current baseline:
 
 - only globally reachable IPv6 addresses are advertised for direct pairing
 - the direct IPv6 listener self-tests its own advertised addresses before the route is offered
-- Auto mode only chooses direct IPv6 when the route is actually usable
+- Direct IPv6 mode only offers a pairing link when the route is actually usable
 - the LibreOffice dialog now surfaces router, firewall, and hotspot guidance for direct IPv6 failures
 - the direct IPv6 phone route now uses the same encrypted session profile as relay transport
 
@@ -227,7 +227,7 @@ Repository focus:
 
 - `server/`
 - `extension/python/impress_remote/relay_client.py`
-- `docs/relay-server.md`
+- `docs/relay.md`
 - `docs/architecture.md`
 
 Exit criteria:
@@ -237,7 +237,7 @@ Exit criteria:
 
 ### M6 - Upstream Preparation
 
-Status: completed in the current repository snapshot after `0.6.19`
+Status: completed in the current repository snapshot after `0.7.6`
 
 Target outcome:
 

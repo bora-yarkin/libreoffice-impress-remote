@@ -6,10 +6,14 @@
     <name lang="en">LibreOffice Impress Remote</name>
     <name lang="tr">LibreOffice Impress Kumandasi</name>
   </display-name>
+  <icon>
+    <default xlink:href="icons/icon.svg"/>
+  </icon>
   <publisher>
     <name xlink:href="https://github.com/bora-yarkin/libreoffice-impress-remote" lang="en">Bora Yarkın</name>
   </publisher>
   <extension-description>
-    <src xlink:href="https://github.com/bora-yarkin/libreoffice-impress-remote" lang="en"/>
+    <src xlink:href="descriptions/description-en.txt" lang="en"/>
+    <src xlink:href="descriptions/description-tr.txt" lang="tr"/>
   </extension-description>
 </description>

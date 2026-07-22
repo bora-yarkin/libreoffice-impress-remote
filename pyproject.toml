@@ -38,5 +38,5 @@ extend-exclude = ["extension/python/qrcode"]
 select = ["E", "F", "B", "UP"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "server/tests"]
+testpaths = ["tests"]
 asyncio_mode = "auto"

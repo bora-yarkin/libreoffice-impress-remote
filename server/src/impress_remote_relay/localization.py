@@ -11,7 +11,7 @@ from typing import Any
 
 DEFAULT_LOCALE = "en"
 PACKAGE_LOCALIZATION_ROOT = Path(__file__).resolve().with_name("web") / "localizations"
-SOURCE_LOCALIZATION_ROOT = Path(__file__).resolve().parents[3] / "localizations"
+SOURCE_LOCALIZATION_ROOT = Path(__file__).resolve().parents[3] / "shared" / "localizations"
 
 
 def localization_root() -> Path:

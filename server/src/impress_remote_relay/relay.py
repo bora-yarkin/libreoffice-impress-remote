@@ -12,7 +12,7 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
-from impress_remote_relay.assets import read_web_asset, web_asset_manifest
+from impress_remote_relay.assets import localization_manifest, read_web_asset, web_asset_manifest
 from impress_remote_relay.localization import translate
 from impress_remote_relay.session import RelaySession
 
@@ -119,9 +119,6 @@ def create_app(state: RelayState | None = None) -> web.Application:
     app.router.add_get("/index.html", index)
     app.router.add_get("/app.js", app_js)
     app.router.add_get("/app.css", app_css)
-    app.router.add_get("/manifest.webmanifest", web_manifest)
-    app.router.add_get("/sw.js", service_worker)
-    app.router.add_get("/icons/remote.svg", remote_icon)
     app.router.add_get("/localizations/{name}", localization_json)
     app.router.add_get("/ws", websocket_handler)
     return app
@@ -196,36 +193,19 @@ async def app_css(_request: web.Request) -> web.Response:
     )
 
 
-async def web_manifest(_request: web.Request) -> web.Response:
-    return web.Response(
-        text=read_web_asset("manifest.webmanifest"),
-        content_type="application/manifest+json",
-    )
-
-
-async def service_worker(_request: web.Request) -> web.Response:
-    return web.Response(
-        text=read_web_asset("sw.js"),
-        content_type="application/javascript",
-        headers={"Service-Worker-Allowed": "/"},
-    )
-
-
-async def remote_icon(_request: web.Request) -> web.Response:
-    return web.Response(
-        text=read_web_asset("icons/remote.svg"),
-        content_type="image/svg+xml",
-    )
-
-
 async def localization_json(request: web.Request) -> web.Response:
     name = request.match_info.get("name", "")
-    if name not in {"en.json", "tr.json"}:
+    if name == "manifest.json":
+        return web.json_response(localization_manifest())
+    if "/" in name or not name.endswith(".json"):
         raise web.HTTPNotFound(text=translate("relay.error.localizationNotFound"))
-    return web.Response(
-        text=read_web_asset(f"localizations/{name}"),
-        content_type="application/json",
-    )
+    try:
+        return web.Response(
+            text=read_web_asset(f"localizations/{name}"),
+            content_type="application/json",
+        )
+    except FileNotFoundError:
+        raise web.HTTPNotFound(text=translate("relay.error.localizationNotFound")) from None
 
 
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:

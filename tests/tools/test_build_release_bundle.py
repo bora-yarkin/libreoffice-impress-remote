@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from zipfile import ZipFile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -30,9 +30,9 @@ def test_build_release_bundle_contains_only_relay_runtime_assets(tmp_path) -> No
         assert f"{bundle_name}/install-windows-service.ps1" in names
         assert f"{bundle_name}/src/impress_remote_relay/web/index.html" in names
         assert f"{bundle_name}/src/impress_remote_relay/web/app.js" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/manifest.webmanifest" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/sw.js" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/icons/remote.svg" in names
+        assert f"{bundle_name}/src/impress_remote_relay/web/manifest.webmanifest" not in names
+        assert f"{bundle_name}/src/impress_remote_relay/web/sw.js" not in names
+        assert f"{bundle_name}/src/impress_remote_relay/web/icons/remote.svg" not in names
         assert f"{bundle_name}/src/impress_remote_relay/web/localizations/en.json" in names
         assert f"{bundle_name}/src/impress_remote_relay/web/localizations/tr.json" in names
         assert all(not name.endswith(".oxt") for name in names)

@@ -3,6 +3,8 @@
 
 from impress_remote.localization import (
     DEFAULT_LOCALE,
+    available_locales,
+    localization_manifest,
     load_catalog,
     normalize_locale,
     translate,
@@ -28,6 +30,18 @@ def test_normalizes_locale_codes() -> None:
     assert normalize_locale("tr_TR.UTF-8") == "tr"
     assert normalize_locale("en-US") == "en"
     assert normalize_locale("de_DE.UTF-8") == ""
+
+
+def test_reports_available_locales_for_manifest_driven_clients() -> None:
+    locales = available_locales()
+    manifest = localization_manifest()
+
+    assert DEFAULT_LOCALE in locales
+    assert "tr" in locales
+    assert manifest["defaultLocale"] == DEFAULT_LOCALE
+    manifest_locales = manifest["locales"]
+    assert isinstance(manifest_locales, list)
+    assert "tr" in manifest_locales
 
 
 def test_formats_localized_message_values() -> None:

@@ -392,6 +392,7 @@ class ControllerTests(unittest.TestCase):
         controller.command("blank_screen")
         controller.command("resume_presentation")
         controller.command("goto_last_slide")
+        controller.command("goto_first_slide")
         controller.command("next_slide")
         controller.command("goto_slide", 2)
         controller.command("end_presentation")
@@ -408,6 +409,7 @@ class ControllerTests(unittest.TestCase):
                 ("blank_screen", 0),
                 ("resume", None),
                 ("goto_last_slide", None),
+                ("goto_slide", 0),
                 ("next_slide", None),
                 ("goto_slide", 2),
             ],

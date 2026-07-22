@@ -5,14 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#090c13">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Impress Remote">
   <title data-i18n="app.title"></title>
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icons/remote.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icons/remote.svg">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -22,10 +15,18 @@
       <div class="slide-frame" id="slide-frame" role="button" tabindex="0" aria-label="" data-i18n-attr="aria-label:aria.currentSlideTap">
         <img id="slide-image" alt="" data-i18n-attr="alt:aria.currentSlidePreview" hidden>
         <p class="slide-chip slide-label slide-chip-overlay">-- / --</p>
-        <p class="timer-chip" id="timer-chip" hidden>00:00</p>
+        <div class="timer-stack" id="timer-stack" hidden>
+          <p class="timer-chip" id="total-timer-chip" aria-label="" data-i18n-attr="aria-label:aria.totalTimer">Σ 00:00</p>
+          <p class="timer-chip" id="slide-timer-chip" aria-label="" data-i18n-attr="aria-label:aria.slideTimer">↻ 00:00</p>
+        </div>
         <button class="more-button" id="more-button" type="button" aria-expanded="false" aria-controls="command-drawer" aria-label="" data-i18n-attr="aria-label:aria.moreControls">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M12 8.5v.01M12 12v.01M12 15.5v.01"/>
+          </svg>
+        </button>
+        <button class="fullscreen-button" id="fullscreen-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.enterFullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8 4H4v4M16 4h4v4M4 16v4h4M20 16v4h-4"/>
           </svg>
         </button>
         <div class="slide-placeholder" id="slide-placeholder">
@@ -48,19 +49,9 @@
     </section>
     <section class="command-drawer" id="command-drawer" hidden>
       <div class="command-grid">
-        <button class="drawer-button" data-command="start_presentation_from_first_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.startPresentation">
+        <button class="drawer-button" data-command="goto_first_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.firstSlide">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        </button>
-        <button class="drawer-button" data-command="previous_effect" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousEffect">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="m13 7-5 5 5 5M19 7l-5 5 5 5"/>
-          </svg>
-        </button>
-        <button class="drawer-button" data-command="next_effect" type="button" aria-label="" data-i18n-attr="aria-label:aria.nextEffect">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="m11 7 5 5-5 5M5 7l5 5-5 5"/>
+            <path d="M7 6v12M17 6l-6 6 6 6"/>
           </svg>
         </button>
         <button class="drawer-button" data-command="goto_last_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.lastSlide">
@@ -68,22 +59,45 @@
             <path d="m7 6 6 6-6 6M17 6v12"/>
           </svg>
         </button>
-        <button class="drawer-button" id="blank-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.blankScreen">
+        <button class="drawer-button" id="timer-toggle-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.pauseTimer">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M5 7h14v10H5zM8 20h8"/>
-          </svg>
-        </button>
-        <button class="drawer-button drawer-button-danger" data-command="end_presentation" type="button" aria-label="" data-i18n-attr="aria-label:aria.endPresentation">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M7 7h10v10H7z"/>
+            <path d="M9 6v12M15 6v12"/>
           </svg>
         </button>
       </div>
       <div class="goto-row">
         <input id="goto-input" type="number" min="1" inputmode="numeric" pattern="[0-9]*" placeholder="#" aria-label="" data-i18n-attr="aria-label:aria.gotoSlideInput">
-        <button class="drawer-button goto-button" id="goto-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.gotoSlideButton">#</button>
+        <button class="drawer-button goto-button" id="goto-button" type="button" aria-label="" data-i18n-attr="aria-label:aria.gotoSlideButton">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 12h13M13 6l6 6-6 6"/>
+          </svg>
+        </button>
       </div>
     </section>
+    <nav class="side-controls side-controls-left" aria-hidden="true">
+      <button class="nav-button" data-command="previous_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousSlide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M14.5 5.5 8 12l6.5 6.5"/>
+        </svg>
+      </button>
+      <button class="nav-button nav-button-primary" data-command="next_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.nextSlide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9.5 5.5 16 12l-6.5 6.5"/>
+        </svg>
+      </button>
+    </nav>
+    <nav class="side-controls side-controls-right" aria-hidden="true">
+      <button class="nav-button" data-command="previous_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousSlide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M14.5 5.5 8 12l6.5 6.5"/>
+        </svg>
+      </button>
+      <button class="nav-button nav-button-primary" data-command="next_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.nextSlide">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9.5 5.5 16 12l-6.5 6.5"/>
+        </svg>
+      </button>
+    </nav>
     <nav class="primary-controls">
       <button class="nav-button" id="prev-button" data-command="previous_slide" type="button" aria-label="" data-i18n-attr="aria-label:aria.previousSlide">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
