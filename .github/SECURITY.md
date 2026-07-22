@@ -3,13 +3,13 @@
 
 # Security Policy
 
-This project is pre-1.0 and should still be treated as security-sensitive software under active development.
+This project is a volunteer-maintained extension and should be treated as security-sensitive software under active development.
 
 ## Supported Versions
 
-No stable supported version exists yet. Until `1.0.0`, security fixes are best-effort and target the latest tagged or main-branch preview only. There are no long-term maintenance branches.
+Security fixes are best-effort and target the latest tagged release or main-branch snapshot only. There are no long-term maintenance branches.
 
-For the release target matrix and preview/stable blockers, see `docs/release-readiness.md`.
+For the release target matrix and blockers, see `docs/release-readiness.md`.
 
 ## Reporting Vulnerabilities
 

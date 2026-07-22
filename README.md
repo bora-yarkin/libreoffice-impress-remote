@@ -5,7 +5,7 @@
 
 LibreOffice Impress Remote turns your phone into a lightweight presenter remote for LibreOffice Impress. Start it from Impress, scan a QR code, and control the presentation from a clean phone UI that shows the current slide, presenter notes, and simple next/previous controls.
 
-The extension is local-first. Same-Wi-Fi and many hotspot setups work without extra infrastructure, and that local flow is the main path toward `1.0.0`. LocalTunnel, direct IPv6, and self-hosted relay modes are included for experimentation on harder networks, but they are not the primary experience.
+The extension is local-first. Same-Wi-Fi and many hotspot setups work without extra infrastructure. LocalTunnel, direct IPv6, and self-hosted relay modes are included for experimentation on harder networks, but they are not the primary experience.
 
 ## What You Get
 
@@ -17,7 +17,7 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups work without ex
 
 ## Current Status
 
-Version `0.7.8` is a usable pre-1.0 build. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
+Version `1.0.0` is the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
 
 - Impress-only `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`
 - QR-first pairing with Copy URL fallback in the QR popup
@@ -27,10 +27,10 @@ Version `0.7.8` is a usable pre-1.0 build. Local mode has been tested by the mai
 - Safari-compatible authenticated local fallback for trusted LAN use
 - one versioned OXT that embeds matching documentation, Python relay, and Cloudflare relay bundles
 - English and Turkish localization catalogs plus an import workflow for more languages
+- GitHub release automation for publishing the versioned OXT after build, lint, and tests pass
 
 Experimental or still in progress:
 
-- GitHub release support that runs the standard workflows and, after they pass, publishes the versioned extension artifact
 - broader LibreOffice, OS, browser, accessibility, LocalTunnel, IPv6, and relay compatibility evidence
 - long-term maintenance cadence, which depends on volunteer time
 

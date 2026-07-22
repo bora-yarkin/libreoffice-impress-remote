@@ -3,7 +3,7 @@
 
 # Roadmap
 
-This roadmap reflects the `0.7.8` snapshot.
+This roadmap reflects the `1.0.0` snapshot.
 
 This is a volunteer FOSS extension. It may move quickly when someone has time and may sit quietly when nobody does. The docs should not promise a paid-product support cadence, guaranteed long-term maintenance, or future platform ports.
 
@@ -13,7 +13,7 @@ The project stays extension-first:
 
 - Local network mode is the default, tested, and recommended path.
 - Phone hotspot support matters because it solves many same-room cases without external infrastructure.
-- Local mode is the main gate for `1.0.0`.
+- Local mode is the released main path.
 - LocalTunnel, Direct IPv6, and Relay Server modes are experimental fallbacks.
 - The phone UI stays lightweight and settings-free.
 - LibreOffice owns mode selection, pairing, help, and troubleshooting.
@@ -23,9 +23,9 @@ Future work may include other office suites, browser integrations, or deeper Lib
 
 ## Milestones
 
-### M1 - Finish Local Mode For 1.0.0
+### M1 - Broaden Local Mode Evidence
 
-Status: local mode has been tested by the maintainer and works in the current development environment.
+Status: local mode has been tested by the maintainer and is the `1.0.0` release path.
 
 - Record same-Wi-Fi and hotspot pairing results on macOS, Windows, and Linux.
 - Verify iOS Safari, Android Chrome, and Android Firefox behavior.
@@ -39,11 +39,11 @@ Exit criteria: a normal user can install the OXT, start the remote, scan a QR co
 
 Status: in progress
 
-- Add GitHub release automation after CI passes.
+- Keep GitHub release automation working after CI passes.
 - Keep the OXT versioned and self-contained.
 - Keep documentation bundled inside the OXT.
 - Keep release notes honest about what was actually tested.
-- Keep security fixes best-effort and latest-preview-only until the project has enough maintainer capacity for more.
+- Keep security fixes best-effort and latest-release-only until the project has enough maintainer capacity for more.
 
 Exit criteria: a release can be built, installed, tested locally, and explained clearly.
 

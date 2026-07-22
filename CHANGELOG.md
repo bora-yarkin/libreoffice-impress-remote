@@ -5,9 +5,21 @@
 
 All notable changes to LibreOffice Impress Remote are documented here.
 
-The project is pre-1.0. Early entries are recorded as development milestones instead of pretending a stable release ledger already exists.
+Early `0.x` entries are recorded as development milestones instead of pretending they were stable release lines.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-07-22
+
+### Added
+
+- Added GitHub release automation that runs compile, lint, tests, builds the versioned OXT, generates SHA-256 checksums, creates a matching `v<VERSION>` tag when run manually, and creates or updates the GitHub Release.
+
+### Changed
+
+- Promoted the extension to `1.0.0` as the first local-mode release while keeping LocalTunnel, Direct IPv6, and relay modes documented as experimental.
+- Updated release-readiness, README, roadmap, feature matrix, protocol, security, and development docs for the `1.0.0` release line.
+- Bumped the extension, relay package, and project version to `1.0.0`.
 
 ## [0.7.8] - 2026-07-22
 

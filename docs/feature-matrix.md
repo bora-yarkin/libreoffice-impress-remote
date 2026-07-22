@@ -3,7 +3,7 @@
 
 # Feature Matrix
 
-This matrix reflects the `0.7.8` snapshot.
+This matrix reflects the `1.0.0` snapshot.
 
 ## User Workflow
 
@@ -13,12 +13,12 @@ This matrix reflects the `0.7.8` snapshot.
 | Impress-only start/stop | Implemented | `Slide Show -> Start Remote` toggles to Stop Remote while running. |
 | Remote Settings | Implemented | Contains only mode selection, relay URL when Relay mode is selected, relay/documentation export buttons, Help, Save, and Close. |
 | QR-first pairing | Implemented | Start Remote opens the QR popup. Copy URL is in that popup as the manual fallback. |
-| Local network mode | Tested locally | Default and recommended route for same Wi-Fi and hotspot setups; this is the main `1.0.0` gate. |
+| Local network mode | Released | Default and recommended route for same Wi-Fi and hotspot setups; this is the main supported path. |
 | LocalTunnel mode | Experimental | Optional public tunnel fallback using the vendored pure-Python LocalTunnel-compatible client. |
 | Direct IPv6 mode | Experimental | Advertises only globally reachable IPv6 addresses after listener self-test, but needs more real-network proof. |
 | Relay Server mode | Experimental | Optional self-hosted Python or Cloudflare relay. Relay export buttons appear only in Relay Server mode. |
 | In-product help | Implemented | Help explains modes, pairing, and error reporting from LibreOffice. |
-| GitHub release publication | Planned | CI builds the OXT, but release creation is not automated yet. |
+| GitHub release publication | Implemented | Release workflow builds, tests, checksums, tags, and publishes the versioned OXT. |
 
 ## Phone Remote
 

@@ -3,7 +3,7 @@
 
 # Test Before Release
 
-Use this checklist before publishing a preview release. CI proves the package can be built and the protocol code still works; this checklist proves the installed OXT works in real LibreOffice and real phone browsers.
+Use this checklist before publishing a release. CI proves the package can be built and the protocol code still works; this checklist proves the installed OXT works in real LibreOffice and real phone browsers.
 
 Record date, version, OS, LibreOffice version, phone browser, route, result, and notes for every manual run. Mark unavailable environments as skipped with a reason.
 

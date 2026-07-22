@@ -3,23 +3,23 @@
 
 # Release Readiness
 
-This document defines what "ready to release" means for a volunteer pre-1.0 extension. It is deliberately practical: local mode is the main product path, while LocalTunnel, Direct IPv6, and relay modes are experimental fallbacks.
+This document defines what "ready to release" means for a volunteer extension. It is deliberately practical: local mode is the released product path, while LocalTunnel, Direct IPv6, and relay modes are experimental fallbacks.
 
 ## Current Release Posture
 
-`0.7.8` is a pre-1.0 maintainer preview.
+`1.0.0` is the first local-mode release.
 
 Local mode has been tested by the maintainer and works in the current development environment. That does not mean every LibreOffice version, operating system, router, phone browser, or corporate network is covered.
 
-Still unfinished before `1.0.0`:
+Still unfinished after `1.0.0`:
 
 - broader local-mode compatibility evidence across macOS, Windows, Linux, iOS, and Android
 - browser-level E2E coverage for the phone UI
 - accessibility verification
 - local HTTPS, signed assets, pinned assets, or an equivalent frontend-trust improvement
-- GitHub release creation after CI passes
+- broader post-release compatibility evidence
 
-Experimental and not required for `1.0.0`:
+Experimental and not part of the main release promise:
 
 - LocalTunnel mode
 - Direct IPv6 mode
@@ -32,10 +32,10 @@ This is a FOSS project maintained as volunteer time allows.
 
 | Area | Current Policy |
 | --- | --- |
-| Supported extension version | Latest tagged or main-branch preview only. |
-| Security fixes | Best-effort on the newest preview; no long-term maintenance branches. |
+| Supported extension version | Latest tagged release or main-branch snapshot only. |
+| Security fixes | Best-effort on the newest release; no long-term maintenance branches. |
 | Compatibility promise | No guarantee. Recorded compatibility means "tested there", not "supported forever". |
-| Breaking changes | Allowed before `1.0.0`, but protocol-breaking changes must bump the protocol version. |
+| Breaking changes | Avoided in the main local path when practical; protocol-breaking changes must bump the protocol version. |
 | Experimental routes | Best-effort only. They may change, break, or remain lightly tested. |
 
 ## Target Compatibility Matrix
@@ -49,11 +49,11 @@ These are testing targets, not promises.
 | Windows | Windows 10 or newer | Needs manual extension install and local-mode verification. |
 | Linux desktop | Current Ubuntu LTS or equivalent | Needs manual extension install and local-mode verification. |
 | Phone browsers | Current iOS Safari, Android Chrome, Android Firefox | Local mode and hotspot behavior matter most. |
-| Experimental relay | Python 3.11+ or current Cloudflare Workers runtime | Useful for advanced testing, not a 1.0.0 blocker. |
+| Experimental relay | Python 3.11+ or current Cloudflare Workers runtime | Useful for advanced testing, not part of the main local-mode promise. |
 
-## 1.0.0 Gate
+## Main Release Gate
 
-`1.0.0` should be local-first. Do not block it on LocalTunnel, Direct IPv6, or relay maturity.
+The main release is local-first. Do not block it on LocalTunnel, Direct IPv6, or relay maturity.
 
 Local mode must satisfy:
 
@@ -72,7 +72,7 @@ Local mode must satisfy:
 
 ## Experimental Route Gates
 
-These routes can ship in previews, but keep them labeled experimental unless they have real field-test notes.
+These routes can ship in releases, but keep them labeled experimental unless they have real field-test notes.
 
 LocalTunnel:
 
@@ -100,7 +100,7 @@ Relay:
 
 ## Automated Release Gates
 
-Before publishing a preview artifact:
+Before publishing a release artifact:
 
 - install Python test dependencies
 - compile extension, relay, test, and tool Python sources
@@ -143,7 +143,7 @@ If GitHub code scanning is disabled for the repository, CodeQL SARIF upload may 
 
 ## Manual Release Checklist
 
-Use the full [Test Before Release](test-before-release.md) checklist before tagging a preview release. The shorter list below is the minimum summary gate.
+Use the full [Test Before Release](test-before-release.md) checklist before tagging a release. The shorter list below is the minimum summary gate.
 
 Packaging:
 
@@ -183,7 +183,7 @@ Docs:
 
 ## Release Blockers
 
-Block a preview release if any of these are true:
+Block a release if any of these are true:
 
 - OXT cannot install cleanly in the maintainer's current LibreOffice.
 - Local mode cannot pair and control a real Impress slideshow.
@@ -192,19 +192,11 @@ Block a preview release if any of these are true:
 - The packaged OXT omits the shared phone UI, localization catalogs, documentation, or bundled resources.
 - Known security behavior differs from `docs/security/e2ee.md`.
 
-Block `1.0.0` if any of these are true:
-
-- local-mode results are not recorded for the target desktop and phone platforms
-- no browser-level E2E coverage exists for essential phone UI behavior
-- accessibility has not been checked
-- local frontend trust remains undocumented or misleading
-
 ## Release Naming
 
-Before `1.0.0`, use preview language:
+Use plain release language for the main local-mode extension:
 
-- `0.x.y maintainer preview`
-- `0.x.y local-mode preview`
-- `0.x.y experimental-route preview`
+- `1.0.0`
+- `1.x.y`
 
-Do not call the project "stable" until the local `1.0.0` blockers above are resolved.
+Keep experimental route notes explicit in release notes when LocalTunnel, Direct IPv6, or relay behavior changes.

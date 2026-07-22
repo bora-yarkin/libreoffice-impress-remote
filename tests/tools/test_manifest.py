@@ -203,6 +203,24 @@ def test_product_ci_runs_release_readiness_checks() -> None:
         assert removed not in workflow
 
 
+def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:
+    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    for expected in (
+        "python -m ruff check extension/python server/src tests tools",
+        "python -m pytest tests",
+        "python tools/build_oxt.py",
+        "sha256sum \"libreoffice-impress-remote-${version}.oxt\" > SHA256SUMS",
+        "gh release create",
+        "gh release upload",
+        "dist/libreoffice-impress-remote-${version}.oxt",
+    ):
+        assert expected in workflow
+
+    assert "contents: write" in workflow
+    assert "Release tag ${tag} does not match VERSION ${version}" in workflow
+
+
 def test_release_testing_checklist_is_linked_and_route_complete() -> None:
     docs_index = (ROOT / "docs/README.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -3,7 +3,7 @@
 
 # TODO
 
-This file tracks the `0.7.8` project snapshot: what already ships today and what is still planned next.
+This file tracks the `1.0.0` project snapshot: what already ships today and what is still planned next.
 
 For milestone order and project direction, see `docs/roadmap.md`.
 
@@ -11,16 +11,15 @@ Current product direction: local mode is the default, tested path, including sam
 
 ## Planned
 
-### 1. Finish The Local 1.0.0 Path
+### 1. Broaden Local Mode Evidence
 
 - Local compatibility evidence: Record local-mode results across supported LibreOffice versions, macOS, Windows, Linux, iOS Safari, Android Chrome, and Android Firefox.
 - Browser-level E2E automation: Add automated coverage for essential phone UI behavior, Safari local fallback, encrypted local handshakes, reconnect flows, and command round trips.
 - Accessibility verification: Verify keyboard navigation, focus order, screen-reader labels, status announcements, QR/Copy URL fallback, and phone remote controls across supported desktop and phone platforms.
-- Release readiness evidence: Record real manual compatibility results for local same-Wi-Fi and hotspot workflows before calling the extension `1.0.0`.
+- Release readiness evidence: Keep recording real manual compatibility results for local same-Wi-Fi and hotspot workflows after `1.0.0`.
 
 ### 2. Release And Volunteer Maintenance Readiness
 
-- Release automation: Add GitHub release support so standard CI workflows gate publication, then publish a GitHub release containing the versioned complete extension package.
 - Documentation baseline: Keep the feature matrix, troubleshooting guide, architecture, protocol, and security model updated as behavior changes.
 - Volunteer maintenance notes: Keep the docs clear that this is a best-effort FOSS project with no guaranteed maintenance cadence or long-term support branches.
 - Release readiness maintenance: Keep the release-readiness gates and support policy updated as planned features land.
@@ -100,6 +99,7 @@ Current product direction: local mode is the default, tested path, including sam
 - OXT packaging: LibreOffice `.oxt` packaging, manifest files, extension metadata, direct Slide Show menu registration, version injection, build-feature metadata, and versioned OXT builds are in place.
 - Single complete extension build: `make oxt` builds one OXT containing local, LocalTunnel, direct IPv6, relay mode, matching documentation, and relay export bundles.
 - Bundled resources: The OXT embeds matching documentation, Python relay, and Cloudflare relay bundles for export from Remote Settings when Relay Server mode is selected.
+- GitHub release automation: The release workflow runs build gates, creates a version tag when needed, generates checksums, and publishes the versioned OXT to a GitHub Release.
 - Development setup: `make venv` creates a `uv`-managed environment with dependencies installed, and `make sdk-download` resolves/downloads/installs a compatible LibreOffice SDK automatically.
 - Editor support: Workspace analysis config, import roots, and UNO stubs are in place to keep Pylance usable.
 - Localization catalogs: User-facing LibreOffice and phone UI strings use stable keys backed by English and Turkish JSON catalogs under `shared/localizations/`.
@@ -108,7 +108,7 @@ Current product direction: local mode is the default, tested path, including sam
 ### Documentation And QA
 
 - Product docs: README, user guide, feature matrix, install/runtime troubleshooting, architecture, protocol, relay, release-readiness, roadmap, and security docs are aligned with the current behavior.
-- Release readiness: Local, direct IPv6, and relay gates, target compatibility policy, latest-preview support policy, manual release checklist, and preview/beta blockers are documented.
+- Release readiness: Local, direct IPv6, and relay gates, target compatibility policy, latest-release support policy, manual release checklist, and release blockers are documented.
 - Product CI: CI installs test dependencies, runs lint and tests, builds the single versioned OXT, and verifies the generated extension artifact.
 - Automated tests: Unit and integration coverage exists for bootstrap/import behavior, SDK resolution, config, protocol helpers, crypto helpers, controller state extraction, embedded local HTTP endpoints, encrypted local/direct round trips, network URL helpers, relay admission/reconnect/security behavior, manifest presence, packaging, localization, and bundled resources.
 - Manual testing docs: `docs/test-before-release.md` covers OXT install, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, Cloudflare relay, phone UI, localization, security, and release notes.

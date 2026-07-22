@@ -3,7 +3,7 @@
 
 # Governance
 
-The project is maintainer-led during pre-1.0 development.
+The project is maintainer-led.
 
 The maintainer owns:
 

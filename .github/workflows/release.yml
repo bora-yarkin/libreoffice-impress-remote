@@ -1,0 +1,148 @@
+# SPDX-FileCopyrightText: 2026 Bora Yarkın
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Release
+
+'on':
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create or update. Leave empty to use v<VERSION>.'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark the GitHub Release as a prerelease.'
+        required: true
+        default: false
+        type: boolean
+      draft:
+        description: 'Create or update the GitHub Release as a draft.'
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.tag || '' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    name: Build, Test, And Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Install Test Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' -e './server[dev]'
+      - name: Compile Python Sources
+        run: python -m compileall -q extension/python server/src tests tools
+      - name: Lint Python Sources
+        run: python -m ruff check extension/python server/src tests tools
+      - name: Run Python Tests
+        run: python -m pytest tests
+        env:
+          PYTHONPATH: extension/python:server/src
+      - name: Build Extension Package
+        run: python tools/build_oxt.py
+      - name: Prepare Release Metadata
+        id: meta
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag || '' }}
+        run: |
+          set -eu
+          version="$(cat VERSION)"
+          expected_tag="v${version}"
+          tag="${REQUESTED_TAG:-${GITHUB_REF_NAME}}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ] && [ -z "${REQUESTED_TAG}" ]; then
+            tag="${expected_tag}"
+          fi
+          if [ "${tag}" != "${expected_tag}" ]; then
+            echo "Release tag ${tag} does not match VERSION ${version}; expected ${expected_tag}." >&2
+            exit 1
+          fi
+          artifact="dist/libreoffice-impress-remote-${version}.oxt"
+          test -s "${artifact}"
+          (cd dist && sha256sum "libreoffice-impress-remote-${version}.oxt" > SHA256SUMS)
+          notes="dist/release-notes.md"
+          awk -v version="${version}" '
+            $0 ~ "^## \\[" version "\\]" {capture=1; next}
+            capture && /^## \[/ {exit}
+            capture {print}
+          ' CHANGELOG.md > "${notes}"
+          if [ ! -s "${notes}" ]; then
+            {
+              echo "LibreOffice Impress Remote ${version}"
+              echo
+              echo "See CHANGELOG.md for release details."
+            } > "${notes}"
+          fi
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "artifact=${artifact}"
+            echo "notes=${notes}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Ensure Release Tag Exists
+        if: ${{ github.ref_type != 'tag' }}
+        env:
+          TAG_NAME: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
+            echo "Tag ${TAG_NAME} already exists locally."
+          else
+            git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+          fi
+          git push origin "refs/tags/${TAG_NAME}"
+      - name: Create Or Update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+          NOTES: ${{ steps.meta.outputs.notes }}
+          DRAFT: ${{ github.event.inputs.draft || 'false' }}
+          PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+        run: |
+          set -eu
+          create_flags=""
+          edit_flags="--draft=${DRAFT} --prerelease=${PRERELEASE}"
+          if [ "${DRAFT}" = "true" ]; then
+            create_flags="${create_flags} --draft"
+          elif [ "${PRERELEASE}" = "true" ]; then
+            create_flags="${create_flags} --prerelease"
+          else
+            create_flags="${create_flags} --latest"
+            edit_flags="${edit_flags} --latest"
+          fi
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release edit "${TAG_NAME}" \
+              --title "LibreOffice Impress Remote ${VERSION}" \
+              --notes-file "${NOTES}" \
+              ${edit_flags}
+            gh release upload "${TAG_NAME}" "${ARTIFACT}" dist/SHA256SUMS --clobber
+          else
+            gh release create "${TAG_NAME}" "${ARTIFACT}" dist/SHA256SUMS \
+              --title "LibreOffice Impress Remote ${VERSION}" \
+              --notes-file "${NOTES}" \
+              ${create_flags}
+          fi
