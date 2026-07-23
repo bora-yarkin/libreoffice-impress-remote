@@ -3,8 +3,8 @@
 
 from pathlib import Path
 
-import impress_remote_relay.runtime as runtime
-from impress_remote_relay.runtime import ensure_runtime_config, load_runtime_config
+import relay.runtime as runtime
+from relay.runtime import ensure_runtime_config, load_runtime_config
 
 
 def test_ensure_runtime_config_creates_random_port_when_missing(

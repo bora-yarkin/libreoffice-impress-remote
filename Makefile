@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
-.PHONY: help sdk-download oxt install-oxt test lint security clean refresh server-dev localization-import relay-compat
+.PHONY: help sdk-download oxt install-oxt test lint security clean refresh relay-dev localization-import relay-compat
 
 UV ?= uv
 VENV_DIR ?= .venv
@@ -20,13 +20,13 @@ VERSION := $(shell cat VERSION 2>/dev/null)
 OXT_FILE := dist/libreoffice-impress-remote-$(VERSION).oxt
 
 help:
-	@echo "Targets: venv sdk-download oxt install-oxt test lint security server-dev localization-import relay-compat clean refresh"
+	@echo "Targets: venv sdk-download oxt install-oxt test lint security relay-dev localization-import relay-compat clean refresh"
 
 venv: $(SETUP_STAMP)
 
-$(SETUP_STAMP): pyproject.toml server/pyproject.toml
+$(SETUP_STAMP): pyproject.toml relay/pyproject.toml
 	@if [ ! -x "$(VENV_PYTHON)" ]; then UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) venv $(VENV_DIR); fi
-	UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) pip install --python $(VENV_PYTHON) -e '.[dev,security]' -e './server[dev]'
+	UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) pip install --python $(VENV_PYTHON) -e '.[dev,security]' -e './relay[dev]'
 	@touch $(SETUP_STAMP)
 	@echo "Environment ready at $(VENV_DIR)"
 
@@ -42,17 +42,17 @@ install-oxt: oxt
 	"$(LO_UNOPKG)" add -f "$(OXT_FILE)"
 
 test: $(SETUP_STAMP)
-	PYTHONPATH=.:extension/python:server/src $(VENV_PYTEST) tests
+	PYTHONPATH=.:extension/python $(VENV_PYTEST) tests
 
 lint: $(SETUP_STAMP)
-	$(VENV_RUFF) check extension/python server/src tests tools
+	$(VENV_RUFF) check extension/python relay tests tools
 
 security: $(SETUP_STAMP)
 	$(VENV_REUSE) lint
-	$(VENV_BANDIT) -r extension/python server/src tools -q -lll
+	$(VENV_BANDIT) -r extension/python relay tools -q -lll
 	$(VENV_PIP_AUDIT)
 
-server-dev: $(SETUP_STAMP)
+relay-dev: $(SETUP_STAMP)
 	$(VENV_RELAY) --host-v4 0.0.0.0 --host-v6 :: --port 8080
 
 localization-import: $(SETUP_STAMP)

@@ -8,9 +8,9 @@ from pathlib import Path
 
 from aiohttp import web
 
-from impress_remote_relay.localization import translate
-from impress_remote_relay.relay import RelayState, create_app
-from impress_remote_relay.runtime import ensure_runtime_config
+from relay.localization import translate
+from relay.relay import RelayState, create_app
+from relay.runtime import ensure_runtime_config
 
 
 def create_windows_service_class(

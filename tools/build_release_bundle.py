@@ -16,9 +16,8 @@ from tools.project_version import read_project_version  # noqa: E402
 from tools.shared_webui import copy_webui  # noqa: E402
 
 DIST = ROOT / "dist"
-SERVER_ROOT = ROOT / "server"
-SERVER_PACKAGE = SERVER_ROOT / "src" / "impress_remote_relay"
-DEPLOY_ROOT = ROOT / "deploy" / "python-relay"
+RELAY_ROOT = ROOT / "relay"
+RELAY_SCRIPTS = RELAY_ROOT / "scripts"
 
 
 def project_version() -> str:
@@ -26,9 +25,7 @@ def project_version() -> str:
 
 
 def copy_python_package(source: Path, destination: Path) -> None:
-    for path in sorted(source.rglob("*.py")):
-        if "__pycache__" in path.parts:
-            continue
+    for path in sorted(source.glob("*.py")):
         target = destination / path.relative_to(source)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
@@ -61,10 +58,11 @@ def build_bundle(dist_dir: Path = DIST) -> tuple[Path, Path]:
 
     bundle_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "LICENSE", bundle_dir / "LICENSE")
-    copy_deploy_files(DEPLOY_ROOT, bundle_dir)
-    relay_src = bundle_dir / "src" / "impress_remote_relay"
+    copy_deploy_files(RELAY_SCRIPTS, bundle_dir)
+    shutil.copy2(RELAY_ROOT / "README.md", bundle_dir / "README.md")
+    relay_src = bundle_dir / "relay"
     relay_src.mkdir(parents=True, exist_ok=True)
-    copy_python_package(SERVER_PACKAGE, relay_src)
+    copy_python_package(RELAY_ROOT, relay_src)
     (relay_src / "VERSION").write_text(version + "\n", encoding="utf-8")
     copy_webui(relay_src / "web")
 

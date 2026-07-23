@@ -3,7 +3,7 @@
 
 # Getting Started
 
-This guide matches the `1.0.11` release line.
+This guide matches the `1.0.12` release line.
 
 ```bash
 git clone https://github.com/bora-yarkin/libreoffice-impress-remote.git
@@ -50,7 +50,7 @@ The extension ships English and Turkish catalogs in `shared/localizations/`.
 ## Relay Mode
 
 ```bash
-make server-dev
+make relay-dev
 ```
 
 Then:
@@ -71,7 +71,7 @@ The relay host now serves:
 
 ## Extension Packages
 
-- `make oxt` builds the versioned complete extension package, for example `dist/libreoffice-impress-remote-1.0.11.oxt`, with local, LocalTunnel, direct IPv6, relay mode, documentation export, and Python relay export included.
+- `make oxt` builds the versioned complete extension package, for example `dist/libreoffice-impress-remote-1.0.12.oxt`, with local, LocalTunnel, direct IPv6, relay mode, documentation export, and Python relay export included.
 - The installed `.oxt` embeds the matching documentation and stripped Python relay bundle so users can export matching resources from Remote Settings without visiting GitHub.
 
 Useful relay checks:

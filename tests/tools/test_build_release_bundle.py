@@ -28,13 +28,13 @@ def test_build_release_bundle_contains_only_relay_runtime_assets(tmp_path) -> No
         assert f"{bundle_name}/run-relay.py" in names
         assert f"{bundle_name}/install-linux-service.sh" in names
         assert f"{bundle_name}/install-windows-service.ps1" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/index.html" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/app.js" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/manifest.webmanifest" not in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/sw.js" not in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/icons/remote.svg" not in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/localizations/en.json" in names
-        assert f"{bundle_name}/src/impress_remote_relay/web/localizations/tr.json" in names
+        assert f"{bundle_name}/relay/web/index.html" in names
+        assert f"{bundle_name}/relay/web/app.js" in names
+        assert f"{bundle_name}/relay/web/manifest.webmanifest" not in names
+        assert f"{bundle_name}/relay/web/sw.js" not in names
+        assert f"{bundle_name}/relay/web/icons/remote.svg" not in names
+        assert f"{bundle_name}/relay/web/localizations/en.json" in names
+        assert f"{bundle_name}/relay/web/localizations/tr.json" in names
         assert all(not name.endswith(".oxt") for name in names)
         assert all("/shared/" not in name for name in names)
         assert all("__pycache__/" not in name for name in names)

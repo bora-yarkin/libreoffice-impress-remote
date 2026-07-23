@@ -1,7 +1,7 @@
 {
   "include": [
     "extension/python",
-    "server/src",
+    "relay",
     "tests",
     "tools"
   ],
@@ -15,7 +15,7 @@
   ],
   "extraPaths": [
     "extension/python",
-    "server/src"
+    "relay"
   ],
   "stubPath": "typings",
   "reportMissingModuleSource": "none"

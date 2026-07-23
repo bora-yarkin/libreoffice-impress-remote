@@ -14,7 +14,7 @@ from impress_remote.protocol import (
     decode_hello_message,
     encode_hello_message,
 )
-from impress_remote_relay.relay import RelayState, create_app, health
+from relay.relay import RelayState, create_app, health
 
 PAIRING_SECRET = "6o2T5h1XXg3YbqfQ9F0P9v38dGrBvM8UuB8jv3j1fKQ"
 SESSION_ID = "demo"

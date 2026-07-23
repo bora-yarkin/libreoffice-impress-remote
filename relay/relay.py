@@ -12,9 +12,9 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
-from impress_remote_relay.assets import localization_manifest, read_web_asset, web_asset_manifest
-from impress_remote_relay.localization import translate
-from impress_remote_relay.session import RelaySession
+from relay.assets import localization_manifest, read_web_asset, web_asset_manifest
+from relay.localization import translate
+from relay.session import RelaySession
 
 RELAY_PROTOCOL_VERSION = 1
 _PLUGIN_FRAME_KINDS = {"state", "asset", "error"}
@@ -23,7 +23,7 @@ _REPLAYABLE_PLUGIN_FRAME_KINDS = {"state", "asset", "error"}
 _SESSION_ID_CHARS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 )
-LOGGER = logging.getLogger("impress_remote_relay")
+LOGGER = logging.getLogger("relay")
 
 
 @dataclass(frozen=True)

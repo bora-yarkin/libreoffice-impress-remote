@@ -8,7 +8,7 @@
   ],
   "python.analysis.extraPaths": [
     "${workspaceFolder}/extension/python",
-    "${workspaceFolder}/server/src"
+    "${workspaceFolder}"
   ],
   "python.analysis.stubPath": "${workspaceFolder}/typings"
 }

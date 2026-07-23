@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import socket
 
-from impress_remote_relay.localization import translate
+from relay.localization import translate
 
 DEFAULT_HOST_V4 = "0.0.0.0"
 DEFAULT_HOST_V6 = "::"

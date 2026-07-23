@@ -214,7 +214,7 @@ def test_product_ci_runs_release_readiness_checks() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     for expected in (
-        "python -m ruff check extension/python server/src tests tools",
+        "python -m ruff check extension/python relay tests tools",
         "python -m pytest tests",
         "python tools/build_oxt.py",
     ):
@@ -232,7 +232,7 @@ def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:
     workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     for expected in (
-        "python -m ruff check extension/python server/src tests tools",
+        "python -m ruff check extension/python relay tests tools",
         "python -m pytest tests",
         "python tools/build_oxt.py",
         "sha256sum \"libreoffice-impress-remote-${version}.oxt\" > SHA256SUMS",

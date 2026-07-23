@@ -9,12 +9,12 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+for candidate in (ROOT, ROOT.parent, ROOT.parent.parent):
+    if (candidate / "relay" / "__init__.py").exists() and str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
 
-from impress_remote_relay.__main__ import main as relay_main
-from impress_remote_relay.runtime import ensure_runtime_config, load_runtime_config
+from relay.__main__ import main as relay_main  # noqa: E402
+from relay.runtime import ensure_runtime_config, load_runtime_config  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

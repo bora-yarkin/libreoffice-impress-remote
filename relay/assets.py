@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 
 PACKAGE_WEB_ROOT = Path(__file__).resolve().with_name("web")
-SHARED_WEB_ROOT = Path(__file__).resolve().parents[3] / "shared" / "webui"
-LOCALIZATION_ROOT = Path(__file__).resolve().parents[3] / "shared" / "localizations"
+SHARED_WEB_ROOT = Path(__file__).resolve().parents[1] / "shared" / "webui"
+LOCALIZATION_ROOT = Path(__file__).resolve().parents[1] / "shared" / "localizations"
 DEFAULT_LOCALE = "en"
 SRI_ASSETS = {
     'href="/app.css"': "app.css",

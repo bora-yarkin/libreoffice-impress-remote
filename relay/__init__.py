@@ -7,7 +7,7 @@ from pathlib import Path
 def _read_version() -> str:
     for candidate in (
         Path(__file__).with_name("VERSION"),
-        Path(__file__).resolve().parents[3] / "VERSION",
+        Path(__file__).resolve().parents[1] / "VERSION",
     ):
         try:
             version = candidate.read_text(encoding="utf-8").strip()

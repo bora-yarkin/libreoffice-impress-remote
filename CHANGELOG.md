@@ -9,6 +9,16 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.12] - 2026-07-23
+
+### Changed
+
+- Consolidated relay source, packaging metadata, runner scripts, service installers, and relay documentation under the top-level `relay/` folder.
+- Renamed the relay Python import package to `relay`.
+- Replaced the old relay development make target with `relay-dev` and updated CI, release, lint, security, editor, and Dependabot paths to use `relay/`.
+- Updated the Python relay release bundle so it packages `relay/` directly while keeping exported runner scripts easy to run from the bundle root.
+- Bumped the extension, relay package, and project version to `1.0.12`.
+
 ## [1.0.11] - 2026-07-23
 
 ### Changed
@@ -485,7 +495,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Changed
 
 - Refactored the extension and Python relay runtimes to load the shared mobile UI from a packaged `web/` directory when bundled and from `shared/webui/` during source development.
-- Removed the duplicated authored web UI copies from `extension/web/` and `server/src/impress_remote_relay/web/`.
+- Removed the duplicated authored web UI copies from the extension and relay package trees.
 - Updated build tooling and repo metadata for the new shared-web and release-bundle layout.
 
 ## [0.3.5] - 2026-07-17

@@ -8,12 +8,12 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+for candidate in (ROOT, ROOT.parent, ROOT.parent.parent):
+    if (candidate / "relay" / "__init__.py").exists() and str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
 
-from impress_remote_relay.runtime import ensure_runtime_config
-from impress_remote_relay.windows_service import create_windows_service_class
+from relay.runtime import ensure_runtime_config  # noqa: E402
+from relay.windows_service import create_windows_service_class  # noqa: E402
 
 
 def main() -> None:

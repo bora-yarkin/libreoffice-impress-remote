@@ -10,9 +10,9 @@ from pathlib import Path
 
 from aiohttp import web
 
-from impress_remote_relay.localization import translate
-from impress_remote_relay.relay import RelayState, create_app
-from impress_remote_relay.runtime import (
+from relay.localization import translate
+from relay.relay import RelayState, create_app
+from relay.runtime import (
     DEFAULT_HOST_V4,
     DEFAULT_HOST_V6,
     DEFAULT_SESSION_TTL,

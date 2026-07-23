@@ -38,7 +38,7 @@ Frontend delivery is separate: the phone runs JavaScript served by the relay. Se
 For development from the source checkout:
 
 ```bash
-make server-dev
+make relay-dev
 ```
 
 From an exported bundle, run:

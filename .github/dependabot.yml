@@ -12,10 +12,10 @@ updates:
         patterns:
           - "*"
   - package-ecosystem: "pip"
-    directory: "/server"
+    directory: "/relay"
     schedule:
       interval: "weekly"
     groups:
-      python-server:
+      python-relay:
         patterns:
           - "*"
