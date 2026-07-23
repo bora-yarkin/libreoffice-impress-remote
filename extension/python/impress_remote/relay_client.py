@@ -16,6 +16,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from impress_remote import __version__
 from impress_remote.config import relay_health_url, relay_session_status_url, relay_websocket_url
 from impress_remote.localization import translate
 from impress_remote.protocol import (
@@ -34,6 +35,7 @@ CommandHandler = Callable[[str, int | None], None]
 ActivityCallback = Callable[[str], None]
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+USER_AGENT = f"LibreOfficeImpressRemote/{__version__}"
 
 
 def _read_exact(sock: socket.socket, size: int) -> bytes:
@@ -77,6 +79,7 @@ class RelayWebSocket:
         request = (
             f"GET {path} HTTP/1.1\r\n"
             f"Host: {host}\r\n"
+            f"User-Agent: {USER_AGENT}\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
             f"Sec-WebSocket-Key: {websocket_key}\r\n"
@@ -213,7 +216,13 @@ class RelayClient:
 
     def _preflight_relay(self) -> None:
         health_url = relay_health_url(self.relay_url)
-        request = Request(health_url, headers={"Accept": "application/json"})
+        request = Request(
+            health_url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": USER_AGENT,
+            },
+        )
         try:
             with urlopen(request, timeout=5) as response:
                 status = int(getattr(response, "status", 0))
@@ -413,7 +422,10 @@ class RelayClient:
         try:
             request = Request(
                 self._session_status_url,
-                headers={"Accept": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": USER_AGENT,
+                },
             )
             with urlopen(request, timeout=2) as response:
                 payload = json.loads(response.read().decode("utf-8"))

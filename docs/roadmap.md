@@ -3,7 +3,7 @@
 
 # Roadmap
 
-This roadmap reflects the `1.0.12` snapshot.
+This roadmap reflects the `1.0.0` snapshot.
 
 This is a volunteer FOSS extension. It may move quickly when someone has time and may sit quietly when nobody does. The docs should not promise a paid-product support cadence, guaranteed long-term maintenance, or future platform ports.
 

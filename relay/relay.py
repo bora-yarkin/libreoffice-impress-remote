@@ -238,6 +238,7 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     await ws.prepare(request)
     state.count("websocketAccepts")
     _log_event(logging.INFO, "relay.ws_accept", role=role, session=session_id)
+    received_messages = 0
     if role == "plugin":
         if session.plugin is not None:
             await session.plugin.close(
@@ -255,6 +256,7 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     try:
         async for message in ws:
             session.touch()
+            received_messages += 1
             if message.type == WSMsgType.TEXT:
                 if not session.allow_message(
                     ws,
@@ -288,6 +290,14 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
                 )
                 break
             elif message.type == WSMsgType.ERROR:
+                error = ws.exception()
+                _log_event(
+                    logging.WARNING,
+                    "relay.ws_error",
+                    role=role,
+                    session=session_id,
+                    error=str(error) if error else "",
+                )
                 break
     finally:
         if role == "plugin" and session.plugin is ws:
@@ -298,7 +308,14 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
             session.phones.discard(ws)
         session.forget_connection(ws)
         state.count("websocketCloses")
-        _log_event(logging.INFO, "relay.ws_close", role=role, session=session_id)
+        _log_event(
+            logging.INFO,
+            "relay.ws_close",
+            role=role,
+            session=session_id,
+            closeCode=ws.close_code,
+            messages=received_messages,
+        )
         state.cleanup()
     return ws
 

@@ -127,6 +127,19 @@ def copy_text_to_clipboard(ctx, text: str) -> bool:
     return False
 
 
+class CopyTextListener(unohelper.Base, _XActionListenerBase):
+    def __init__(self, ctx, text: str):
+        self.ctx = ctx
+        self.text = text
+
+    def disposing(self, _event):
+        return None
+
+    def actionPerformed(self, action_event):
+        del action_event
+        copy_text_to_clipboard(self.ctx, self.text)
+
+
 def _file_url_to_path(value: str) -> Path:
     if value.startswith("file://"):
         parsed = urlparse(value)
@@ -196,15 +209,24 @@ def show_error_message(ctx, message: str, title: str | None = None, details: str
         log.HScroll = True
         dialog_model.insertByName("diagnostic_text", log)
 
-        button = dialog_model.createInstance("com.sun.star.awt.UnoControlButtonModel")
-        button.Name = "close_button"
-        button.Label = translate("common.close")
-        button.PositionX = 168
-        button.PositionY = 112
-        button.Width = 44
-        button.Height = 14
-        button.PushButtonType = 2
-        dialog_model.insertByName("close_button", button)
+        copy_button = dialog_model.createInstance("com.sun.star.awt.UnoControlButtonModel")
+        copy_button.Name = "copy_button"
+        copy_button.Label = translate("office.button.copyError")
+        copy_button.PositionX = 92
+        copy_button.PositionY = 112
+        copy_button.Width = 70
+        copy_button.Height = 14
+        dialog_model.insertByName("copy_button", copy_button)
+
+        close_button = dialog_model.createInstance("com.sun.star.awt.UnoControlButtonModel")
+        close_button.Name = "close_button"
+        close_button.Label = translate("common.close")
+        close_button.PositionX = 168
+        close_button.PositionY = 112
+        close_button.Width = 44
+        close_button.Height = 14
+        close_button.PushButtonType = 2
+        dialog_model.insertByName("close_button", close_button)
 
         dialog = smgr.createInstanceWithContext("com.sun.star.awt.UnoControlDialog", ctx)
         dialog.setModel(dialog_model)
@@ -212,8 +234,17 @@ def show_error_message(ctx, message: str, title: str | None = None, details: str
         dialog.setVisible(False)
         dialog.createPeer(toolkit, None)
         dialog.setTitle(title)
-        dialog.execute()
-        dialog.dispose()
+        copy_listener = CopyTextListener(ctx, diagnostic_text)
+        copy_control = dialog.getControl("copy_button")
+        copy_control.addActionListener(copy_listener)
+        try:
+            dialog.execute()
+        finally:
+            try:
+                copy_control.removeActionListener(copy_listener)
+            except Exception:
+                pass
+            dialog.dispose()
     except Exception:
         try:
             desktop = _service_manager(ctx).createInstanceWithContext(
@@ -432,6 +463,7 @@ class RemotePairingDialog(RemoteDialogBase):
         self.qr_error = ""
         self.qr_image_path: Path | None = None
         self.current_pairing_url = ""
+        self._last_pairing_error = ""
         self.listeners: dict[str, DialogButtonListener] = {}
         self._closed = threading.Event()
         self._monitor_thread: threading.Thread | None = None
@@ -456,10 +488,13 @@ class RemotePairingDialog(RemoteDialogBase):
         if control_name != "copy_url_button":
             return
         if not self.current_pairing_url:
-            self._set_label("pairing_status", translate("office.copyUrl.unavailable"))
+            show_error_message(
+                self.ctx,
+                translate("office.copyUrl.unavailable"),
+                translate("office.start.title"),
+            )
             return
         if copy_text_to_clipboard(self.ctx, self.current_pairing_url):
-            self._set_label("pairing_status", translate("office.copyUrl.done"))
             return
         show_error_message(
             self.ctx,
@@ -474,28 +509,18 @@ class RemotePairingDialog(RemoteDialogBase):
         pairing = self.handler.pairing_target()
         self.current_pairing_url = pairing["selectedUrl"]
         self._set_qr_image(pairing["selectedUrl"])
-        self._set_label("pairing_status", self._pairing_status_text(pairing, connection))
+        self._show_pairing_error_if_needed(pairing, connection)
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(176, 214, translate("office.start.title"))
+        dialog = self._create_dialog_shell(176, 192, translate("office.start.title"))
         dialog_model = dialog.getModel()
         self._add_image(dialog_model, "pairing_qr_value", 8, 8, 160, 160)
-        self._add_fixed_text(
-            dialog_model,
-            "pairing_status",
-            "",
-            8,
-            172,
-            160,
-            14,
-            multiline=True,
-        )
         self._add_button(
             dialog_model,
             "copy_url_button",
             translate("office.button.copyUrl"),
             48,
-            192,
+            172,
             80,
             14,
         )
@@ -547,18 +572,42 @@ class RemotePairingDialog(RemoteDialogBase):
             pass
         self.qr_image_path = None
 
-    def _pairing_status_text(
+    def _pairing_error_text(
         self,
         pairing: dict[str, str],
         connection: dict[str, Any],
     ) -> str:
-        if connection.get("clientConnected"):
-            return translate("office.pairing.telephoneConnected")
         if self.qr_error:
             return translate("office.pairing.qrError", error=self.qr_error)
-        if pairing["selectedUrl"]:
-            return translate("office.pairing.qrScan")
-        return pairing["hint"]
+        if pairing.get("selectedRoute") == "relay":
+            relay_error = str(connection.get("relayLastError", "")).strip()
+            if relay_error:
+                return translate("office.pairing.relayError", error=relay_error)
+        return ""
+
+    def _show_pairing_error_if_needed(
+        self,
+        pairing: dict[str, str],
+        connection: dict[str, Any],
+    ) -> None:
+        message = self._pairing_error_text(pairing, connection)
+        if not message or message == self._last_pairing_error:
+            return
+        self._last_pairing_error = message
+        details = "\n".join(
+            (
+                f"route: {pairing.get('selectedRoute', '')}",
+                f"relayStatus: {connection.get('relayStatus', '')}",
+                f"relayUrl: {connection.get('relayUrl', '')}",
+                f"relaySessionStatusUrl: {connection.get('relaySessionStatusUrl', '')}",
+            )
+        )
+        show_error_message(
+            self.ctx,
+            message,
+            translate("office.start.title"),
+            details=details,
+        )
 
     def _start_monitor(self) -> None:
         self._closed.clear()
@@ -576,6 +625,11 @@ class RemotePairingDialog(RemoteDialogBase):
             except Exception:
                 continue
             connection = cast(dict[str, Any], snapshot["connection"])
+            try:
+                pairing = self.handler.pairing_target()
+                self._show_pairing_error_if_needed(pairing, connection)
+            except Exception:
+                pass
             if bool(connection.get("clientConnected")) or not bool(snapshot.get("running")):
                 try:
                     self._dialog().endExecute()

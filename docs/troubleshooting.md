@@ -126,4 +126,6 @@ Local URLs usually start with `192.168.x.x`, `10.x.x.x`, or `172.20.x.x`.
 4. Start the remote again after saving.
 5. Scan the relay QR or copy the full URL with its `#mode=relay&s=...&k=...&a=...` fragment intact.
 
+If LibreOffice reports `HTTP 403` on `/health` while a browser or `curl` can open it, check the reverse proxy/security product in front of the relay. Some providers block generic `Python-urllib` clients. Extension `1.0.0` sends a product User-Agent for relay health, session, and websocket requests.
+
 See [Relay And Deployment](relay.md) for deployment details.

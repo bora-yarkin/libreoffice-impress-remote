@@ -9,72 +9,31 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
-## [1.0.12] - 2026-07-23
-
-### Changed
-
-- Consolidated relay source, packaging metadata, runner scripts, service installers, and relay documentation under the top-level `relay/` folder.
-- Renamed the relay Python import package to `relay`.
-- Replaced the old relay development make target with `relay-dev` and updated CI, release, lint, security, editor, and Dependabot paths to use `relay/`.
-- Updated the Python relay release bundle so it packages `relay/` directly while keeping exported runner scripts easy to run from the bundle root.
-- Bumped the extension, relay package, and project version to `1.0.12`.
-
-## [1.0.11] - 2026-07-23
-
-### Changed
-
-- Removed the provider-specific relay deployment/export path from the LibreOffice UI, OXT resources, build tooling, tests, and documentation.
-- Kept Relay Server mode focused on the bundled Python relay and compatible self-hosted relay implementations.
-- Changed packaged resource export so flat bundles extract into a folder named after the archive instead of spilling files into the selected directory.
-- Removed the separate upload-bundle make target and OXT resource archive.
-- Added relay `/health` preflight diagnostics so static-only URLs fail with a useful error instead of silently looping on `/ws`.
-- Added a phone-side relay websocket timeout so a missing relay backend stops showing as an endless connecting state.
-- Fixed `make test` so tool-module tests can import the repository-local `tools` package from the virtual environment.
-- Bumped the extension, relay package, and project version to `1.0.11`.
-
-## [1.0.4] - 2026-07-23
-
-### Fixed
-
-- Fixed Safari-style IPv6 pairing by letting direct IPv6 mode use the authenticated plaintext compatibility transport when Web Crypto is unavailable.
-- Kept encrypted ECDH/AES-GCM direct transport as the preferred path for browsers that expose Web Crypto.
-- Updated browser-facing Web Crypto errors and security documentation to distinguish encrypted transport from compatibility transport.
-- Bumped the extension, relay package, and project version to `1.0.4`.
-
-## [1.0.3] - 2026-07-23
-
-### Changed
-
-- Added explicit experimental labels to non-local mode names in the LibreOffice UI: LocalTunnel, Direct IPv6, and Relay Server.
-- Updated Remote Help text to state that LocalTunnel, Direct IPv6, and Relay Server are experimental modes for harder networks.
-- Bumped the extension, relay package, and project version to `1.0.3`.
-
-## [1.0.2] - 2026-07-23
-
-### Fixed
-
-- Changed remote previous/next controls to trigger slideshow effects first via LibreOffice's effect navigation API, falling back to slide navigation only when effect navigation is unavailable.
-- Bumped the extension, relay package, and project version to `1.0.2`.
-
-## [1.0.1] - 2026-07-23
-
-### Changed
-
-- Applied Dependabot's GitHub Actions updates to the current workflows, including the release workflow: `actions/checkout` 7.0.1, `actions/setup-python` 7.0.0, and `github/codeql-action` 4.37.2 pinned SHAs.
-- Applied Dependabot's server dependency updates: `aiohttp>=3.14.2` and `ruff>=0.15.22`.
-- Bumped the extension, relay package, and project version to `1.0.1`.
-
-## [1.0.0] - 2026-07-22
+## [1.0.0] - 2026-07-23
 
 ### Added
 
 - Added GitHub release automation that runs compile, lint, tests, builds the versioned OXT, generates SHA-256 checksums, creates a matching `v<VERSION>` tag when run manually, and creates or updates the GitHub Release.
+- Added the first stable local-network remote workflow with QR pairing, slide preview, presenter notes, previous/next controls, effect-aware navigation, timers, fullscreen phone mode, and a clean mobile remote UI.
+- Added experimental LocalTunnel, Direct IPv6, and self-hosted Relay Server modes behind explicit experimental labels.
+- Added the bundled Python relay export, matching documentation export, relay service scripts, and relay health/session diagnostics.
+- Added copyable LibreOffice error diagnostics with a Copy Error action.
 
 ### Changed
 
 - Promoted the extension to `1.0.0` as the first local-mode release while keeping LocalTunnel, Direct IPv6, and relay modes documented as experimental.
 - Updated release-readiness, README, roadmap, feature matrix, protocol, security, and development docs for the `1.0.0` release line.
 - Bumped the extension, relay package, and project version to `1.0.0`.
+- Consolidated the relay source and packaging metadata under the top-level `relay/` folder.
+- Kept the LibreOffice QR pairing popup limited to the QR code and Copy URL action.
+- Removed the provider-specific Cloudflare relay bundle path; Relay Server mode now focuses on the bundled Python relay and compatible self-hosted implementations.
+- Added a product User-Agent to relay `/health`, `/api/session`, and `/ws` requests so reverse proxies such as Cloudflare do not reject LibreOffice as raw `Python-urllib`.
+
+### Fixed
+
+- Fixed Safari-style IPv6 pairing by allowing the explicit Direct IPv6 route to use the authenticated plaintext compatibility transport when Web Crypto is unavailable.
+- Fixed the remote next/previous controls so they step presentation effects before falling back to slide changes.
+- Fixed the copy-error dialog listener signature for Pylance and UNO compatibility.
 
 ## [0.7.8] - 2026-07-22
 

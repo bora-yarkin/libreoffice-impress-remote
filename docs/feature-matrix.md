@@ -3,7 +3,7 @@
 
 # Feature Matrix
 
-This matrix reflects the `1.0.12` snapshot.
+This matrix reflects the `1.0.0` snapshot.
 
 ## User Workflow
 
