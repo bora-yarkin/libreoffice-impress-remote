@@ -9,6 +9,8 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-23
+
 ### Changed
 
 - Documented that `VERSION` changes happen only during release preparation/publication, not for every code change.
@@ -21,6 +23,15 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 - Removed the obsolete LibreOffice development-kit downloader target, script, and tests from the current development workflow.
 - Expanded the built-in Help popup, user guide, and relay bundle README with concrete extension install, relay install, service, health-check, and LibreOffice configuration steps.
 - Replaced the separate Help description and downloadable documentation archive with a bundled `user-guide.md` shown directly from the LibreOffice Help dialog.
+- Added packaged command icons, a single dropdown-style Start/Stop Remote control for toolbar/notebookbar surfaces, Extensions-tab notebookbar registration, and broader Impress-only toolbar/notebookbar merging while avoiding the floating `Add-On 2` toolbar.
+- Changed LocalTunnel wording from fallback language to explicit selected-route language.
+
+### Fixed
+
+- Fixed the Slide Show menubar Start Remote action so it opens QR pairing directly instead of the toolbar menu popup.
+- Fixed toolbar/notebookbar remote controls so their single remote button opens the Start/Stop and Remote Settings popup menu.
+- Fixed LocalTunnel startup so the selected tunnel route keeps retrying until stopped instead of failing after one attempt.
+- Fixed LocalTunnel QR pairing so connecting/retrying states show a loading message instead of a relay-flavored error popup.
 
 ## [1.0.0] - 2026-07-23
 

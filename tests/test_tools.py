@@ -37,6 +37,8 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         assert "web/localizations/tr.json" in names
         assert "web/localizations/manifest.json" in names
         assert "icons/icon.svg" in names
+        assert "icons/remote.svg" in names
+        assert "icons/remote-settings.svg" in names
         assert "descriptions/description-en.txt" in names
         assert "descriptions/description-tr.txt" in names
         assert "resources/user-guide.md" in names
@@ -228,10 +230,13 @@ def test_extension_manifest_files_exist() -> None:
         "extension/META-INF/manifest.xml",
         "extension/description.xml",
         "extension/Addons.xcu",
+        "extension/Controller.xcu",
         "extension/ProtocolHandler.xcu",
         "extension/Settings.xcs",
         "extension/Settings.xcu",
         "extension/icons/icon.svg",
+        "extension/icons/remote.svg",
+        "extension/icons/remote-settings.svg",
         "extension/descriptions/description-en.txt",
         "extension/descriptions/description-tr.txt",
         "extension/python/impress_remote/component.py",
@@ -271,6 +276,33 @@ def test_extension_manifest_includes_settings_schema_and_data() -> None:
     assert 'application/vnd.sun.star.configuration-schema' in manifest
     assert 'manifest:full-path="Settings.xcs"' in manifest
     assert 'manifest:full-path="Settings.xcu"' in manifest
+    assert 'manifest:full-path="Controller.xcu"' in manifest
+
+
+def test_toolbar_controller_is_registered_for_remote_menu() -> None:
+    controller = (ROOT / "extension/Controller.xcu").read_text(encoding="utf-8")
+    release = (ROOT / "tools/release.py").read_text(encoding="utf-8")
+    component = (ROOT / "extension/python/impress_remote/component.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'oor:name="Controller" oor:package="org.openoffice.Office.UI"' in controller
+    assert '<node oor:name="ToolBar">' in controller
+    assert "<value>vnd.org.borayarkin.impressremote:menu</value>" in controller
+    assert (
+        "<value>vnd.org.borayarkin.impressremote:toggle;"
+        "vnd.org.borayarkin.impressremote:settings</value>"
+        in controller
+    )
+    assert '<prop oor:name="Module" oor:type="xs:string"><value/></prop>' in controller
+    assert (
+        "<value>org.borayarkin.libreoffice.impressremote.ToolbarController</value>"
+        in controller
+    )
+    assert '"Controller.xcu"' in release
+    assert "TOOLBAR_IMPLEMENTATION_NAME" in component
+    assert "createPopupWindow" in component
+    assert "com.sun.star.awt.PopupMenu" in component
 
 
 def test_extension_description_has_install_metadata() -> None:
@@ -299,20 +331,50 @@ def test_addons_merge_into_impress_slideshow_menu_and_toolbars() -> None:
     assert addon_ui is not None
 
     assert addon_ui.find(_node_xpath("OfficeMenuBar")) is None
+    assert addon_ui.find(_node_xpath("Images")) is not None
+    assert addon_ui.find(_node_xpath("AddonMenu")) is not None
+    assert addon_ui.find(_node_xpath("OfficeNotebookBar")) is not None
+    assert addon_ui.find(_node_xpath("OfficeToolBar")) is None
     assert addon_ui.find(_node_xpath("OfficeMenuBarMerging")) is not None
     assert addon_ui.find(_node_xpath("OfficeToolbarMerging")) is not None
+    assert addon_ui.find(_node_xpath("OfficeNotebookBarMerging")) is not None
 
     xml = (ROOT / "extension/Addons.xcu").read_text(encoding="utf-8")
     assert ".uno:SlideShowMenu\\.uno:PresentationCurrentSlide" in xml
+    assert "%origin%/icons/remote.svg" in xml
+    assert "%origin%/icons/remote-settings.svg" in xml
+    assert "org.borayarkin.libreoffice.impressremote.addonmenu.remote" in xml
+    assert "OfficeToolBar" not in xml
+    assert "OfficeNotebookBar" in xml
+    assert "DropdownButton" in xml
+    assert "<value>DropdownButton</value>" in xml
+    assert "ToggleDropdownButton" not in xml
+    assert "<value>Icon</value>" in xml
+    assert "<value>icon</value>" not in xml
     assert "standardbar" in xml
     assert "singlemode" in xml
+    assert "toolbar" in xml
+    assert "slideviewtoolbar" in xml
     assert "notebookbarshortcuts" in xml
-    assert xml.count("com.sun.star.presentation.PresentationDocument") >= 8
+    assert "notebookbar" in xml
+    assert "notebookbar_compact" in xml
+    assert "notebookbar_single" in xml
+    assert "notebookbar_groupedbar_compact" in xml
+    assert xml.count("com.sun.star.presentation.PresentationDocument") >= 12
     assert xml.count("private:separator") >= 2
     assert "separator_before_remote" in xml
     assert "separator_after_remote" in xml
+    slideshow_menu_xml = xml.split('<node oor:name="OfficeMenuBarMerging">', 1)[1].split(
+        '<node oor:name="OfficeToolbarMerging">',
+        1,
+    )[0]
+    toolbar_xml = xml.split('<node oor:name="OfficeToolbarMerging">', 1)[1]
+    assert '<node oor:name="toggle" oor:op="replace">' in slideshow_menu_xml
+    assert "vnd.org.borayarkin.impressremote:toggle" in slideshow_menu_xml
+    assert "vnd.org.borayarkin.impressremote:menu" in toolbar_xml
     assert "vnd.org.borayarkin.impressremote:toggle" in xml
     assert "vnd.org.borayarkin.impressremote:settings" in xml
+    assert xml.count("<node oor:name=\"remote_settings\"") == 1
 
 
 def test_shared_phone_ui_does_not_call_plaintext_local_control_endpoints() -> None:

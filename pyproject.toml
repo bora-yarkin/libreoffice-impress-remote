@@ -40,3 +40,8 @@ select = ["E", "F", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pyright[nodejs]>=1.1.411",
+]

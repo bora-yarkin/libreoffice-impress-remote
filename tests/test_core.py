@@ -319,7 +319,12 @@ import json
 import pytest
 
 from impress_remote import localtunnel_client
-from impress_remote.localtunnel_client import _request_tunnel_info, normalize_tunnel_host
+from impress_remote.localtunnel_client import (
+    LocalTunnelClient,
+    LocalTunnelInfo,
+    _request_tunnel_info,
+    normalize_tunnel_host,
+)
 
 
 class FakeResponse:
@@ -413,6 +418,44 @@ def test_request_tunnel_info_rejects_invalid_payload(monkeypatch) -> None:
 
     with pytest.raises(ConnectionError):
         _request_tunnel_info("https://localtunnel.me")
+
+
+def test_localtunnel_client_retries_until_tunnel_info_is_available(monkeypatch) -> None:
+    attempts = 0
+    wait_calls: list[float] = []
+
+    def fake_request(_host: str, _subdomain: str = "") -> LocalTunnelInfo:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ConnectionError("temporary outage")
+        return LocalTunnelInfo(
+            name="demo",
+            url="https://demo.localtunnel.me",
+            remote_host="127.0.0.1",
+            remote_port=1,
+        )
+
+    def fake_connection_loop(self, _info: LocalTunnelInfo) -> None:
+        self._stop_event.set()
+
+    monkeypatch.setattr(localtunnel_client, "_request_tunnel_info", fake_request)
+    monkeypatch.setattr(LocalTunnelClient, "_connection_loop", fake_connection_loop)
+
+    client = LocalTunnelClient(local_host="127.0.0.1", local_port=17865)
+    original_wait = client._stop_event.wait
+
+    def fake_wait(timeout: float | None = None) -> bool:
+        if timeout is not None:
+            wait_calls.append(timeout)
+        return original_wait(0)
+
+    monkeypatch.setattr(client._stop_event, "wait", fake_wait)
+    client._run()
+
+    assert attempts == 2
+    assert client.status()["state"] == "stopped"
+    assert wait_calls == [2.0, 2.0]
 
 
 import unittest

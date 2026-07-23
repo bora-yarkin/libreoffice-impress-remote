@@ -428,11 +428,12 @@ class ComponentRuntimeTests(unittest.TestCase):
         handler.stop = lambda: actions.append("stop")
         handler.open_console = lambda: actions.append("open")
         handler.show_settings = lambda: actions.append("settings")
+        handler.show_remote_menu = lambda: actions.append("menu")
 
-        for path in ("toggle", "start", "open", "settings", "stop"):
+        for path in ("menu", "toggle", "start", "open", "settings", "stop"):
             handler.dispatch(FakeUrl(path), ())
 
-        self.assertEqual(actions, ["toggle", "start", "open", "settings", "stop"])
+        self.assertEqual(actions, ["menu", "toggle", "start", "open", "settings", "stop"])
 
     def test_toggle_remote_shows_pairing_after_starting(self) -> None:
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
@@ -540,7 +541,7 @@ if __name__ == "__main__":
 
 import unittest
 
-from impress_remote.office_ui import export_qr_png_path
+from impress_remote.office_ui import RemotePairingDialog, export_qr_png_path
 
 
 class QrTests(unittest.TestCase):
@@ -555,6 +556,119 @@ class QrTests(unittest.TestCase):
     def test_export_qr_png_path_requires_a_payload(self) -> None:
         with self.assertRaises(RuntimeError):
             export_qr_png_path(None, "")
+
+    def test_pairing_dialog_reports_tunnel_errors(self) -> None:
+        dialog = object.__new__(RemotePairingDialog)
+        dialog.qr_error = ""
+
+        message = dialog._pairing_error_text(
+            {"selectedRoute": "tunnel", "selectedUrl": "", "hint": ""},
+            {"tunnelLastError": "connection refused"},
+        )
+
+        self.assertIn("Tunnel", message)
+        self.assertIn("connection refused", message)
+
+    def test_pairing_dialog_treats_connecting_tunnel_as_loading_state(self) -> None:
+        dialog = object.__new__(RemotePairingDialog)
+        dialog.qr_error = ""
+
+        message = dialog._pairing_error_text(
+            {
+                "selectedRoute": "tunnel",
+                "selectedUrl": "",
+                "hint": "Tunnel fallback is starting.",
+            },
+            {"tunnelStatus": "connecting", "tunnelLastError": ""},
+        )
+        status = dialog._pairing_status_text(
+            {
+                "selectedRoute": "tunnel",
+                "selectedUrl": "",
+                "hint": "LocalTunnel is starting.",
+            },
+            {"tunnelStatus": "connecting", "tunnelLastError": ""},
+        )
+        details = dialog._pairing_error_details(
+            {"selectedRoute": "tunnel", "hint": ""},
+            {
+                "relayStatus": "disabled",
+                "relayUrl": "https://relay.example.com",
+                "tunnelStatus": "connecting",
+                "tunnelUrl": "",
+                "tunnelLastError": "",
+            },
+        )
+
+        self.assertEqual(message, "")
+        self.assertEqual(status, "LocalTunnel is starting.")
+        self.assertIn("tunnelStatus: connecting", details)
+        self.assertNotIn("relayUrl", details)
+
+    def test_pairing_dialog_treats_retrying_tunnel_as_loading_state(self) -> None:
+        dialog = object.__new__(RemotePairingDialog)
+        dialog.qr_error = ""
+
+        message = dialog._pairing_error_text(
+            {
+                "selectedRoute": "tunnel",
+                "selectedUrl": "",
+                "hint": "LocalTunnel is starting.",
+            },
+            {
+                "tunnelStatus": "retrying",
+                "tunnelLastError": "temporary outage",
+            },
+        )
+        status = dialog._pairing_status_text(
+            {
+                "selectedRoute": "tunnel",
+                "selectedUrl": "",
+                "hint": "LocalTunnel is starting.",
+            },
+            {
+                "tunnelStatus": "retrying",
+                "tunnelLastError": "temporary outage",
+            },
+        )
+
+        self.assertEqual(message, "")
+        self.assertEqual(status, "LocalTunnel is starting.")
+
+    def test_pairing_dialog_refresh_updates_tunnel_qr_when_url_becomes_ready(self) -> None:
+        dialog = object.__new__(RemotePairingDialog)
+        pairing_values = [
+            {"selectedRoute": "tunnel", "selectedUrl": "", "hint": "starting"},
+            {
+                "selectedRoute": "tunnel",
+                "selectedUrl": "https://demo.localtunnel.me/#mode=tunnel&s=demo&k=secret",
+                "hint": "",
+            },
+        ]
+        rendered_urls: list[str] = []
+
+        class FakeHandler:
+            def pairing_target(self):
+                return pairing_values.pop(0)
+
+        test_dialog = cast(Any, dialog)
+        test_dialog.handler = FakeHandler()
+        test_dialog.current_pairing_url = ""
+        test_dialog.qr_error = ""
+        test_dialog._empty_pairing_seen_at = 1.0
+        test_dialog._last_pairing_error = ""
+        test_dialog._set_qr_image = rendered_urls.append
+        test_dialog._set_pairing_status = lambda _message: None
+        test_dialog._show_pairing_error_if_needed = lambda *_args: None
+
+        snapshot = {"connection": {"tunnelStatus": "connecting"}}
+        dialog._refresh_pairing_from_snapshot(snapshot, show_pending=False)
+        dialog._refresh_pairing_from_snapshot(snapshot, show_pending=False)
+
+        self.assertEqual(
+            rendered_urls,
+            ["https://demo.localtunnel.me/#mode=tunnel&s=demo&k=secret"],
+        )
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import webbrowser
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote, urlparse
@@ -843,6 +844,7 @@ class RemotePairingDialog(RemoteDialogBase):
         self.qr_image_path: Path | None = None
         self.current_pairing_url = ""
         self._last_pairing_error = ""
+        self._empty_pairing_seen_at = 0.0
         self.listeners: dict[str, DialogButtonListener] = {}
         self._closed = threading.Event()
         self._monitor_thread: threading.Thread | None = None
@@ -884,22 +886,28 @@ class RemotePairingDialog(RemoteDialogBase):
 
     def refresh(self) -> None:
         snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
-        connection = cast(dict[str, Any], snapshot["connection"])
-        pairing = self.handler.pairing_target()
-        self.current_pairing_url = pairing["selectedUrl"]
-        self._set_qr_image(pairing["selectedUrl"])
-        self._show_pairing_error_if_needed(pairing, connection)
+        self._refresh_pairing_from_snapshot(snapshot, show_pending=True)
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(176, 192, translate("office.start.title"))
+        dialog = self._create_dialog_shell(176, 222, translate("office.start.title"))
         dialog_model = dialog.getModel()
         self._add_image(dialog_model, "pairing_qr_value", 8, 8, 160, 160)
+        self._add_fixed_text(
+            dialog_model,
+            "pairing_status_value",
+            "",
+            8,
+            172,
+            160,
+            22,
+            multiline=True,
+        )
         self._add_button(
             dialog_model,
             "copy_url_button",
             translate("office.button.copyUrl"),
             48,
-            172,
+            200,
             80,
             14,
         )
@@ -960,6 +968,20 @@ class RemotePairingDialog(RemoteDialogBase):
             relay_error = str(connection.get("relayLastError", "")).strip()
             if relay_error:
                 return translate("office.pairing.relayError", error=relay_error)
+        if pairing.get("selectedRoute") == "tunnel":
+            tunnel_error = str(connection.get("tunnelLastError", "")).strip()
+            tunnel_status = str(connection.get("tunnelStatus", "")).strip()
+            if tunnel_error and tunnel_status not in {"connecting", "retrying", "ready"}:
+                return translate("localServer.hint.tunnelError", error=tunnel_error)
+            if tunnel_status in {"connecting", "retrying", "ready"}:
+                return ""
+            if (
+                not pairing.get("selectedUrl")
+                and tunnel_status not in {"connecting", "retrying", "ready"}
+            ):
+                return str(pairing.get("hint") or translate("error.noPairingUrl"))
+        if not pairing.get("selectedUrl"):
+            return str(pairing.get("hint") or translate("error.noPairingUrl"))
         return ""
 
     def _show_pairing_error_if_needed(
@@ -971,20 +993,80 @@ class RemotePairingDialog(RemoteDialogBase):
         if not message or message == self._last_pairing_error:
             return
         self._last_pairing_error = message
-        details = "\n".join(
-            (
-                f"route: {pairing.get('selectedRoute', '')}",
-                f"relayStatus: {connection.get('relayStatus', '')}",
-                f"relayUrl: {connection.get('relayUrl', '')}",
-                f"relaySessionStatusUrl: {connection.get('relaySessionStatusUrl', '')}",
-            )
-        )
+        details = self._pairing_error_details(pairing, connection)
         show_error_message(
             self.ctx,
             message,
             translate("office.start.title"),
             details=details,
         )
+
+    def _refresh_pairing_from_snapshot(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        show_pending: bool,
+    ) -> None:
+        connection = cast(dict[str, Any], snapshot["connection"])
+        pairing = self.handler.pairing_target()
+        pairing_url = str(pairing.get("selectedUrl", "")).strip()
+        if pairing_url != self.current_pairing_url:
+            self.current_pairing_url = pairing_url
+            self._set_qr_image(pairing_url)
+        if pairing_url:
+            self._empty_pairing_seen_at = 0.0
+            self._set_pairing_status("")
+            return
+        self._set_pairing_status(self._pairing_status_text(pairing, connection))
+        if self._empty_pairing_seen_at <= 0:
+            self._empty_pairing_seen_at = time.monotonic()
+        if show_pending or time.monotonic() - self._empty_pairing_seen_at >= 2.0:
+            self._show_pairing_error_if_needed(pairing, connection)
+
+    def _pairing_status_text(
+        self,
+        pairing: dict[str, str],
+        connection: dict[str, Any],
+    ) -> str:
+        if pairing.get("selectedRoute") != "tunnel":
+            return ""
+        tunnel_error = str(connection.get("tunnelLastError", "")).strip()
+        tunnel_status = str(connection.get("tunnelStatus", "")).strip()
+        if tunnel_error and tunnel_status not in {"connecting", "retrying", "ready"}:
+            return ""
+        if tunnel_status in {"connecting", "retrying", "ready"}:
+            return str(pairing.get("hint") or translate("localServer.hint.tunnelStarting"))
+        return ""
+
+    def _set_pairing_status(self, message: str) -> None:
+        if not self._has_control_model("pairing_status_value"):
+            return
+        self._set_label("pairing_status_value", message)
+        self._set_control_visible("pairing_status_value", bool(message))
+
+    def _pairing_error_details(
+        self,
+        pairing: dict[str, str],
+        connection: dict[str, Any],
+    ) -> str:
+        route = pairing.get("selectedRoute", "")
+        if route == "relay":
+            lines = (
+                f"route: {route}",
+                f"relayStatus: {connection.get('relayStatus', '')}",
+                f"relayUrl: {connection.get('relayUrl', '')}",
+                f"relaySessionStatusUrl: {connection.get('relaySessionStatusUrl', '')}",
+            )
+        elif route == "tunnel":
+            lines = (
+                f"route: {route}",
+                f"tunnelStatus: {connection.get('tunnelStatus', '')}",
+                f"tunnelUrl: {connection.get('tunnelUrl', '')}",
+                f"tunnelLastError: {connection.get('tunnelLastError', '')}",
+            )
+        else:
+            lines = (f"route: {route}", f"hint: {pairing.get('hint', '')}")
+        return "\n".join(lines)
 
     def _start_monitor(self) -> None:
         self._closed.clear()
@@ -1001,12 +1083,11 @@ class RemotePairingDialog(RemoteDialogBase):
                 snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
             except Exception:
                 continue
-            connection = cast(dict[str, Any], snapshot["connection"])
             try:
-                pairing = self.handler.pairing_target()
-                self._show_pairing_error_if_needed(pairing, connection)
+                self._refresh_pairing_from_snapshot(snapshot, show_pending=False)
             except Exception:
                 pass
+            connection = cast(dict[str, Any], snapshot["connection"])
             if bool(connection.get("clientConnected")) or not bool(snapshot.get("running")):
                 try:
                     self._dialog().endExecute()

@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from types import SimpleNamespace
 import sys
 import traceback
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from impress_remote.local_server import RemoteServer
@@ -55,10 +55,49 @@ class _FallbackXServiceInfoBase:
         return ()
 
 
+class _FallbackXStatusListenerBase:
+    def disposing(self, _event) -> None:
+        return None
+
+    def statusChanged(self, _state) -> None:
+        return None
+
+
+class _FallbackXToolbarControllerBase:
+    def execute(self, _key_modifier) -> None:
+        return None
+
+    def click(self) -> None:
+        return None
+
+    def doubleClick(self) -> None:
+        return None
+
+    def createPopupWindow(self):
+        return None
+
+    def createItemWindow(self, _parent):
+        return None
+
+
+class _FallbackXInitializationBase:
+    def initialize(self, _arguments) -> None:
+        return None
+
+
+class _FallbackXUpdatableBase:
+    def update(self) -> None:
+        return None
+
+
 XTerminateListenerBase: Any = _FallbackXTerminateListenerBase
 XDispatchProviderBase: Any = _FallbackXDispatchProviderBase
 XDispatchBase: Any = _FallbackXDispatchBase
 XServiceInfoBase: Any = _FallbackXServiceInfoBase
+XStatusListenerBase: Any = _FallbackXStatusListenerBase
+XToolbarControllerBase: Any = _FallbackXToolbarControllerBase
+XInitializationBase: Any = _FallbackXInitializationBase
+XUpdatableBase: Any = _FallbackXUpdatableBase
 
 
 BOOTSTRAP_LOG_PATH = os.path.join(
@@ -85,6 +124,18 @@ try:
         XDispatchBase = XDispatch
         XDispatchProviderBase = XDispatchProvider
         try:
+            from com.sun.star.frame import XStatusListener
+
+            XStatusListenerBase = XStatusListener
+        except Exception:
+            pass
+        try:
+            from com.sun.star.frame import XToolbarController
+
+            XToolbarControllerBase = XToolbarController
+        except Exception:
+            pass
+        try:
             from com.sun.star.frame import XTerminateListener
 
             XTerminateListenerBase = XTerminateListener
@@ -93,6 +144,18 @@ try:
     from com.sun.star.lang import XServiceInfo
 
     XServiceInfoBase = XServiceInfo
+    try:
+        from com.sun.star.lang import XInitialization
+
+        XInitializationBase = XInitialization
+    except Exception:
+        pass
+    try:
+        from com.sun.star.util import XUpdatable
+
+        XUpdatableBase = XUpdatable
+    except Exception:
+        pass
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
@@ -100,6 +163,11 @@ except Exception:
 
 IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ProtocolHandler"
 SERVICE_NAMES = ("com.sun.star.frame.ProtocolHandler",)
+TOOLBAR_IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ToolbarController"
+TOOLBAR_SERVICE_NAMES = (
+    TOOLBAR_IMPLEMENTATION_NAME,
+    "com.sun.star.frame.ToolbarController",
+)
 PROTOCOL = "vnd.org.borayarkin.impressremote:"
 
 
@@ -202,6 +270,19 @@ def _feature_url(path: str) -> object:
     return url
 
 
+def _property_values_to_dict(values: object) -> dict[str, object]:
+    parsed: dict[str, object] = {}
+    try:
+        iterator = iter(values)  # type: ignore[arg-type]
+    except TypeError:
+        return parsed
+    for item in iterator:
+        name = getattr(item, "Name", "")
+        if isinstance(name, str) and name:
+            parsed[name] = getattr(item, "Value", None)
+    return parsed
+
+
 def _matches_protocol(url: object) -> bool:
     protocol = getattr(url, "Protocol", "")
     if protocol == PROTOCOL:
@@ -275,7 +356,9 @@ try:
         def dispatch(self, url, _args):
             command = _command_path(url)
             try:
-                if command == "toggle":
+                if command == "menu":
+                    self.show_remote_menu()
+                elif command == "toggle":
                     self.toggle_remote()
                 elif command == "start":
                     self.start()
@@ -370,6 +453,13 @@ try:
             from impress_remote.office_ui import show_remote_advanced_dialog
 
             show_remote_advanced_dialog(self.ctx, self)
+
+        def show_remote_menu(self) -> None:
+            selected = self._show_remote_popup_menu()
+            if selected == 1:
+                self.toggle_remote()
+            elif selected == 2:
+                self.show_settings()
 
         def runtime_snapshot(self) -> dict[str, object]:
             server = self._ensure_server()
@@ -482,7 +572,7 @@ try:
             return event
 
         def _menu_label(self, path: str) -> str:
-            if path == "toggle":
+            if path in {"menu", "toggle"}:
                 if self.server is not None and self.server.is_running():
                     return _translate("component.menu.stopRemote")
                 return _translate("component.menu.startRemote")
@@ -493,6 +583,184 @@ try:
             if path == "stop":
                 return _translate("component.menu.stopRemote")
             return _translate("component.menu.startRemote")
+
+        def _show_remote_popup_menu(self) -> int:
+            smgr = cast(Any, _service_manager(self.ctx))
+            popup = cast(
+                Any,
+                smgr.createInstanceWithContext(
+                    "com.sun.star.awt.PopupMenu",
+                    self.ctx,
+                ),
+            )
+            is_running = self.server is not None and self.server.is_running()
+            toggle_label = _translate(
+                "component.menu.stopRemote" if is_running else "component.menu.startRemote"
+            )
+            popup.insertItem(1, toggle_label, 0, 0)
+            popup.insertItem(2, _translate("component.menu.advancedOptions"), 0, 1)
+            popup.setCommand(1, f"{PROTOCOL}toggle")
+            popup.setCommand(2, f"{PROTOCOL}settings")
+            popup.setDefaultItem(1)
+
+            try:
+                import uno  # pyright: ignore[reportMissingImports]
+
+                rect = uno.createUnoStruct("com.sun.star.awt.Rectangle")
+            except Exception:
+                rect = SimpleNamespace(X=0, Y=0, Width=1, Height=1)
+            rect.X = 0
+            rect.Y = 0
+            rect.Width = 1
+            rect.Height = 1
+            return int(popup.execute(self._popup_parent(), rect, 0))
+
+        def _popup_parent(self):
+            try:
+                desktop = cast(
+                    Any,
+                    _service_manager(self.ctx).createInstanceWithContext(
+                        "com.sun.star.frame.Desktop",
+                        self.ctx,
+                    ),
+                )
+                frame = desktop.getCurrentFrame()
+                if frame is not None:
+                    return frame.getContainerWindow()
+            except Exception:
+                return None
+            return None
+
+
+    class RemoteToolbarController(
+        unohelper.Base,
+        XServiceInfoBase,
+        XStatusListenerBase,
+        XInitializationBase,
+        XUpdatableBase,
+        XToolbarControllerBase,
+    ):
+        def __init__(self, ctx):
+            self.ctx = ctx
+            self.frame: Any | None = None
+            self.service_manager: Any = _service_manager(ctx)
+            self.command_url = f"{PROTOCOL}menu"
+            self._listeners: list[object] = []
+
+        def getImplementationName(self):
+            return TOOLBAR_IMPLEMENTATION_NAME
+
+        def supportsService(self, name):
+            return name in TOOLBAR_SERVICE_NAMES
+
+        def getSupportedServiceNames(self):
+            return TOOLBAR_SERVICE_NAMES
+
+        def initialize(self, arguments):
+            values = _property_values_to_dict(arguments)
+            self.frame = values.get("Frame")
+            command_url = values.get("CommandURL")
+            if isinstance(command_url, str) and command_url:
+                self.command_url = command_url
+            service_manager = values.get("ServiceManager")
+            if service_manager is not None:
+                self.service_manager = service_manager
+
+        def update(self):
+            return None
+
+        def disposing(self, _event):
+            self.frame = None
+            self._listeners.clear()
+
+        def statusChanged(self, _state):
+            return None
+
+        def dispose(self):
+            for listener in tuple(self._listeners):
+                disposing = getattr(listener, "disposing", None)
+                if disposing is None:
+                    continue
+                try:
+                    disposing(SimpleNamespace(Source=self))
+                except Exception:
+                    pass
+            self._listeners.clear()
+            self.frame = None
+
+        def addEventListener(self, listener):
+            if listener not in self._listeners:
+                self._listeners.append(listener)
+
+        def removeEventListener(self, listener):
+            self._listeners = [item for item in self._listeners if item is not listener]
+
+        def execute(self, _key_modifier):
+            self._dispatch_path("menu")
+
+        def click(self):
+            self._dispatch_path("menu")
+
+        def doubleClick(self):
+            self._dispatch_path("menu")
+
+        def createItemWindow(self, _parent):
+            return None
+
+        def createPopupWindow(self):
+            self._dispatch_path("menu")
+            return None
+
+        def _popup_parent(self) -> Any | None:
+            frame: Any | None = self.frame
+            if frame is not None:
+                try:
+                    window = frame.getContainerWindow()
+                    if window is not None:
+                        return window
+                except Exception:
+                    pass
+            try:
+                desktop = cast(
+                    Any,
+                    self.service_manager.createInstanceWithContext(
+                        "com.sun.star.frame.Desktop",
+                        self.ctx,
+                    ),
+                )
+                frame = desktop.getCurrentFrame()
+                if frame is not None:
+                    return frame.getContainerWindow()
+            except Exception:
+                pass
+            return None
+
+        def _dispatch_path(self, path: str) -> None:
+            url = _feature_url(path)
+            dispatch = None
+            frame = self.frame
+            if frame is not None:
+                query_dispatch = getattr(frame, "queryDispatch", None)
+                if query_dispatch is not None:
+                    try:
+                        dispatch = query_dispatch(url, "_self", 0)
+                    except Exception:
+                        dispatch = None
+            if dispatch is None:
+                try:
+                    desktop = cast(
+                        Any,
+                        self.service_manager.createInstanceWithContext(
+                            "com.sun.star.frame.Desktop",
+                            self.ctx,
+                        ),
+                    )
+                    dispatch = desktop.queryDispatch(url, "_self", 0)
+                except Exception:
+                    dispatch = None
+            if dispatch is None:
+                raise RuntimeError(_translate("error.dispatchUnavailable"))
+            dispatch.dispatch(url, ())
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
@@ -502,12 +770,21 @@ def create(ctx):
     return ImpressRemoteProtocolHandler(ctx)
 
 
+def create_toolbar_controller(ctx):
+    return RemoteToolbarController(ctx)
+
+
 try:
     g_ImplementationHelper = unohelper.ImplementationHelper()
     g_ImplementationHelper.addImplementation(
         create,
         IMPLEMENTATION_NAME,
         SERVICE_NAMES,
+    )
+    g_ImplementationHelper.addImplementation(
+        create_toolbar_controller,
+        TOOLBAR_IMPLEMENTATION_NAME,
+        TOOLBAR_SERVICE_NAMES,
     )
 except Exception:
     _write_bootstrap_log(traceback.format_exc())

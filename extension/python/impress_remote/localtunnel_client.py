@@ -18,6 +18,7 @@ from impress_remote.localization import translate
 DEFAULT_TUNNEL_HOST = "https://localtunnel.me"
 CONNECT_TIMEOUT_SECONDS = 10.0
 BUFFER_SIZE = 64 * 1024
+RETRY_DELAY_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -150,32 +151,36 @@ class LocalTunnelClient:
             return {"state": self._state, "lastError": self._last_error, "url": self.url}
 
     def _run(self) -> None:
-        try:
+        while not self._stop_event.is_set():
             self._set_status("connecting", "")
-            info = _request_tunnel_info(self.tunnel_host, self.subdomain)
-            self.url = info.url
-            self._set_status("ready", "")
-            connection_count = min(max(info.max_connections, 1), 8)
-            workers = [
-                threading.Thread(
-                    target=self._connection_loop,
-                    args=(info,),
-                    daemon=True,
-                    name=f"localtunnel-socket-{index}",
-                )
-                for index in range(connection_count)
-            ]
-            for worker in workers:
-                worker.start()
-            while not self._stop_event.is_set():
-                if not any(worker.is_alive() for worker in workers):
-                    break
-                time.sleep(0.2)
-        except Exception as exc:
-            self._set_status("error", str(exc))
-        finally:
-            if not self._stop_event.is_set() and self._state != "error":
-                self._set_status("closed", "")
+            try:
+                info = _request_tunnel_info(self.tunnel_host, self.subdomain)
+                self.url = info.url
+                self._set_status("ready", "")
+                connection_count = min(max(info.max_connections, 1), 8)
+                workers = [
+                    threading.Thread(
+                        target=self._connection_loop,
+                        args=(info,),
+                        daemon=True,
+                        name=f"localtunnel-socket-{index}",
+                    )
+                    for index in range(connection_count)
+                ]
+                for worker in workers:
+                    worker.start()
+                while not self._stop_event.is_set():
+                    if not any(worker.is_alive() for worker in workers):
+                        break
+                    time.sleep(0.2)
+            except Exception as exc:
+                self.url = ""
+                self._set_status("retrying", str(exc))
+
+            if not self._stop_event.wait(RETRY_DELAY_SECONDS):
+                self.url = ""
+        if self._state != "stopped":
+            self._set_status("stopped", "")
 
     def _connection_loop(self, info: LocalTunnelInfo) -> None:
         remote_host = info.remote_ip or info.remote_host

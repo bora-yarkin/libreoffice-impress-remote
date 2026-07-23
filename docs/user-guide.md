@@ -12,7 +12,7 @@ The main supported workflow is **Local network** mode. Use the experimental mode
 Download the versioned OXT file from the GitHub Release. It will look like this:
 
 ```text
-libreoffice-impress-remote-1.0.0.oxt
+libreoffice-impress-remote-x.y.z.oxt
 ```
 
 Install it from LibreOffice:
@@ -28,12 +28,12 @@ Install it from LibreOffice:
 You can also install with `unopkg` if it is available on your system:
 
 ```bash
-unopkg add -f libreoffice-impress-remote-1.0.0.oxt
+unopkg add -f libreoffice-impress-remote-1.0.1.oxt
 ```
 
 If you are updating from an older build and LibreOffice behaves like stale code is still loaded, remove the old extension in `Tools -> Extension Manager`, restart LibreOffice, then install the new `.oxt`.
 
-The extension is meant for Impress. The remote menu is shown under `Slide Show` when an Impress presentation is active.
+The extension is meant for Impress. The remote menu is shown under `Slide Show` when an Impress presentation is active. In tabbed user-interface modes, LibreOffice may also show a single Start Remote dropdown control on the `Extensions` tab and, where LibreOffice accepts extension notebookbar merging, on the `Slide Show` tab. In classic toolbar modes, LibreOffice may show the same dropdown control near slideshow controls.
 
 To uninstall it, open `Tools -> Extension Manager`, select `LibreOffice Impress Remote`, choose `Remove`, and restart LibreOffice if asked.
 
@@ -44,6 +44,8 @@ To uninstall it, open `Tools -> Extension Manager`, select `LibreOffice Impress 
 3. Choose `Slide Show -> Start Remote`.
 4. Scan the QR code with the phone.
 5. Use the phone as the presenter remote.
+
+Depending on your LibreOffice user-interface mode, you may also start the remote from the presentation-remote icon in the toolbar, notebookbar shortcuts, or `Extensions` tab. That control is registered as a dropdown-style Start/Stop Remote button; the `Slide Show` menu entry is always the fallback.
 
 The QR popup contains only the QR code and `Copy URL`. It closes automatically after a real phone connects. If the phone camera cannot scan the QR code, use `Copy URL` and open the copied link on the phone. Do not edit or remove the `#...` fragment in the URL; it contains pairing data.
 
@@ -116,7 +118,7 @@ The relay package is bundled inside the OXT so the server version matches the ex
 1. Open `Slide Show -> Remote Settings`.
 2. Select `Relay Server`.
 3. Choose `Get Relay Server` and export the bundled relay package.
-4. LibreOffice creates a folder containing a zip such as `impress-remote-relay-python-1.0.0.zip`.
+4. LibreOffice creates a folder containing a zip such as `impress-remote-relay-python-x.y.z.zip`.
 5. Copy that zip to your server.
 
 ### Install On Linux
@@ -124,8 +126,8 @@ The relay package is bundled inside the OXT so the server version matches the ex
 On the server:
 
 ```bash
-unzip impress-remote-relay-python-1.0.0.zip
-cd impress-remote-relay-python-1.0.0
+unzip impress-remote-relay-python-1.0.1.zip
+cd impress-remote-relay-python-1.0.1
 chmod +x configure.sh
 sudo ./configure.sh
 ```

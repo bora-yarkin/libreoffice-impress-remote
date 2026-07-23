@@ -33,6 +33,7 @@ INCLUDE = [
     "META-INF",
     "description.xml",
     "Addons.xcu",
+    "Controller.xcu",
     "ProtocolHandler.xcu",
     "Settings.xcs",
     "Settings.xcu",
