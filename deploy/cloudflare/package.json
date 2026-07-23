@@ -1,0 +1,13 @@
+{
+  "name": "impress-remote-relay-cloudflare",
+  "private": true,
+  "description": "Cloudflare Workers relay for LibreOffice Impress Remote.",
+  "scripts": {
+    "build": "node scripts/sync-shared-webui.mjs",
+    "predeploy": "npm run build",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}

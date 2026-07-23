@@ -23,7 +23,7 @@ The extension owns slideshow control, notes extraction, state generation, local 
 
 The relay server owns session matching, hosted relay phone UI delivery, plaintext relay-key negotiation messages, admission-controlled session status, and opaque encrypted frame forwarding.
 
-As of `1.0.3`, local, LocalTunnel, relay, and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation when Web Crypto is available. Local mode uses the same encrypted flow with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style LAN HTTP contexts that cannot run Web Crypto. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and serves the shared web UI with generated asset/localization manifests.
+As of `1.0.5`, local, LocalTunnel, relay, and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation when Web Crypto is available. Local mode uses the same encrypted flow with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style HTTP contexts that cannot run Web Crypto. Direct IPv6 mode can use the same authenticated plaintext fallback only when the user explicitly chooses that experimental route. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and serves the shared web UI with generated asset/localization manifests.
 
 ## Route Responsibilities
 
@@ -42,7 +42,7 @@ As of `1.0.3`, local, LocalTunnel, relay, and direct-IPv6 state, command, and as
 - Slide preview exporter: renders the current and next slide images for the phone UI.
 - Local listener: serves the phone UI shell plus session-bound encrypted state, command, event, and slide-asset endpoints, with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback when local-mode Web Crypto is unavailable in the browser.
 - Relay client: connects LibreOffice to an optional self-hosted relay and sends only encrypted session frames after pairing.
-- Shared phone UI: static HTML, CSS, and JavaScript reused by the OXT, Python relay bundle, and Cloudflare relay bundle.
+- Shared phone UI: static HTML, CSS, and JavaScript reused by the OXT, Python relay bundle, and Cloudflare deploy build.
 - Relay server: performs session admission and opaque websocket forwarding without parsing slide notes, slide images, or commands.
 
 ## Main And Experimental Boundaries

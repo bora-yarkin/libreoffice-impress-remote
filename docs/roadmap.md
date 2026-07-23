@@ -3,7 +3,7 @@
 
 # Roadmap
 
-This roadmap reflects the `1.0.3` snapshot.
+This roadmap reflects the `1.0.5` snapshot.
 
 This is a volunteer FOSS extension. It may move quickly when someone has time and may sit quietly when nobody does. The docs should not promise a paid-product support cadence, guaranteed long-term maintenance, or future platform ports.
 
@@ -76,7 +76,7 @@ Status: in progress
 - Keep ECDH/AES-GCM local/direct/tunnel/relay protocol tests passing.
 - Improve frontend trust for local HTTP and relay-hosted UI delivery.
 - Decide between local HTTPS, signed assets, pinned assets, or a trusted phone shell.
-- Keep Safari local fallback clearly documented as authenticated plaintext, not E2EE.
+- Keep Safari HTTP fallback clearly documented as authenticated plaintext, not E2EE.
 
 Exit criteria: the security model is honest, testable, and good enough for the documented local-first scope.
 
@@ -84,7 +84,7 @@ Exit criteria: the security model is honest, testable, and good enough for the d
 
 Status: implemented, needs field testing
 
-- Keep LocalTunnel, Direct IPv6, Python relay, and Cloudflare relay available for users who want to test them.
+- Keep LocalTunnel, Direct IPv6, Python relay, and browser-deployable Cloudflare relay available for users who want to test them.
 - Keep relay bundles version-matched with the OXT.
 - Keep relay logs free of decrypted slide content, notes, commands, and image data.
 - Keep experimental route docs clear about limits, risks, and setup complexity.

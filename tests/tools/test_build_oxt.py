@@ -23,7 +23,6 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
     version = project_version()
     docs_archive_name = f"resources/impress-remote-docs-{version}.zip"
     relay_archive_name = f"resources/impress-remote-relay-python-{version}.zip"
-    cloudflare_archive_name = f"resources/impress-remote-relay-cloudflare-{version}.zip"
 
     with ZipFile(output) as package:
         names = set(package.namelist())
@@ -45,21 +44,15 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         asset_manifest = package.read("web/asset-manifest.json").decode("utf-8")
         build_features = package.read("python/impress_remote/BUILD_FEATURES.json").decode("utf-8")
         assert relay_archive_name in names
-        assert cloudflare_archive_name in names
         assert docs_archive_name in names
+        assert not any("impress-remote-relay-cloudflare" in name for name in names)
 
         relay_data = package.read(relay_archive_name)
-        cloudflare_data = package.read(cloudflare_archive_name)
         docs_data = package.read(docs_archive_name)
         description_data = package.read("description.xml")
 
     with ZipFile(BytesIO(relay_data)) as relay_archive:
         assert f"impress-remote-relay-python-{version}/run-relay.py" in relay_archive.namelist()
-    with ZipFile(BytesIO(cloudflare_data)) as cloudflare_archive:
-        assert (
-            f"impress-remote-relay-cloudflare-{version}/wrangler.toml"
-            in cloudflare_archive.namelist()
-        )
     with ZipFile(BytesIO(docs_data)) as docs_archive:
         assert f"impress-remote-docs-{version}/README.md" in docs_archive.namelist()
 

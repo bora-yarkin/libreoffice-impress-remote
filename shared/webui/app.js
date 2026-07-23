@@ -154,7 +154,7 @@ function hasWebCrypto(){
 }
 
 function isLocalFallbackMode(){
-  return isLocalMode() && !hasWebCrypto()
+  return (isLocalMode() || routeMode === 'ipv6') && !hasWebCrypto()
 }
 
 function isSecureDirectMode(){

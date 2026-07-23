@@ -3,7 +3,7 @@
 
 # TODO
 
-This file tracks the `1.0.3` project snapshot: what already ships today and what is still planned next.
+This file tracks the `1.0.5` project snapshot: what already ships today and what is still planned next.
 
 For milestone order and project direction, see `docs/roadmap.md`.
 
@@ -14,7 +14,7 @@ Current product direction: local mode is the default, tested path, including sam
 ### 1. Broaden Local Mode Evidence
 
 - Local compatibility evidence: Record local-mode results across supported LibreOffice versions, macOS, Windows, Linux, iOS Safari, Android Chrome, and Android Firefox.
-- Browser-level E2E automation: Add automated coverage for essential phone UI behavior, Safari local fallback, encrypted local handshakes, reconnect flows, and command round trips.
+- Browser-level E2E automation: Add automated coverage for essential phone UI behavior, Safari HTTP fallback, encrypted local handshakes, reconnect flows, and command round trips.
 - Accessibility verification: Verify keyboard navigation, focus order, screen-reader labels, status announcements, QR/Copy URL fallback, and phone remote controls across supported desktop and phone platforms.
 - Release readiness evidence: Keep recording real manual compatibility results for local same-Wi-Fi and hotspot workflows after `1.0.0`.
 
@@ -64,7 +64,7 @@ Current product direction: local mode is the default, tested path, including sam
 - Lightweight remote: The phone UI shows the current slide image pinned at the top, presenter notes as the only scrollable area, and bottom-pinned previous/next controls.
 - Minimal controls: Tapping the slide advances, and a compact icon-only drawer exposes first-slide, last-slide, timer pause/resume, fullscreen, and jump-to-slide actions without adding phone-side settings.
 - Runtime feedback: The phone UI includes presentation timers, a reconnect/offline panel, retry/reload actions, and focus/accessibility polish on a normal browser page.
-- Shared web source: The authored phone UI lives in `shared/webui/` and is reused by the OXT, Python relay bundle, and Cloudflare relay bundle.
+- Shared web source: The authored phone UI lives in `shared/webui/` and is reused by the OXT, Python relay bundle, and Cloudflare deploy build.
 
 ### Local And Direct IPv6 Routes
 
@@ -98,7 +98,7 @@ Current product direction: local mode is the default, tested path, including sam
 
 - OXT packaging: LibreOffice `.oxt` packaging, manifest files, extension metadata, direct Slide Show menu registration, version injection, build-feature metadata, and versioned OXT builds are in place.
 - Single complete extension build: `make oxt` builds one OXT containing local, LocalTunnel, direct IPv6, relay mode, matching documentation, and relay export bundles.
-- Bundled resources: The OXT embeds matching documentation, Python relay, and Cloudflare relay bundles for export from Remote Settings when Relay Server mode is selected.
+- Bundled resources: The OXT embeds matching documentation and Python relay bundles for export from Remote Settings when Relay Server mode is selected; Cloudflare relay is deployed from the relay docs instead of exported from the OXT.
 - GitHub release automation: The release workflow runs build gates, creates a version tag when needed, generates checksums, and publishes the versioned OXT to a GitHub Release.
 - Development setup: `make venv` creates a `uv`-managed environment with dependencies installed, and `make sdk-download` resolves/downloads/installs a compatible LibreOffice SDK automatically.
 - Editor support: Workspace analysis config, import roots, and UNO stubs are in place to keep Pylance usable.

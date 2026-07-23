@@ -17,7 +17,7 @@ Record date, version, OS, LibreOffice version, phone browser, route, result, and
 - Run `make oxt`.
 - Confirm `dist/libreoffice-impress-remote-<version>.oxt` exists.
 - Confirm the OXT contains `resources/impress-remote-docs-<version>.zip`.
-- Confirm the OXT contains the Python and Cloudflare relay bundles.
+- Confirm the OXT contains the Python relay bundle and does not contain a Cloudflare relay archive.
 - Install the generated OXT into a clean LibreOffice profile when possible.
 - Use an Impress deck with at least five slides, titles, notes, and one image-heavy slide.
 
@@ -38,7 +38,7 @@ Record date, version, OS, LibreOffice version, phone browser, route, result, and
 - Confirm the mode selector includes Local network, Direct IPv6, Relay Server, and LocalTunnel.
 - Confirm Local network is selected by default on a clean profile.
 - Confirm relay URL and resource export controls are hidden unless Relay Server is selected.
-- Select Relay Server and confirm relay URL, Get Relay Server, Get Cloudflare Relay, and Get Documentation appear.
+- Select Relay Server and confirm relay URL, Get Relay Server, Deploy to Cloudflare, and Get Documentation appear.
 - Confirm Remote Settings contains only mode selection, relay-only controls, Help, Save, and Close.
 - Change a setting while the remote is running, save, and confirm the remote stops.
 - Open Help and confirm it is a static readable information page.
@@ -136,8 +136,8 @@ Experimental route. Test it when validating advanced self-hosted behavior.
 Experimental route. Test it when validating advanced self-hosted or edge-hosted behavior.
 
 - Select Relay Server mode.
-- Export the bundled Cloudflare relay package.
-- Deploy the Worker/Durable Object bundle with Wrangler.
+- Open the Deploy to Cloudflare button from LibreOffice Remote Settings, `docs/relay.md`, or `deploy/cloudflare/README.md`.
+- Deploy the Worker/Durable Object app from the browser flow.
 - Confirm `/health` and `/asset-manifest.json` work.
 - Save the deployed relay URL in Remote Settings.
 - Start Remote and scan the QR code.

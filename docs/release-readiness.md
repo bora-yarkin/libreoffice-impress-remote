@@ -64,7 +64,7 @@ Local mode must satisfy:
 - Current slide image and presenter notes update.
 - Previous, next, tap-to-advance, first slide, last slide, goto-slide, fullscreen, and timers work.
 - Phone hotspot pairing works.
-- iOS Safari local compatibility fallback works on a trusted LAN or hotspot.
+- iOS Safari HTTP compatibility fallback works in local mode on a trusted LAN or hotspot and in experimental direct IPv6 mode when Web Crypto is unavailable.
 - Stop Remote tears down the listener.
 - Copy URL works as QR fallback.
 - Product CI passes.
@@ -92,7 +92,7 @@ Direct IPv6:
 Relay:
 
 - Python relay bundle runs without a repository checkout
-- Cloudflare relay bundle deploys without editing shared phone UI files
+- Cloudflare browser deploy works without editing shared phone UI files
 - LibreOffice and phone connect through the relay
 - commands round-trip
 - relay never decrypts presenter notes, commands, or slide previews
@@ -153,7 +153,7 @@ Packaging:
 - `make lint`
 - `make oxt`
 - confirm `dist/libreoffice-impress-remote-<version>.oxt` exists
-- confirm the OXT contains matching Python relay, Cloudflare relay, and docs bundles
+- confirm the OXT contains matching Python relay and docs bundles, and does not contain a Cloudflare relay archive
 - install the generated OXT into LibreOffice
 
 Local:
@@ -162,7 +162,7 @@ Local:
 - verify QR popup closes after phone connects
 - verify slide image, notes, previous/next, tap-to-advance, timers, fullscreen, first/last slide, and goto-slide
 - verify Copy URL backup from the QR popup
-- verify Safari local fallback if testing on iOS
+- verify Safari HTTP fallback if testing on iOS
 - verify phone hotspot workflow
 - verify stop remote tears down the route
 

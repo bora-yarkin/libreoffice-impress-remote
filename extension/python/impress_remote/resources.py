@@ -21,7 +21,6 @@ class ResourceExport:
 
 RESOURCE_ARCHIVES = {
     "relay": f"impress-remote-relay-python-{__version__}.zip",
-    "cloudflare": f"impress-remote-relay-cloudflare-{__version__}.zip",
     "docs": f"impress-remote-docs-{__version__}.zip",
 }
 

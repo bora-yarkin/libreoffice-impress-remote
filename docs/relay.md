@@ -7,13 +7,12 @@ Relay Server mode is an experimental path for networks where Local network mode 
 
 Local network mode is the main product path. Use relay mode only if you are comfortable self-hosting or deploying experimental infrastructure.
 
-The installed OXT contains matching bundles for its own version:
+The installed OXT contains matching local resources for its own version:
 
 - `impress-remote-relay-python-<version>.zip`
-- `impress-remote-relay-cloudflare-<version>.zip`
 - `impress-remote-docs-<version>.zip`
 
-Open `Slide Show -> Remote Settings`, select `Relay Server`, then use `Get Relay Server`, `Get Cloudflare Relay`, or `Get Documentation`.
+Open `Slide Show -> Remote Settings`, select `Relay Server`, then use `Get Relay Server`, `Deploy to Cloudflare`, or `Get Documentation`.
 
 ## HTTP Contract
 
@@ -58,7 +57,13 @@ The exported Python relay includes Linux and Windows service install/uninstall h
 
 ## Cloudflare Relay
 
-Export `Get Cloudflare Relay`, then deploy the unpacked Worker bundle with Wrangler:
+Anyone with a Cloudflare account can deploy the experimental Cloudflare relay without installing anything locally. In LibreOffice, open `Slide Show -> Remote Settings`, select `Relay Server`, then click `Deploy to Cloudflare`.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bora-yarkin/libreoffice-impress-remote/tree/main/deploy/cloudflare)
+
+Cloudflare clones the relay app into the user's GitHub account, generates the `public/` phone UI from this repository's shared upstream web UI, provisions the Durable Object binding, and deploys it from Cloudflare's infrastructure. After deployment, copy the generated `workers.dev` URL into LibreOffice `Slide Show -> Remote Settings -> Relay Server (Experimental)`.
+
+For maintainers or users who prefer a local checkout, the Cloudflare relay app lives in `deploy/cloudflare` and can also be deployed with Wrangler:
 
 ```bash
 npx wrangler deploy

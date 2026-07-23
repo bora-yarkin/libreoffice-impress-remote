@@ -15,7 +15,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.build_release_bundle import build_bundle  # noqa: E402
-from tools.build_cloudflare_bundle import build_cloudflare_bundle  # noqa: E402
 from tools.project_version import read_project_version  # noqa: E402
 from tools.shared_webui import add_webui_to_zip  # noqa: E402
 
@@ -128,9 +127,8 @@ def build_oxt(
     with TemporaryDirectory(prefix="impress-remote-oxt-") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
         _bundle_dir, relay_archive = build_bundle(temp_dir)
-        _cloudflare_dir, cloudflare_archive = build_cloudflare_bundle(temp_dir)
         docs_archive = build_documentation_bundle(temp_dir)
-        support_archives = (relay_archive, cloudflare_archive, docs_archive)
+        support_archives = (relay_archive, docs_archive)
         with ZipFile(output_path, "w", ZIP_DEFLATED) as package:
             for item in INCLUDE:
                 if item == "description.xml":

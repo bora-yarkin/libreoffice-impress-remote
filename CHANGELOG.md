@@ -9,6 +9,24 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-07-23
+
+### Changed
+
+- Added a LibreOffice Remote Settings `Deploy to Cloudflare` button for Relay Server mode.
+- Removed the Cloudflare relay archive from the OXT resources and from LibreOffice resource export controls.
+- Kept Cloudflare deployment in the technical relay documentation and browser-deployable `deploy/cloudflare` app.
+- Bumped the extension, relay package, and project version to `1.0.5`.
+
+## [1.0.4] - 2026-07-23
+
+### Fixed
+
+- Fixed Safari-style IPv6 pairing by letting direct IPv6 mode use the authenticated plaintext compatibility transport when Web Crypto is unavailable.
+- Kept encrypted ECDH/AES-GCM direct transport as the preferred path for browsers that expose Web Crypto.
+- Updated browser-facing Web Crypto errors and security documentation to distinguish encrypted transport from compatibility transport.
+- Bumped the extension, relay package, and project version to `1.0.4`.
+
 ## [1.0.3] - 2026-07-23
 
 ### Changed

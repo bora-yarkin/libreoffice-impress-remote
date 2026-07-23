@@ -3,7 +3,7 @@
 
 # Feature Matrix
 
-This matrix reflects the `1.0.3` snapshot.
+This matrix reflects the `1.0.5` snapshot.
 
 ## User Workflow
 
@@ -11,7 +11,7 @@ This matrix reflects the `1.0.3` snapshot.
 | --- | --- | --- |
 | Installable OXT | Implemented | `make oxt` builds `dist/libreoffice-impress-remote-<version>.oxt`. |
 | Impress-only start/stop | Implemented | `Slide Show -> Start Remote` toggles to Stop Remote while running. |
-| Remote Settings | Implemented | Contains only mode selection, relay URL when Relay mode is selected, relay/documentation export buttons, Help, Save, and Close. |
+| Remote Settings | Implemented | Contains only mode selection, relay URL when Relay mode is selected, Python relay/documentation export buttons, Deploy to Cloudflare, Help, Save, and Close. |
 | QR-first pairing | Implemented | Start Remote opens the QR popup. Copy URL is in that popup as the manual fallback. |
 | Local network mode | Released | Default and recommended route for same Wi-Fi and hotspot setups; this is the main supported path. |
 | LocalTunnel mode | Experimental | Optional public tunnel fallback using the vendored pure-Python LocalTunnel-compatible client. |
@@ -41,19 +41,19 @@ This matrix reflects the `1.0.3` snapshot.
 | --- | --- | --- |
 | ECDH P-256 bootstrap | Implemented | Local/direct/tunnel/relay encrypted modes derive keys from ECDH plus the QR pairing verifier. |
 | Encrypted state/commands/assets | Implemented | Web-Crypto-capable local, LocalTunnel, direct IPv6, and relay modes use AES-256-GCM frames. |
-| Safari local fallback | Implemented | Local mode can fall back to authenticated plaintext `/api/local/*` on trusted LANs when Web Crypto is unavailable. |
+| Safari HTTP fallback | Implemented | Local mode can fall back to authenticated plaintext `/api/local/*` on trusted LANs when Web Crypto is unavailable; direct IPv6 mode can use the same path only when the user explicitly chooses that experimental route. |
 | Relay admission token | Implemented | Relay phone links include an admission token for `/api/session` and `/ws`. |
 | Replay checks and key rotation | Implemented | Encrypted frames are session-bound, nonce replay is rejected, and plugin send keys rotate. |
-| Asset manifests and SRI | Implemented | Shared web assets expose SHA-256/SRI metadata in OXT, Python relay, Cloudflare relay, and local server builds. |
+| Asset manifests and SRI | Implemented | Shared web assets expose SHA-256/SRI metadata in OXT, Python relay, Cloudflare deploy, and local server builds. |
 | Local HTTPS or trusted phone shell | Planned | Needed to resist active local script replacement. |
 
 ## Packaging, Relay, And QA
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Single complete OXT | Implemented | One versioned package embeds local mode, experimental modes, docs, and relay export bundles. |
+| Single complete OXT | Implemented | One versioned package embeds local mode, experimental modes, docs, and the Python relay export bundle. |
 | Python relay bundle | Experimental | Includes the shared phone UI and Linux/Windows service helpers. |
-| Cloudflare relay bundle | Experimental | Includes the Worker, Durable Object binding config, and shared phone UI assets. |
+| Cloudflare browser deploy | Experimental | Public Deploy to Cloudflare button deploys the Worker and generates phone UI assets from shared source during Cloudflare build. |
 | Relay compatibility validator | Implemented | `make relay-compat RELAY_URL=...` checks the public HTTP contract. |
 | Localization import | Implemented | `make localization-import` validates keyed JSON catalogs; English and Turkish ship today. |
 | Grouped test suite | Implemented | Tests are grouped under `tests/extension`, `tests/shared`, `tests/relay`, and `tests/tools`. |

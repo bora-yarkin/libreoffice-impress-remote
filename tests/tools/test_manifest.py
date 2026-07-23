@@ -28,9 +28,28 @@ def test_extension_manifest_files_exist() -> None:
         "shared/localizations/en.json",
         "shared/localizations/tr.json",
         "docs/test-before-release.md",
+        "deploy/cloudflare/package.json",
+        "deploy/cloudflare/scripts/sync-shared-webui.mjs",
     ]
     missing = [path for path in required if not (ROOT / path).exists()]
     assert not missing
+
+
+def test_libreoffice_settings_exposes_cloudflare_deploy_button_not_bundle_export() -> None:
+    office_ui = (ROOT / "extension/python/impress_remote/office_ui.py").read_text(
+        encoding="utf-8"
+    )
+    english = (ROOT / "shared/localizations/en.json").read_text(encoding="utf-8")
+    turkish = (ROOT / "shared/localizations/tr.json").read_text(encoding="utf-8")
+
+    assert "CLOUDFLARE_DEPLOY_URL" in office_ui
+    assert "deploy_cloudflare_button" in office_ui
+    assert "open_external_url(self.ctx, CLOUDFLARE_DEPLOY_URL)" in office_ui
+    assert "export_cloudflare_button" not in office_ui
+    assert '"office.button.deployCloudflare": "Deploy to Cloudflare"' in english
+    assert '"office.button.deployCloudflare": "Cloudflare' in turkish
+    assert "office.button.exportCloudflare" not in english
+    assert "office.button.exportCloudflare" not in turkish
 
 
 def test_python_component_manifest_entry_uses_python_component_media_type() -> None:
@@ -99,6 +118,7 @@ def test_shared_phone_ui_has_authenticated_local_compatibility_fallback() -> Non
     assert "X-Impress-Remote-Session" in app_js
     assert "X-Impress-Remote-Secret" in app_js
     assert "isLocalFallbackMode()" in app_js
+    assert "(isLocalMode() || routeMode === 'ipv6') && !hasWebCrypto()" in app_js
 
 
 def test_shared_phone_ui_loads_dynamic_localization_manifest() -> None:
@@ -219,6 +239,45 @@ def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:
 
     assert "contents: write" in workflow
     assert "Release tag ${tag} does not match VERSION ${version}" in workflow
+
+
+def test_cloudflare_relay_can_be_deployed_from_browser_without_duplicate_webui() -> None:
+    package = (ROOT / "deploy/cloudflare/package.json").read_text(encoding="utf-8")
+    sync_script = (ROOT / "deploy/cloudflare/scripts/sync-shared-webui.mjs").read_text(
+        encoding="utf-8"
+    )
+    readme = (ROOT / "deploy/cloudflare/README.md").read_text(encoding="utf-8")
+    docs = (ROOT / "docs/relay.md").read_text(encoding="utf-8")
+    product_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    user_guide = (ROOT / "docs/user-guide.md").read_text(encoding="utf-8")
+
+    for expected in (
+        '"build": "node scripts/sync-shared-webui.mjs"',
+        '"predeploy": "npm run build"',
+        '"deploy": "wrangler deploy"',
+    ):
+        assert expected in package
+    for expected in (
+        "raw.githubusercontent.com",
+        "webui/${file}",
+        "shared/localizations",
+        "asset-manifest.json",
+        "localizations/manifest.json",
+    ):
+        assert expected in sync_script
+    button_url = (
+        "https://deploy.workers.cloudflare.com/?url="
+        "https://github.com/bora-yarkin/libreoffice-impress-remote/tree/main/deploy/cloudflare"
+    )
+    for document in (readme, docs):
+        assert button_url in document
+    assert button_url not in product_readme
+    assert (
+        "Cloudflare relay can be deployed from LibreOffice or the relay docs without local "
+        "installs."
+        in user_guide
+    )
+    assert not (ROOT / "deploy/cloudflare/public").exists()
 
 
 def test_release_testing_checklist_is_linked_and_route_complete() -> None:

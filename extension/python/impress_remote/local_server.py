@@ -460,6 +460,11 @@ class RemoteServer:
         payload["transportSecurity"] = "local-authenticated-plaintext"
         return payload
 
+    def allows_plaintext_compatibility_client(self, client_host: str | None) -> bool:
+        if _is_local_compatibility_client(client_host):
+            return True
+        return self._route_mode(self.config) == "ipv6"
+
     def secure_direct_state_response(self) -> dict[str, object]:
         if not self.direct_session.ready():
             raise RelayProtocolFailure(
@@ -1200,13 +1205,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def _authorize_local_fallback(self) -> bool:
         client_host = self.client_address[0] if self.client_address else None
-        if not _is_local_compatibility_client(client_host):
-            self._json(
-                {"ok": False, "error": translate("error.localFallbackLanOnly")},
-                HTTPStatus.FORBIDDEN,
-            )
-            return False
-        if (
+        has_pairing_headers = (
             hmac.compare_digest(
                 self.headers.get("X-Impress-Remote-Session", ""),
                 self.server_ref.session_id,
@@ -1215,14 +1214,21 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
                 self.headers.get("X-Impress-Remote-Secret", ""),
                 self.server_ref.pairing_secret,
             )
-        ):
-            self._mark_authorized_client_activity()
-            return True
-        self._json(
-            {"ok": False, "error": translate("error.localFallbackUnauthorized")},
-            HTTPStatus.FORBIDDEN,
         )
-        return False
+        if not has_pairing_headers:
+            self._json(
+                {"ok": False, "error": translate("error.localFallbackUnauthorized")},
+                HTTPStatus.FORBIDDEN,
+            )
+            return False
+        if not self.server_ref.allows_plaintext_compatibility_client(client_host):
+            self._json(
+                {"ok": False, "error": translate("error.localFallbackLanOnly")},
+                HTTPStatus.FORBIDDEN,
+            )
+            return False
+        self._mark_authorized_client_activity()
+        return True
 
     def _localization_file(self, path: str) -> None:
         name = Path(path).name

@@ -17,15 +17,15 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups work without ex
 
 ## Current Status
 
-Version `1.0.3` is the current patch release after the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
+Version `1.0.5` is the current patch release after the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
 
 - Impress-only `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`
 - QR-first pairing with Copy URL fallback in the QR popup
 - phone UI with slide image, notes, effect-aware previous/next, tap-to-advance, timers, fullscreen, first/last slide, and go-to-slide
 - Local network mode by default, plus optional LocalTunnel, Direct IPv6, and Relay Server modes
 - encrypted local/direct/tunnel/relay transport when Web Crypto is available
-- Safari-compatible authenticated local fallback for trusted LAN use
-- one versioned OXT that embeds matching documentation, Python relay, and Cloudflare relay bundles
+- Safari-compatible authenticated HTTP fallback for local mode and experimental direct IPv6 testing
+- one versioned OXT that embeds matching documentation and the Python relay bundle
 - English and Turkish localization catalogs plus an import workflow for more languages
 - GitHub release automation for publishing the versioned OXT after build, lint, and tests pass
 

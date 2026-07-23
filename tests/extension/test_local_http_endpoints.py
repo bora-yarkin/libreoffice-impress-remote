@@ -340,3 +340,17 @@ def test_local_compatibility_client_filter_rejects_global_addresses() -> None:
     assert _is_local_compatibility_client("192.168.1.20")
     assert _is_local_compatibility_client("fd12:3456:789a::12")
     assert not _is_local_compatibility_client("2606:4700:4700::1111")
+
+
+def test_plaintext_compatibility_allows_global_clients_only_for_ipv6_route() -> None:
+    local_server = RemoteServer(
+        ctx=SimpleNamespace(),
+        config=RemoteConfig(preferred_route="local"),
+    )
+    ipv6_server = RemoteServer(
+        ctx=SimpleNamespace(),
+        config=RemoteConfig(preferred_route="ipv6"),
+    )
+
+    assert not local_server.allows_plaintext_compatibility_client("2606:4700:4700::1111")
+    assert ipv6_server.allows_plaintext_compatibility_client("2606:4700:4700::1111")
