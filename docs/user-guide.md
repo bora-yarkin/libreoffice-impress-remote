@@ -24,9 +24,9 @@ Open `Slide Show -> Remote Settings` only when you need to change the connection
 | Local network | Phone and computer are on the same Wi-Fi or hotspot. | Default, tested, and recommended mode. |
 | LocalTunnel | Local network access is blocked and you want a temporary public URL. | Experimental. Uses the vendored LocalTunnel-compatible client. Treat the generated URL as secret. |
 | Direct IPv6 | Both devices have public IPv6 and the desktop firewall allows the remote port. | Experimental. Useful only on networks where public IPv6 actually works end to end. |
-| Relay Server | You run the included Python relay, Cloudflare relay, or a compatible self-hosted relay. | Experimental. Enter the relay URL in Remote Settings before starting. |
+| Relay Server | You run the included Python relay or a compatible self-hosted relay. | Experimental. Enter the relay URL in Remote Settings before starting. |
 
-Remote Settings is intentionally small: mode selector, relay URL when Relay Server is selected, Python relay/documentation export buttons, Deploy to Cloudflare, Help, Save, and Close. Cloudflare relay can be deployed from the linked relay docs with only a Cloudflare account, without local installs or the maintainer's GitHub authorization.
+Remote Settings is intentionally small: mode selector, relay URL when Relay Server is selected, Python relay export, documentation export, Help, Save, and Close.
 
 Changing settings while the remote is running stops the remote. Start it again to use the saved mode.
 

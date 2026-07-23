@@ -12,7 +12,7 @@ The installed OXT contains matching local resources for its own version:
 - `impress-remote-relay-python-<version>.zip`
 - `impress-remote-docs-<version>.zip`
 
-Open `Slide Show -> Remote Settings`, select `Relay Server`, then use `Get Relay Server`, `Deploy to Cloudflare`, or `Get Documentation`. The Cloudflare button opens the dashboard deployment instructions; it does not require local tools or access to the maintainer's GitHub account.
+Open `Slide Show -> Remote Settings`, select `Relay Server`, then use `Get Relay Server` or `Get Documentation`. `Get Relay Server` exports the matching Python relay ZIP from the installed OXT.
 
 ## HTTP Contract
 
@@ -54,28 +54,6 @@ Windows PowerShell:
 ```
 
 The exported Python relay includes Linux and Windows service install/uninstall helpers. They persist a randomly chosen free port in `data/service.json`.
-
-## Cloudflare Relay
-
-Anyone with a Cloudflare account can deploy the experimental Cloudflare relay without installing anything locally. This project does not use Cloudflare's GitHub-backed deploy button as the primary path, because that flow asks the deployer to authorize a GitHub or GitLab clone. The dashboard path below only requires the deployer's own Cloudflare account.
-
-### Cloudflare Dashboard Deploy
-
-1. Open [deploy/cloudflare/dashboard-worker.mjs](../deploy/cloudflare/dashboard-worker.mjs) and copy the whole file.
-2. In Cloudflare, open `Workers & Pages`, create a Worker, open the code editor, replace the starter code with the copied Worker, then deploy it.
-3. In the deployed Worker settings, add a Durable Object binding named `RELAY_ROOMS` that points to the exported class `RelayRoom`, then redeploy if Cloudflare asks for it.
-4. Visit `https://your-worker.workers.dev/health`. It should return JSON with `runtime: "cloudflare-workers"`.
-5. Copy the Worker URL into LibreOffice `Slide Show -> Remote Settings -> Relay Server (Experimental)`.
-
-`dashboard-worker.mjs` is generated from the shared phone UI and localization files, so the browser-only Cloudflare path does not need a separate copy of the web UI.
-
-For maintainers or users who prefer a local checkout, the Cloudflare relay app lives in `deploy/cloudflare` and can also be deployed with Wrangler:
-
-```bash
-npx wrangler deploy
-```
-
-The Worker serves static phone UI assets from `public/` and keeps session state in Durable Objects.
 
 ## Reverse Proxy Checklist
 

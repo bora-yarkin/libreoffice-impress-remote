@@ -17,7 +17,7 @@ The extension is local-first. Same-Wi-Fi and many hotspot setups work without ex
 
 ## Current Status
 
-Version `1.0.6` is the current patch release after the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
+Version `1.0.11` is the current patch release after the first local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
 
 - Impress-only `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`
 - QR-first pairing with Copy URL fallback in the QR popup

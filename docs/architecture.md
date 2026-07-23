@@ -23,7 +23,7 @@ The extension owns slideshow control, notes extraction, state generation, local 
 
 The relay server owns session matching, hosted relay phone UI delivery, plaintext relay-key negotiation messages, admission-controlled session status, and opaque encrypted frame forwarding.
 
-As of `1.0.6`, local, LocalTunnel, relay, and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation when Web Crypto is available. Local mode uses the same encrypted flow with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style HTTP contexts that cannot run Web Crypto. Direct IPv6 mode can use the same authenticated plaintext fallback only when the user explicitly chooses that experimental route. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and serves the shared web UI with generated asset/localization manifests.
+As of `1.0.11`, local, LocalTunnel, relay, and direct-IPv6 state, command, and asset flows are encrypted, session-bound, and bootstrapped with ephemeral ECDH P-256 hello negotiation when Web Crypto is available. Local mode uses the same encrypted flow with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback for Safari-style HTTP contexts that cannot run Web Crypto. Direct IPv6 mode can use the same authenticated plaintext fallback only when the user explicitly chooses that experimental route. The relay caches only the active `hello` plus a small bounded window of opaque plugin frames, exposes a session-status probe so LibreOffice can detect joined relay phones, and serves the shared web UI with generated asset/localization manifests.
 
 ## Route Responsibilities
 
@@ -33,7 +33,7 @@ As of `1.0.6`, local, LocalTunnel, relay, and direct-IPv6 state, command, and as
 | Local, Safari-style Web Crypto unavailable | LibreOffice embedded HTTP listener | LibreOffice extension | LAN-only authenticated plaintext `/api/local/*` polling | Same-LAN compatibility on trusted local networks. |
 | LocalTunnel | LibreOffice embedded listener exposed through tunnel | LibreOffice extension | Session-bound encrypted `/api/direct/*` frames | Temporary public URL when local network access is blocked. |
 | Direct IPv6 | LibreOffice embedded IPv6 listener | LibreOffice extension | Session-bound encrypted `/api/direct/*` frames | Optional fallback when public IPv6 works end to end. |
-| Relay | Self-hosted Python or Cloudflare relay | Relay-hosted shared phone UI | Opaque encrypted websocket frames | Optional fallback for CGNAT or blocked local networks. |
+| Relay | Self-hosted Python or compatible relay | Relay-hosted shared phone UI | Opaque encrypted websocket frames | Optional fallback for CGNAT or blocked local networks. |
 
 ## Runtime Components
 
@@ -42,7 +42,7 @@ As of `1.0.6`, local, LocalTunnel, relay, and direct-IPv6 state, command, and as
 - Slide preview exporter: renders the current and next slide images for the phone UI.
 - Local listener: serves the phone UI shell plus session-bound encrypted state, command, event, and slide-asset endpoints, with a LAN-only authenticated plaintext `/api/local/*` compatibility fallback when local-mode Web Crypto is unavailable in the browser.
 - Relay client: connects LibreOffice to an optional self-hosted relay and sends only encrypted session frames after pairing.
-- Shared phone UI: static HTML, CSS, and JavaScript reused by the OXT, Python relay bundle, and Cloudflare deploy build.
+- Shared phone UI: static HTML, CSS, and JavaScript reused by the OXT and Python relay bundle.
 - Relay server: performs session admission and opaque websocket forwarding without parsing slide notes, slide images, or commands.
 
 ## Main And Experimental Boundaries
@@ -58,7 +58,6 @@ The main product is the local-first Impress remote experience:
 The experimental boundary is everything required only for difficult networks:
 
 - reference Python relay
-- Cloudflare Worker relay
 - VPS/service installers
 - reverse-proxy, TLS, firewall, and deployment recipes
 - possible future non-LibreOffice suite adapters, if someone volunteers to maintain them

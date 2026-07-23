@@ -8,6 +8,7 @@ import unittest
 from impress_remote.config import (
     RemoteConfig,
     normalize_relay_url,
+    relay_health_url,
     relay_join_url,
     relay_session_status_url,
     relay_websocket_url,
@@ -120,6 +121,12 @@ class ConfigTests(unittest.TestCase):
                 "join-token",
             ),
             "https://relay.example.com/base/api/session?session=demo&a=join-token",
+        )
+
+    def test_relay_health_url_targets_health_endpoint(self) -> None:
+        self.assertEqual(
+            relay_health_url("wss://relay.example.com/base/ws"),
+            "https://relay.example.com/base/health",
         )
 
     def test_remote_config_round_trips_to_disk(self) -> None:

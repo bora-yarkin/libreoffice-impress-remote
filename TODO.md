@@ -3,7 +3,7 @@
 
 # TODO
 
-This file tracks the `1.0.6` project snapshot: what already ships today and what is still planned next.
+This file tracks the `1.0.11` project snapshot: what already ships today and what is still planned next.
 
 For milestone order and project direction, see `docs/roadmap.md`.
 
@@ -28,7 +28,7 @@ Current product direction: local mode is the default, tested path, including sam
 
 - LocalTunnel testing: Verify tunnel creation, teardown, provider failure behavior, browser loading, and encrypted command/state paths in real networks.
 - Direct IPv6 testing: Verify public IPv6 discovery, firewall guidance, and encrypted browser behavior on networks with and without usable IPv6.
-- Relay testing: Verify Python relay, Cloudflare relay, service scripts, reverse proxies, and encrypted reconnect behavior on real deployments.
+- Relay testing: Verify the Python relay, service scripts, reverse proxies, compatible self-hosted relays, and encrypted reconnect behavior on real deployments.
 - Experimental labeling: Keep LocalTunnel, Direct IPv6, and Relay Server docs and UI honest about their experimental status.
 
 ### 4. Extension Polish
@@ -64,7 +64,7 @@ Current product direction: local mode is the default, tested path, including sam
 - Lightweight remote: The phone UI shows the current slide image pinned at the top, presenter notes as the only scrollable area, and bottom-pinned previous/next controls.
 - Minimal controls: Tapping the slide advances, and a compact icon-only drawer exposes first-slide, last-slide, timer pause/resume, fullscreen, and jump-to-slide actions without adding phone-side settings.
 - Runtime feedback: The phone UI includes presentation timers, a reconnect/offline panel, retry/reload actions, and focus/accessibility polish on a normal browser page.
-- Shared web source: The authored phone UI lives in `shared/webui/` and is reused by the OXT, Python relay bundle, and Cloudflare deploy build.
+- Shared web source: The authored phone UI lives in `shared/webui/` and is reused by the OXT and Python relay bundle.
 
 ### Local And Direct IPv6 Routes
 
@@ -79,12 +79,12 @@ Current product direction: local mode is the default, tested path, including sam
 
 - Relay client mode: LibreOffice can persist relay settings, connect outbound as the plugin, publish relay pairing links with admission tokens, detect joined phones, auto-start the slideshow, receive encrypted commands, and publish encrypted state/assets.
 - Reference relay server: The Python relay exposes `/`, `/app.js`, `/app.css`, `/asset-manifest.json`, `/health`, `/api/session`, and `/ws`, serves the shared phone UI, validates protocol envelopes, forwards opaque frames, replaces stale plugins, and expires empty or stale sessions.
-- Relay deployment bundles: The repository builds a stripped Python relay bundle and a Cloudflare Worker plus Durable Object bundle, both using the shared phone UI.
+- Relay deployment bundle: The repository builds a stripped Python relay bundle using the shared phone UI.
 - Relay operations: The Python relay bundle includes a one-command foreground runner plus Linux and Windows service install/uninstall scripts that persist a randomly chosen port.
 - Relay safety: Reference relays enforce session-id limits, phone-count limits, websocket message-size limits, admission tokens, structured logs, metrics, rate limits, send-failure cleanup, and stale-session expiry.
 - Relay reconnect: Active sessions replay the latest key advertisement plus a bounded window of encrypted plugin frames to newly joined phones, without server-side decryption, and clear cached secure state when the plugin disconnects.
-- Relay docs: VPS, reverse proxy, TLS, firewall, session-status, and bundle-verification guidance exists for the Python and Cloudflare relay deployments.
-- Relay ecosystem validation: `make relay-compat` validates the implementation-independent public relay contract for compatible Python, Cloudflare, or third-party relays.
+- Relay docs: VPS, reverse proxy, TLS, firewall, session-status, and bundle-verification guidance exists for the Python relay deployment.
+- Relay ecosystem validation: `make relay-compat` validates the implementation-independent public relay contract for compatible Python or third-party relays.
 
 ### Security And Protocol
 
@@ -92,13 +92,13 @@ Current product direction: local mode is the default, tested path, including sam
 - Relay encryption: LibreOffice generates a per-pairing verifier, derives relay keys with ECDH P-256 plus HKDF-SHA256, encrypts state, command, and asset frames with AES-256-GCM, binds frames to the session, detects replayed nonces, and rotates plugin send keys.
 - Crypto foundation: Random session tokens, base64url helpers, HKDF-SHA256 helpers, and pure-Python AES-GCM helpers are implemented.
 - Security model docs: The current local HTTP shell, Safari fallback, direct IPv6, relay frontend-delivery trust model, and self-hosted relay verification guidance are documented honestly.
-- Trusted frontend delivery baseline: The OXT, Python relay, Cloudflare relay, and local server generate asset manifests with SHA-256 and SRI metadata, and packaged index pages pin the shared CSS/JS with subresource integrity.
+- Trusted frontend delivery baseline: The OXT, Python relay, and local server generate asset manifests with SHA-256 and SRI metadata, and packaged index pages pin the shared CSS/JS with subresource integrity.
 
 ### Packaging, Release, And Tooling
 
 - OXT packaging: LibreOffice `.oxt` packaging, manifest files, extension metadata, direct Slide Show menu registration, version injection, build-feature metadata, and versioned OXT builds are in place.
 - Single complete extension build: `make oxt` builds one OXT containing local, LocalTunnel, direct IPv6, relay mode, matching documentation, and relay export bundles.
-- Bundled resources: The OXT embeds matching documentation and Python relay bundles for export from Remote Settings when Relay Server mode is selected; Cloudflare relay is deployed from the relay docs instead of exported from the OXT.
+- Bundled resources: The OXT embeds matching documentation and Python relay bundles for export from Remote Settings when Relay Server mode is selected.
 - GitHub release automation: The release workflow runs build gates, creates a version tag when needed, generates checksums, and publishes the versioned OXT to a GitHub Release.
 - Development setup: `make venv` creates a `uv`-managed environment with dependencies installed, and `make sdk-download` resolves/downloads/installs a compatible LibreOffice SDK automatically.
 - Editor support: Workspace analysis config, import roots, and UNO stubs are in place to keep Pylance usable.
@@ -111,4 +111,4 @@ Current product direction: local mode is the default, tested path, including sam
 - Release readiness: Local, direct IPv6, and relay gates, target compatibility policy, latest-release support policy, manual release checklist, and release blockers are documented.
 - Product CI: CI installs test dependencies, runs lint and tests, builds the single versioned OXT, and verifies the generated extension artifact.
 - Automated tests: Unit and integration coverage exists for bootstrap/import behavior, SDK resolution, config, protocol helpers, crypto helpers, controller state extraction, embedded local HTTP endpoints, encrypted local/direct round trips, network URL helpers, relay admission/reconnect/security behavior, manifest presence, packaging, localization, and bundled resources.
-- Manual testing docs: `docs/test-before-release.md` covers OXT install, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, Cloudflare relay, phone UI, localization, security, and release notes.
+- Manual testing docs: `docs/test-before-release.md` covers OXT install, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, phone UI, localization, security, and release notes.

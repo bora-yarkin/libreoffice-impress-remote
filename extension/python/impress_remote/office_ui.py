@@ -25,12 +25,6 @@ if TYPE_CHECKING:
     from impress_remote.component import ImpressRemoteProtocolHandler
 
 
-CLOUDFLARE_DEPLOY_URL = (
-    "https://github.com/bora-yarkin/libreoffice-impress-remote/blob/main/docs/relay.md"
-    "#cloudflare-dashboard-deploy"
-)
-
-
 class _XActionListenerBase:
     def disposing(self, _event) -> None:
         return None
@@ -715,11 +709,6 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             if control_name == "export_relay_button":
                 self._export_resource("relay")
                 return
-            if control_name == "deploy_cloudflare_button":
-                if not open_external_url(self.ctx, CLOUDFLARE_DEPLOY_URL):
-                    raise RuntimeError(translate("error.openPreviewFailed"))
-                self.refresh(translate("office.deploy.cloudflareOpened"))
-                return
             if control_name == "export_docs_button":
                 self._export_resource("docs")
                 return
@@ -813,15 +802,6 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         )
         self._add_button(
             dialog_model,
-            "deploy_cloudflare_button",
-            translate("office.button.deployCloudflare"),
-            72,
-            74,
-            152,
-            14,
-        )
-        self._add_button(
-            dialog_model,
             "help_button",
             translate("office.button.help"),
             8,
@@ -840,7 +820,6 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             "save_button",
             "close_button",
             "export_relay_button",
-            "deploy_cloudflare_button",
             "export_docs_button",
         ):
             control = dialog.getControl(control_name)
@@ -934,7 +913,6 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             "relay_url_value",
             "resources_title",
             "export_relay_button",
-            "deploy_cloudflare_button",
             "export_docs_button",
         ):
             self._set_control_visible(name, relay_selected)

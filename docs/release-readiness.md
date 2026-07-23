@@ -24,7 +24,6 @@ Experimental and not part of the main release promise:
 - LocalTunnel mode
 - Direct IPv6 mode
 - Python relay mode
-- Cloudflare relay mode
 
 ## Volunteer Support Policy
 
@@ -49,7 +48,7 @@ These are testing targets, not promises.
 | Windows | Windows 10 or newer | Needs manual extension install and local-mode verification. |
 | Linux desktop | Current Ubuntu LTS or equivalent | Needs manual extension install and local-mode verification. |
 | Phone browsers | Current iOS Safari, Android Chrome, Android Firefox | Local mode and hotspot behavior matter most. |
-| Experimental relay | Python 3.11+ or current Cloudflare Workers runtime | Useful for advanced testing, not part of the main local-mode promise. |
+| Experimental relay | Python 3.11+ or compatible self-hosted relay runtime | Useful for advanced testing, not part of the main local-mode promise. |
 
 ## Main Release Gate
 
@@ -92,7 +91,6 @@ Direct IPv6:
 Relay:
 
 - Python relay bundle runs without a repository checkout
-- Cloudflare dashboard deploy works without editing shared phone UI files or requiring maintainer GitHub authorization
 - LibreOffice and phone connect through the relay
 - commands round-trip
 - relay never decrypts presenter notes, commands, or slide previews
@@ -153,7 +151,7 @@ Packaging:
 - `make lint`
 - `make oxt`
 - confirm `dist/libreoffice-impress-remote-<version>.oxt` exists
-- confirm the OXT contains matching Python relay and docs bundles, and does not contain a Cloudflare relay archive
+- confirm the OXT contains matching Python relay and docs bundles
 - install the generated OXT into LibreOffice
 
 Local:
@@ -168,7 +166,7 @@ Local:
 
 Experimental:
 
-- test LocalTunnel, Direct IPv6, Python relay, and Cloudflare relay when possible
+- test LocalTunnel, Direct IPv6, and Python relay when possible
 - record skipped experimental routes with the reason
 - do not present untested experimental routes as proven
 

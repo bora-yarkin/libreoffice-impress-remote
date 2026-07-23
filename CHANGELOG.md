@@ -9,15 +9,18 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
-## [1.0.6] - 2026-07-23
+## [1.0.11] - 2026-07-23
 
 ### Changed
 
-- Added a LibreOffice Remote Settings `Deploy to Cloudflare` button for Relay Server mode.
-- Removed the Cloudflare relay archive from the OXT resources and from LibreOffice resource export controls.
-- Replaced the GitHub-backed Cloudflare deploy-button flow with Cloudflare dashboard deployment instructions and a generated `deploy/cloudflare/dashboard-worker.mjs` that embeds the shared phone UI.
+- Removed the provider-specific relay deployment/export path from the LibreOffice UI, OXT resources, build tooling, tests, and documentation.
+- Kept Relay Server mode focused on the bundled Python relay and compatible self-hosted relay implementations.
+- Changed packaged resource export so flat bundles extract into a folder named after the archive instead of spilling files into the selected directory.
+- Removed the separate upload-bundle make target and OXT resource archive.
+- Added relay `/health` preflight diagnostics so static-only URLs fail with a useful error instead of silently looping on `/ws`.
+- Added a phone-side relay websocket timeout so a missing relay backend stops showing as an endless connecting state.
 - Fixed `make test` so tool-module tests can import the repository-local `tools` package from the virtual environment.
-- Bumped the extension, relay package, and project version to `1.0.6`.
+- Bumped the extension, relay package, and project version to `1.0.11`.
 
 ## [1.0.4] - 2026-07-23
 
@@ -147,7 +150,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ### Changed
 
-- Removed the dual OXT product path: `make oxt` now builds one complete extension that includes the matching documentation, Python relay, and Cloudflare relay export bundles.
+- Removed the dual OXT product path: `make oxt` now builds one complete extension that includes the matching documentation and Python relay export bundle.
 - Simplified LibreOffice remote settings to a single mode selector with Local network, Direct IPv6, Relay Server, and LocalTunnel modes.
 - Changed the default route from Auto to Local network and made Start Remote obey the saved mode directly.
 - Flattened the Impress Slide Show menu integration to direct Start/Stop Remote and Remote Settings actions.
@@ -169,7 +172,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 - Added a vendored pure-Python LocalTunnel-compatible client for tunnel fallback without requiring Node.js or npm at LibreOffice runtime.
 - Added `tunnel` as a first-class route that reuses the encrypted local/direct ECDH HTTP transport through a temporary public tunnel URL.
 - Added LocalTunnel settings in LibreOffice Advanced Remote Settings, including tunnel enablement, tunnel host, requested subdomain, tunnel status, and tunnel-specific guidance.
-- Added dual OXT build modes: the default OXT hides experimental relay UI/resources, while `make relay-oxt` builds an experimental relay-enabled OXT with Python relay and Cloudflare support preserved.
+- Added dual OXT build modes: the default OXT hides experimental relay UI/resources, while `make relay-oxt` builds an experimental relay-enabled OXT with additional relay support preserved.
 
 ### Changed
 
@@ -192,7 +195,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ### Added
 
-- Added dynamic localization discovery with generated `/localizations/manifest.json` for the extension local server, Python relay, Cloudflare/shared web bundles, and packaged OXT assets.
+- Added dynamic localization discovery with generated `/localizations/manifest.json` for the extension local server, Python relay, shared web bundles, and packaged OXT assets.
 - Added `make localization-import` plus a translation import validator that checks locale tags, unknown keys, missing keys, and placeholder compatibility before writing catalogs.
 - Added generated asset manifests with SHA-256 and SRI metadata for shared web UI assets, plus packaged SRI attributes for `app.css` and `app.js`.
 - Added `make relay-compat` and a stdlib relay compatibility validator for checking third-party or self-hosted relay HTTP contracts.
@@ -283,7 +286,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Added
 
 - Added an encrypted embedded HTTP round-trip test that pairs as a phone client, decrypts direct state, decrypts a slide asset frame, and sends an encrypted command back to the extension server.
-- Added `docs/test-before-release.md` with manual release-candidate steps for OXT installation, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, Cloudflare relay, phone UI, localization, security, and release notes.
+- Added `docs/test-before-release.md` with manual release-candidate steps for OXT installation, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, phone UI, localization, security, and release notes.
 
 ### Changed
 
@@ -333,14 +336,14 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ### Added
 
-- Embedded the matching Cloudflare Worker relay archive inside the compiled `.oxt` alongside the Python relay and documentation archives.
-- Added an Advanced Remote Settings action to export the bundled Cloudflare relay package from the installed extension.
+- Embedded an additional experimental relay archive inside the compiled `.oxt` alongside the Python relay and documentation archives.
+- Added an Advanced Remote Settings action to export the additional bundled relay package from the installed extension.
 
 ## [0.6.9] - 2026-07-21
 
 ### Changed
 
-- Centralized release versioning around the root `VERSION` file so OXT packaging, relay bundles, Cloudflare bundles, documentation bundles, and runtime package versions derive from one source.
+- Centralized release versioning around the root `VERSION` file so OXT packaging, relay bundles, documentation bundles, and runtime package versions derive from one source.
 - Made tool entrypoints import-safe when run directly as `python tools/build_oxt.py`, matching the Product CI command path.
 - Packaged `description.xml` now receives the release version during OXT build instead of relying on a hand-edited source XML value.
 
@@ -379,7 +382,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Added
 
 - Added a LibreOffice upstream architecture note that separates core-candidate functionality from companion relay/deployment scope and maps extension seams to likely LibreOffice modules.
-- Added phone UI PWA metadata, a service worker shell cache, and an installable app icon shared by the OXT, Python relay, and Cloudflare bundles.
+- Added phone UI PWA metadata, a service worker shell cache, and an installable app icon shared by the OXT and relay bundles.
 
 ### Changed
 
@@ -422,7 +425,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Changed
 
 - Converted remaining user/client-visible extension, relay, protocol, and mobile HTML fallback text to localization keys.
-- Updated relay protocol errors so Python and Cloudflare relay deployments emit message keys that the phone UI can localize.
+- Updated relay protocol errors so Python and compatible relay deployments emit message keys that the phone UI can localize.
 - Bumped the extension, relay package, and project version to `0.6.1`.
 
 ## [0.6.0] - 2026-07-20
@@ -436,21 +439,21 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Changed
 
 - Converted user-facing LibreOffice and phone-remote strings to stable localization keys.
-- Updated OXT, Python relay, and Cloudflare bundle packaging so shared localization files ship with the shared phone UI.
+- Updated OXT and relay bundle packaging so shared localization files ship with the shared phone UI.
 - Bumped the extension, relay package, and project version to `0.6.0`.
 
 ## [0.5.0] - 2026-07-17
 
 ### Added
 
-- Added relay admission tokens to relay pairing links plus an admission-controlled `/api/session` endpoint for both the Python relay and the Cloudflare relay bundle.
+- Added relay admission tokens to relay pairing links plus an admission-controlled `/api/session` endpoint for relay deployments.
 - Added relay-session probing in the LibreOffice extension so joined relay phones can trigger the same auto-start behavior as local mode before the first remote command is pressed.
 - Added relay tests covering asset-manifest delivery, admission-token enforcement, reconnect with fresh relay `hello` replay, and websocket rate limiting.
 
 ### Changed
 
 - Hardened the Python relay with structured JSON logging, per-session metrics, rate limiting, session-cap enforcement, and send-failure cleanup.
-- Brought the Cloudflare relay bundle up to the same shared-web-ui and admission-control model as the Python relay, including session status, replay behavior, and runtime limits.
+- Brought the additional relay bundle up to the same shared-web-ui and admission-control model as the Python relay, including session status, replay behavior, and runtime limits.
 - Expanded the relay documentation with deployment, firewall, reverse-proxy, trust-model, and verification guidance for both relay bundle variants.
 
 ### Security
@@ -469,7 +472,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ### Changed
 
-- Refactored `make release-bundle` to produce a minimal Python relay artifact, while `make release-full` now combines `oxt`, `release-bundle`, and `cloudflare-bundle`.
+- Refactored `make release-bundle` to produce a minimal Python relay artifact, while `make release-full` combined the release artifacts.
 
 ## [0.4.0] - 2026-07-17
 
@@ -477,7 +480,6 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 - Added a shared `shared/webui/` source tree so the phone remote UI is authored once and reused across the LibreOffice extension, the Python relay, and future companion implementations.
 - Added `make release-bundle` to build a releasable bundle containing the `.oxt`, the self-hosted Python relay sources, and the shared mobile UI.
-- Added `make cloudflare-bundle` to produce a Cloudflare Worker plus Durable Object relay bundle that serves the same shared UI.
 - Added an OXT build regression test that verifies shared web assets are vendored into the extension package.
 
 ### Changed

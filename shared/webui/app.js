@@ -47,6 +47,7 @@ const relayState = {
   admissionToken: relayAdmissionToken,
   socket: null,
   reconnectTimer: null,
+  connectTimeoutTimer: null,
   codec: null,
   assets: {
     current: {revision: '', url: ''},
@@ -924,6 +925,10 @@ document.getElementById('slide-image').addEventListener('error', () => {
 })
 
 function closeSocket(){
+  if(relayState.connectTimeoutTimer){
+    window.clearTimeout(relayState.connectTimeoutTimer)
+    relayState.connectTimeoutTimer = null
+  }
   if(relayState.socket){
     relayState.socket.onclose = null
     relayState.socket.close()
@@ -1483,8 +1488,18 @@ async function connectRelay(){
   setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
   const socket = new WebSocket(relaySocketUrl(relayState.session, relayState.admissionToken))
   relayState.socket = socket
+  relayState.connectTimeoutTimer = window.setTimeout(() => {
+    if(relayState.socket === socket && socket.readyState === WebSocket.CONNECTING){
+      showTransportError(t('web.relayConnectionTimeout'))
+      socket.close()
+    }
+  }, 8000)
 
   socket.addEventListener('open', () => {
+    if(relayState.connectTimeoutTimer){
+      window.clearTimeout(relayState.connectTimeoutTimer)
+      relayState.connectTimeoutTimer = null
+    }
     renderBanner()
   })
 
@@ -1494,6 +1509,13 @@ async function connectRelay(){
 
   socket.addEventListener('close', () => {
     relayState.codec = null
+    if(relayState.connectTimeoutTimer){
+      window.clearTimeout(relayState.connectTimeoutTimer)
+      relayState.connectTimeoutTimer = null
+    }
+    if(connectionPhase === 'offline'){
+      return
+    }
     setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
     scheduleReconnect()
   })

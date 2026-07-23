@@ -242,6 +242,19 @@ def relay_session_status_url(
     return urlunparse((scheme, parsed.netloc, path, "", query, ""))
 
 
+def relay_health_url(relay_url: str) -> str:
+    parsed = urlparse(normalize_relay_url(relay_url))
+    scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/health"
+    elif path.endswith("/ws"):
+        path = f"{path[:-3]}/health"
+    else:
+        path = f"{path}/health"
+    return urlunparse((scheme, parsed.netloc, path, "", "", ""))
+
+
 @dataclass(frozen=True)
 class RemoteConfig:
     local_host: str = DEFAULT_LOCAL_HOST

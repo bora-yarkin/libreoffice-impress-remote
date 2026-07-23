@@ -12,11 +12,11 @@ import ssl
 import threading
 import time
 from collections.abc import Callable
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from impress_remote.config import relay_session_status_url, relay_websocket_url
+from impress_remote.config import relay_health_url, relay_session_status_url, relay_websocket_url
 from impress_remote.localization import translate
 from impress_remote.protocol import (
     RelayProtocolFailure,
@@ -211,6 +211,49 @@ class RelayClient:
             pairing_secret=pairing_secret,
         )
 
+    def _preflight_relay(self) -> None:
+        health_url = relay_health_url(self.relay_url)
+        request = Request(health_url, headers={"Accept": "application/json"})
+        try:
+            with urlopen(request, timeout=5) as response:
+                status = int(getattr(response, "status", 0))
+                content_type = response.headers.get("Content-Type", "")
+                raw_body = response.read(64 * 1024)
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise ConnectionError(
+                    translate("relayClient.error.healthNotFound", url=health_url)
+                ) from exc
+            raise ConnectionError(
+                translate(
+                    "relayClient.error.healthHttp",
+                    url=health_url,
+                    status=exc.code,
+                )
+            ) from exc
+        except URLError as exc:
+            raise ConnectionError(
+                translate("relayClient.error.healthUnavailable", url=health_url, error=exc)
+            ) from exc
+        if status < 200 or status >= 300:
+            raise ConnectionError(
+                translate("relayClient.error.healthHttp", url=health_url, status=status)
+            )
+        if "json" not in content_type.lower():
+            raise ConnectionError(
+                translate("relayClient.error.healthStatic", url=health_url)
+            )
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ConnectionError(
+                translate("relayClient.error.healthInvalid", url=health_url)
+            ) from exc
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            raise ConnectionError(
+                translate("relayClient.error.healthInvalid", url=health_url)
+            )
+
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
@@ -258,6 +301,7 @@ class RelayClient:
                 )
             )
             try:
+                self._preflight_relay()
                 websocket.connect()
                 with self._lock:
                     self._websocket = websocket

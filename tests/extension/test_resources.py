@@ -38,6 +38,27 @@ def test_export_packaged_resource_extracts_versioned_bundle(tmp_path: Path) -> N
     ) == "docs"
 
 
+def test_export_packaged_resource_wraps_flat_bundles_in_archive_named_folder(
+    tmp_path: Path,
+) -> None:
+    module_file = _fake_module_file(tmp_path / "extension-root")
+    archive_name = f"impress-remote-relay-python-{__version__}.zip"
+    archive_path = tmp_path / "extension-root" / "resources" / archive_name
+    archive_path.parent.mkdir()
+    with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("run-relay.py", "runner")
+        archive.writestr("README.md", "relay docs")
+
+    destination = tmp_path / "Downloads"
+    result = export_packaged_resource("relay", destination, str(module_file))
+
+    assert result.entries == 2
+    export_root = destination / f"impress-remote-relay-python-{__version__}"
+    assert (export_root / "run-relay.py").read_text(encoding="utf-8") == "runner"
+    assert (export_root / "README.md").read_text(encoding="utf-8") == "relay docs"
+    assert not (destination / "run-relay.py").exists()
+
+
 def test_export_packaged_resource_rejects_unsafe_archive_members(tmp_path: Path) -> None:
     module_file = _fake_module_file(tmp_path / "extension-root")
     archive_path = tmp_path / "extension-root" / "resources" / _docs_archive_name()

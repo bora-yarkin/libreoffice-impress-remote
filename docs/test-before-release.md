@@ -17,7 +17,7 @@ Record date, version, OS, LibreOffice version, phone browser, route, result, and
 - Run `make oxt`.
 - Confirm `dist/libreoffice-impress-remote-<version>.oxt` exists.
 - Confirm the OXT contains `resources/impress-remote-docs-<version>.zip`.
-- Confirm the OXT contains the Python relay bundle and does not contain a Cloudflare relay archive.
+- Confirm the OXT contains `resources/impress-remote-relay-python-<version>.zip`.
 - Install the generated OXT into a clean LibreOffice profile when possible.
 - Use an Impress deck with at least five slides, titles, notes, and one image-heavy slide.
 
@@ -38,7 +38,7 @@ Record date, version, OS, LibreOffice version, phone browser, route, result, and
 - Confirm the mode selector includes Local network, Direct IPv6, Relay Server, and LocalTunnel.
 - Confirm Local network is selected by default on a clean profile.
 - Confirm relay URL and resource export controls are hidden unless Relay Server is selected.
-- Select Relay Server and confirm relay URL, Get Relay Server, Deploy to Cloudflare, and Get Documentation appear.
+- Select Relay Server and confirm relay URL, Get Relay Server, and Get Documentation appear.
 - Confirm Remote Settings contains only mode selection, relay-only controls, Help, Save, and Close.
 - Change a setting while the remote is running, save, and confirm the remote stops.
 - Open Help and confirm it is a static readable information page.
@@ -130,20 +130,6 @@ Experimental route. Test it when validating advanced self-hosted behavior.
 - On Windows, install the service on a disposable VM and confirm `/health` works.
 - Run the Windows uninstaller and confirm the service is removed.
 - Mark unavailable platforms as skipped with a reason.
-
-## Cloudflare Relay Mode
-
-Experimental route. Test it when validating advanced self-hosted or edge-hosted behavior.
-
-- Select Relay Server mode.
-- Open the Deploy to Cloudflare button from LibreOffice Remote Settings and confirm it opens `docs/relay.md#cloudflare-dashboard-deploy`.
-- Copy `deploy/cloudflare/dashboard-worker.mjs` into a Cloudflare Worker using the Cloudflare dashboard only.
-- Add the Durable Object binding named `RELAY_ROOMS` for class `RelayRoom`.
-- Confirm `/health` and `/asset-manifest.json` work.
-- Save the deployed relay URL in Remote Settings.
-- Start Remote and scan the QR code.
-- Confirm slide image, notes, previous, next, tap-to-advance, and goto-slide work.
-- Confirm no shared web UI files need editing after bundle generation.
 
 ## Phone Browser UI
 

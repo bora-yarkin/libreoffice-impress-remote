@@ -28,32 +28,24 @@ def test_extension_manifest_files_exist() -> None:
         "shared/localizations/en.json",
         "shared/localizations/tr.json",
         "docs/test-before-release.md",
-        "deploy/cloudflare/package.json",
-        "deploy/cloudflare/scripts/sync-shared-webui.mjs",
-        "deploy/cloudflare/dashboard-worker.mjs",
-        "tools/build_cloudflare_dashboard_worker.py",
     ]
     missing = [path for path in required if not (ROOT / path).exists()]
     assert not missing
 
 
-def test_libreoffice_settings_exposes_cloudflare_deploy_button_not_bundle_export() -> None:
+def test_libreoffice_settings_exposes_only_python_relay_and_docs_exports() -> None:
     office_ui = (ROOT / "extension/python/impress_remote/office_ui.py").read_text(
         encoding="utf-8"
     )
     english = (ROOT / "shared/localizations/en.json").read_text(encoding="utf-8")
     turkish = (ROOT / "shared/localizations/tr.json").read_text(encoding="utf-8")
 
-    assert "CLOUDFLARE_DEPLOY_URL" in office_ui
-    assert "deploy_cloudflare_button" in office_ui
-    assert "open_external_url(self.ctx, CLOUDFLARE_DEPLOY_URL)" in office_ui
-    assert "#cloudflare-dashboard-deploy" in office_ui
-    assert "deploy.workers.cloudflare.com" not in office_ui
-    assert "export_cloudflare_button" not in office_ui
-    assert '"office.button.deployCloudflare": "Deploy to Cloudflare"' in english
-    assert '"office.button.deployCloudflare": "Cloudflare' in turkish
-    assert "office.button.exportCloudflare" not in english
-    assert "office.button.exportCloudflare" not in turkish
+    assert "export_relay_button" in office_ui
+    assert "export_docs_button" in office_ui
+    assert "deploy_" not in office_ui
+    for content in (english, turkish):
+        assert "office.button.exportRelay" in content
+        assert "office.button.exportDocs" in content
 
 
 def test_python_component_manifest_entry_uses_python_component_media_type() -> None:
@@ -76,6 +68,15 @@ def test_extension_description_has_install_metadata() -> None:
     assert '<default xlink:href="icons/icon.svg"/>' in description
     assert 'xlink:href="descriptions/description-en.txt"' in description
     assert 'xlink:href="descriptions/description-tr.txt"' in description
+
+
+def test_packaged_resource_map_includes_only_relay_and_docs_bundles() -> None:
+    resources = (ROOT / "extension/python/impress_remote/resources.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"relay": f"impress-remote-relay-python-' in resources
+    assert '"docs": f"impress-remote-docs-' in resources
 
 
 def test_addons_merge_into_impress_slideshow_menu_and_toolbars() -> None:
@@ -177,6 +178,8 @@ def test_shared_phone_ui_exposes_presentation_controls_without_settings() -> Non
     assert "requestFullscreenMode" in app_js
     assert "screen.orientation.lock('landscape')" in app_js
     assert "presentation-fullscreen" in app_js
+    assert "relayState.connectTimeoutTimer" in app_js
+    assert "web.relayConnectionTimeout" in app_js
     assert "/api/config" not in app_js
 
 
@@ -220,9 +223,7 @@ def test_product_ci_runs_release_readiness_checks() -> None:
     for removed in (
         "python tools/build_oxt.py --relay-enabled",
         "python tools/build_release_bundle.py",
-        "python tools/build_cloudflare_bundle.py",
         "dist/impress-remote-relay-python-*.zip",
-        "dist/impress-remote-relay-cloudflare-*.zip",
     ):
         assert removed not in workflow
 
@@ -245,64 +246,6 @@ def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:
     assert "Release tag ${tag} does not match VERSION ${version}" in workflow
 
 
-def test_cloudflare_relay_has_account_only_dashboard_deploy_without_duplicate_webui() -> None:
-    from tools.build_cloudflare_dashboard_worker import build_dashboard_worker_text
-
-    package = (ROOT / "deploy/cloudflare/package.json").read_text(encoding="utf-8")
-    sync_script = (ROOT / "deploy/cloudflare/scripts/sync-shared-webui.mjs").read_text(
-        encoding="utf-8"
-    )
-    dashboard_worker = (ROOT / "deploy/cloudflare/dashboard-worker.mjs").read_text(
-        encoding="utf-8"
-    )
-    readme = (ROOT / "deploy/cloudflare/README.md").read_text(encoding="utf-8")
-    docs = (ROOT / "docs/relay.md").read_text(encoding="utf-8")
-    product_readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    user_guide = (ROOT / "docs/user-guide.md").read_text(encoding="utf-8")
-
-    assert dashboard_worker == build_dashboard_worker_text()
-    for expected in (
-        '"build": "node scripts/sync-shared-webui.mjs"',
-        '"predeploy": "npm run build"',
-        '"deploy": "wrangler deploy"',
-    ):
-        assert expected in package
-    for expected in (
-        "raw.githubusercontent.com",
-        "webui/${file}",
-        "shared/localizations",
-        "asset-manifest.json",
-        "localizations/manifest.json",
-    ):
-        assert expected in sync_script
-    for expected in (
-        "Generated by tools/build_cloudflare_dashboard_worker.py",
-        "export class RelayRoom",
-        "const EMBEDDED_ASSETS",
-        "serveEmbeddedAsset(request)",
-        '"/index.html"',
-        '"/app.js"',
-        '"/app.css"',
-        '"/asset-manifest.json"',
-        '"/localizations/manifest.json"',
-    ):
-        assert expected in dashboard_worker
-    assert "env.ASSETS.fetch" not in dashboard_worker
-    assert "deploy.workers.cloudflare.com" not in readme
-    assert "deploy.workers.cloudflare.com" not in docs
-    assert "deploy.workers.cloudflare.com" not in product_readme
-    assert "Cloudflare Dashboard Deploy" in readme
-    assert "Cloudflare Dashboard Deploy" in docs
-    assert "dashboard-worker.mjs" in readme
-    assert "dashboard-worker.mjs" in docs
-    assert (
-        "Cloudflare relay can be deployed from the linked relay docs with only a Cloudflare "
-        "account"
-        in user_guide
-    )
-    assert not (ROOT / "deploy/cloudflare/public").exists()
-
-
 def test_release_testing_checklist_is_linked_and_route_complete() -> None:
     docs_index = (ROOT / "docs/README.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -319,7 +262,6 @@ def test_release_testing_checklist_is_linked_and_route_complete() -> None:
         "## LocalTunnel Mode",
         "## Direct IPv6 Mode",
         "## Python Relay Mode",
-        "## Cloudflare Relay Mode",
         "## Localization",
         "## Security And Protocol",
     ):

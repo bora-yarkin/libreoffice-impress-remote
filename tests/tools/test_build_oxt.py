@@ -45,7 +45,11 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         build_features = package.read("python/impress_remote/BUILD_FEATURES.json").decode("utf-8")
         assert relay_archive_name in names
         assert docs_archive_name in names
-        assert not any("impress-remote-relay-cloudflare" in name for name in names)
+        assert all(
+            not name.startswith("resources/impress-remote-relay-")
+            or name == relay_archive_name
+            for name in names
+        )
 
         relay_data = package.read(relay_archive_name)
         docs_data = package.read(docs_archive_name)
@@ -75,14 +79,10 @@ def test_build_oxt_defaults_to_versioned_filename_and_cleans_intermediates() -> 
         (DIST / output_name).unlink(missing_ok=True)
         for leftover in (
             DIST / f"impress-remote-relay-python-{version}.zip",
-            DIST / f"impress-remote-relay-cloudflare-{version}.zip",
             DIST / f"impress-remote-docs-{version}.zip",
         ):
             leftover.write_text("leftover", encoding="utf-8")
-        for leftover_dir in (
-            DIST / f"impress-remote-relay-python-{version}",
-            DIST / f"impress-remote-relay-cloudflare-{version}",
-        ):
+        for leftover_dir in (DIST / f"impress-remote-relay-python-{version}",):
             leftover_dir.mkdir(parents=True, exist_ok=True)
             (leftover_dir / "leftover.txt").write_text("leftover", encoding="utf-8")
     before = {path.relative_to(DIST) for path in DIST.rglob("*")} if DIST.exists() else set()
@@ -95,7 +95,6 @@ def test_build_oxt_defaults_to_versioned_filename_and_cleans_intermediates() -> 
         after = {path.relative_to(DIST) for path in DIST.rglob("*")} if DIST.exists() else set()
         removed = before - after
         assert Path(f"impress-remote-relay-python-{version}.zip") in removed
-        assert Path(f"impress-remote-relay-cloudflare-{version}.zip") in removed
         assert Path(f"impress-remote-docs-{version}.zip") in removed
         assert after - before == {Path(output.name)}
     finally:

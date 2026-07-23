@@ -25,6 +25,20 @@ RESOURCE_ARCHIVES = {
 }
 
 
+def _archive_extract_root(archive_path: Path, archive: ZipFile) -> Path:
+    file_names = [member.filename for member in archive.infolist() if not member.is_dir()]
+    top_level_names = {
+        Path(name).parts[0]
+        for name in file_names
+        if Path(name).parts and Path(name).parts[0] not in {"", ".", ".."}
+    }
+    if len(top_level_names) == 1 and all(
+        len(Path(name).parts) > 1 for name in file_names if Path(name).parts
+    ):
+        return Path()
+    return Path(archive_path.stem)
+
+
 def default_export_directory() -> Path:
     downloads = Path.home() / "Downloads"
     if downloads.is_dir():
@@ -60,10 +74,14 @@ def export_packaged_resource(
 
     entries = 0
     with ZipFile(archive_path) as archive:
+        extract_root = _archive_extract_root(archive_path, archive)
         for member in archive.infolist():
             if member.is_dir():
                 continue
-            output_path = (target_dir / member.filename).resolve()
+            member_path = Path(member.filename)
+            if member_path.is_absolute() or ".." in member_path.parts:
+                raise ValueError(translate("resource.error.unsafeArchive", name=member.filename))
+            output_path = (target_dir / extract_root / member_path).resolve()
             if not output_path.is_relative_to(target_dir):
                 raise ValueError(translate("resource.error.unsafeArchive", name=member.filename))
             output_path.parent.mkdir(parents=True, exist_ok=True)
