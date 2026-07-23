@@ -8,15 +8,16 @@ import hmac
 import base64
 import hashlib
 import ipaddress
+import os
 import socket
 import threading
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from impress_remote.build_features import localtunnel_enabled, relay_enabled
 from impress_remote.config import (
     DEFAULT_PREFERRED_ROUTE,
     RemoteConfig,
@@ -58,6 +59,11 @@ WEB_ROOT = resolve_packaged_or_shared_dir(
 )
 LOCALIZATION_ROOT = localization_root()
 MAX_JSON_BODY_BYTES = 16 * 1024
+FEATURES_FILE = Path(__file__).with_name("BUILD_FEATURES.json")
+DEFAULT_FEATURES: dict[str, bool] = {
+    "localtunnel": True,
+    "relay": True,
+}
 
 
 class StaleSlideRevision(RuntimeError):
@@ -78,6 +84,44 @@ def _json_object(raw: str) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError(translate("error.configJson"))
     return payload
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def build_features() -> dict[str, bool]:
+    features = dict(DEFAULT_FEATURES)
+    try:
+        payload = json.loads(FEATURES_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    if isinstance(payload, dict):
+        for key, default in DEFAULT_FEATURES.items():
+            features[key] = _coerce_bool(payload.get(key), default)
+
+    relay_override = os.environ.get("IMPRESS_REMOTE_ENABLE_RELAY")
+    if relay_override is not None:
+        features["relay"] = _coerce_bool(relay_override, features["relay"])
+    return features
+
+
+def feature_enabled(name: str) -> bool:
+    return build_features().get(name, False)
+
+
+def relay_enabled() -> bool:
+    return feature_enabled("relay")
+
+
+def localtunnel_enabled() -> bool:
+    return feature_enabled("localtunnel")
 
 
 def _asset_entry(data: bytes) -> dict[str, object]:

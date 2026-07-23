@@ -47,7 +47,7 @@ jobs:
         env:
           PYTHONPATH: extension/python:.
       - name: Build Extension Package
-        run: python tools/build_oxt.py
+        run: python -m tools.release oxt
       - name: Verify Extension Artifact
         run: test -s dist/libreoffice-impress-remote-*.oxt
       - name: Upload Extension Artifact

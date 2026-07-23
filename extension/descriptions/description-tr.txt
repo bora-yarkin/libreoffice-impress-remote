@@ -4,6 +4,6 @@ LibreOffice Impress Kumandasi, telefonu LibreOffice Impress icin bir sunum kuman
 
 Telefon arayuzu gecerli slayt onizlemesi, sunucu notlari, onceki ve sonraki kontrolleri, slayda dokunarak ilerleme, toplam sunum ve gecerli slayt sureleri, ilk slayt, son slayt, slayda git kontrolleri ve tarayici desteklediginde tam ekran slayt modu sunar.
 
-Varsayilan ve onerilen baglanti modu yerel agdir; ayni Wi-Fi agindaki veya kisisel erisim noktasindaki cihazlar icin uygundur. LocalTunnel, dogrudan IPv6 ve kendi barindirdiginiz relay modlari daha zor ag ortamlarinda deneysel alternatifler olarak dahildir.
+Varsayilan ve onerilen baglanti modu yerel agdir; ayni Wi-Fi agindaki veya kisisel erisim noktasindaki cihazlar icin uygundur. Dogrudan IPv6, kendi barindirdiginiz Relay Sunucusu ve LocalTunnel modlari daha zor ag ortamlarinda deneysel alternatifler olarak dahildir.
 
 Proje GPL-3.0-only lisansli ozgur ve acik kaynak yazilimdir.

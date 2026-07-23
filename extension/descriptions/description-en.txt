@@ -4,6 +4,6 @@ LibreOffice Impress Remote turns a phone into a presenter remote for LibreOffice
 
 The phone interface provides current-slide preview, presenter notes, previous and next controls, tap-to-advance, total-presentation and current-slide timers, first slide, last slide, go-to-slide controls, and fullscreen slide mode where supported by the browser.
 
-The default and recommended connection mode is the local network, suitable for devices on the same Wi-Fi network or personal hotspot. Optional LocalTunnel, direct IPv6, and self-hosted relay modes are included as experimental alternatives for more difficult network environments.
+The default and recommended connection mode is the local network, suitable for devices on the same Wi-Fi network or personal hotspot. Optional Direct IPv6, self-hosted Relay Server, and LocalTunnel modes are included as experimental alternatives for more difficult network environments.
 
 The project is free and open-source software licensed under GPL-3.0-only.

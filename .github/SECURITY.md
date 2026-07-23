@@ -9,7 +9,7 @@ This project is a volunteer-maintained extension and should be treated as securi
 
 Security fixes are best-effort and target the latest tagged release or main-branch snapshot only. There are no long-term maintenance branches.
 
-For the release target matrix and blockers, see `docs/release-readiness.md`.
+For the release posture, target matrix notes, and blockers, see `docs/technical-reference.md`.
 
 ## Reporting Vulnerabilities
 
@@ -21,6 +21,6 @@ Report vulnerabilities privately to the project maintainer. Do not disclose slid
 - The relay server must not store slide previews or presenter notes.
 - Pairing tokens must be random and session-scoped.
 - Local mode must bind only to configured interfaces.
-- Relay mode must assume the server is honest-but-curious at minimum.
+- Relay Server mode must assume the server is honest-but-curious at minimum.
 - Relay transport currently protects state and commands from passive or honest-but-curious relay operators, but the relay-served frontend is not yet pinned against malicious JavaScript delivery.
 - Browser-hosted E2E must document the malicious-JavaScript limitation.

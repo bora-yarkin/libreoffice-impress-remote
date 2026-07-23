@@ -9,6 +9,19 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+### Changed
+
+- Documented that `VERSION` changes happen only during release preparation/publication, not for every code change.
+- Cleaned up documentation wording around route names/order, Direct IPv6 compatibility fallback behavior, relay terminology, release checklists, and extension listing text.
+- Simplified the exported Python relay bundle so its root contains only `configure.sh` and `configure.ps1`, with runtime files under `relay-runtime/`.
+- Consolidated the technical documentation into `docs/technical-reference.md`, kept the user guide as the bundled Help source, and reduced `TODO.md` to open work only.
+- Flattened the automated test suite from many tiny nested files into a smaller set of top-level topic files.
+- Folded tiny one-use controller, local-server, Office UI, relay, and Windows-service helper modules into their owning modules.
+- Consolidated the OXT, relay bundle, shared web UI packaging, and version helper scripts into `tools/release.py`.
+- Removed the obsolete LibreOffice development-kit downloader target, script, and tests from the current development workflow.
+- Expanded the built-in Help popup, user guide, and relay bundle README with concrete extension install, relay install, service, health-check, and LibreOffice configuration steps.
+- Replaced the separate Help description and downloadable documentation archive with a bundled `user-guide.md` shown directly from the LibreOffice Help dialog.
+
 ## [1.0.0] - 2026-07-23
 
 ### Added
@@ -16,7 +29,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 - Added GitHub release automation that runs compile, lint, tests, builds the versioned OXT, generates SHA-256 checksums, creates a matching `v<VERSION>` tag when run manually, and creates or updates the GitHub Release.
 - Added the first stable local-network remote workflow with QR pairing, slide preview, presenter notes, previous/next controls, effect-aware navigation, timers, fullscreen phone mode, and a clean mobile remote UI.
 - Added experimental LocalTunnel, Direct IPv6, and self-hosted Relay Server modes behind explicit experimental labels.
-- Added the bundled Python relay export, matching documentation export, relay service scripts, and relay health/session diagnostics.
+- Added the bundled Python relay export, relay service scripts, bundled user guide Help source, and relay health/session diagnostics.
 - Added copyable LibreOffice error diagnostics with a Copy Error action.
 
 ### Changed
@@ -34,6 +47,17 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 - Fixed Safari-style IPv6 pairing by allowing the explicit Direct IPv6 route to use the authenticated plaintext compatibility transport when Web Crypto is unavailable.
 - Fixed the remote next/previous controls so they step presentation effects before falling back to slide changes.
 - Fixed the copy-error dialog listener signature for Pylance and UNO compatibility.
+
+### Implemented Scope
+
+- LibreOffice UX: Impress-only Slide Show integration, Start/Stop Remote, Remote Settings, QR-first pairing, Copy URL fallback, relay-only export controls, rendered user-guide Help, persistent settings, and automatic listener/session cleanup.
+- Presentation state: slideshow running/paused state, slide count, current/next slide indexes, titles, notes, previews, remaining slides, end-of-deck state, timers, render tokens, empty-deck/non-Impress fallbacks, and PNG slide rendering.
+- Phone UI: current slide pinned at the top, notes as the scrollable region, bottom previous/next controls, tap-to-advance, first/last/goto controls, timers, fullscreen slide mode, reconnect feedback, and no phone-side settings.
+- Local and IPv6 routes: embedded local HTTP listeners, local IPv4 URLs, global Direct IPv6 URLs when self-tested and available, local port fallback, encrypted direct endpoints, LAN-only authenticated Safari fallback, and Direct IPv6 compatibility fallback when explicitly selected.
+- Experimental tunnel and relay routes: vendored pure-Python LocalTunnel-compatible client, LibreOffice relay client mode, bundled Python relay server, relay health/session endpoints, websocket forwarding, relay admission tokens, reconnect support, rate limits, metrics, and opaque encrypted frame forwarding.
+- Security and protocol: ECDH P-256 handshake, HKDF-SHA256, AES-256-GCM frames, random session/admission tokens, replay checks, key rotation, session binding, asset manifests, SRI metadata, and documented frontend-delivery limitations.
+- Packaging and tooling: versioned OXT builds, extension metadata/icon/descriptions, embedded user guide and relay bundle, centralized version injection, GitHub release automation, `uv` development environment, localization import, relay compatibility validation, and consolidated topic-based automated tests.
+- Documentation and QA: product README, bundled user guide, combined technical reference, troubleshooting guidance, current volunteer maintenance policy, local-first release posture, and experimental-route warnings.
 
 ## [0.7.8] - 2026-07-22
 
@@ -126,11 +150,11 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 - Relay URL and bundled relay/documentation export controls now appear only when Relay Server mode is selected.
 - Added an in-product Help popup that explains the modes, pairing flow, and common failure paths.
 - Product CI now builds and verifies the single versioned OXT artifact instead of separate relay-enabled/release bundle artifacts.
-- Reorganized automated tests into grouped `tests/extension`, `tests/shared`, `tests/tools`, and `tests/relay` folders.
+- Reorganized automated tests by feature area before later flattening them into broader top-level topic files.
 - Moved shared localization catalogs from the repository root into `shared/localizations`.
 - Removed the source-only OXT packaging path so `make oxt` is the single extension build artifact.
 - Removed installable PWA behavior from the phone UI, including web app manifest, service worker, icon assets, and matching local/relay routes.
-- Consolidated relay, deployment, and compatibility documentation into `docs/relay.md` and removed duplicate/oversized legacy docs.
+- Consolidated relay, deployment, and compatibility documentation into a smaller relay reference and removed duplicate/oversized legacy docs.
 - Replaced scattered LibreOffice failure messages with a copyable diagnostic error popup for command and settings failures.
 - Bumped the extension, relay package, and project version to `0.7.0`.
 
@@ -255,7 +279,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Added
 
 - Added an encrypted embedded HTTP round-trip test that pairs as a phone client, decrypts direct state, decrypts a slide asset frame, and sends an encrypted command back to the extension server.
-- Added `docs/test-before-release.md` with manual release-candidate steps for OXT installation, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, phone UI, localization, security, and release notes.
+- Added manual release-candidate steps for OXT installation, Impress UI integration, local and hotspot pairing, Safari fallback, direct IPv6, Python relay, phone UI, localization, security, and release notes.
 
 ### Changed
 
@@ -559,9 +583,8 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 - Added SPDX and REUSE metadata.
 - Added GitHub Actions CI, package build, Dependency Review, CodeQL, and OpenSSF Scorecard workflows.
 - Added a `uv`-based project setup flow through `make venv`.
-- Added automatic LibreOffice SDK resolution, download, and installation through `make sdk-download`.
 - Added editor workspace configuration and UNO stubs for saner Python analysis in the repo.
-- Added controller, network, bootstrap, SDK, and relay tests.
+- Added controller, network, bootstrap, and relay tests.
 - Added local/direct network discovery helpers for presenter sessions.
 - Added persisted transport settings and a browser settings form for local port, IPv6, relay enablement, and relay URL.
 - Added a hosted relay phone UI and an extension-side relay client that connects to the relay as the presentation plugin.
@@ -586,10 +609,8 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 ### Fixed
 
 - Fixed LibreOffice extension packaging to avoid bundling generated Python cache files.
-- Fixed the SDK downloader to use macOS SDK DMGs on macOS and install their contents instead of downloading the Linux archive.
-- Fixed repo analysis noise by excluding downloaded SDK artifacts from workspace diagnostics.
 - Fixed LibreOffice extension path bootstrapping for file-URL based module loading and bumped the extension package to `0.1.2`.
-- Fixed the LibreOffice Python component manifest entry to use the SDK-compatible Python UNO media type and bumped the extension package to `0.1.3`.
+- Fixed the LibreOffice Python component manifest entry to use the LibreOffice-compatible Python UNO media type and bumped the extension package to `0.1.3`.
 
 ### Security
 

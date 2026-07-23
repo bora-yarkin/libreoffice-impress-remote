@@ -6,10 +6,10 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 import hashlib
+from pathlib import Path
+import tempfile
 import time
 
-from impress_remote.notes import extract_notes_for_slide
-from impress_remote.preview import export_slide_png_bytes, extract_slide_title, render_slide_preview
 from impress_remote.localization import translate
 
 
@@ -49,6 +49,117 @@ class _ResolvedPresentation:
     endless: bool
     current_index: int
     next_index: int | None
+
+
+def _is_placeholder_text(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    if not normalized:
+        return True
+    if normalized in {
+        "<number>",
+        "<date>",
+        "<time>",
+        "<date/time>",
+        "<header>",
+        "<footer>",
+        "<slide number>",
+    }:
+        return True
+    if normalized.startswith("<") and normalized.endswith(">"):
+        inner = normalized[1:-1]
+        return bool(inner) and all(
+            character.isalnum() or character in {" ", "/", "-", "_"}
+            for character in inner
+        )
+    return False
+
+
+def extract_notes_for_slide(slide) -> str:
+    if slide is None or not hasattr(slide, "getNotesPage"):
+        return ""
+    notes_page = slide.getNotesPage()
+    parts: list[str] = []
+    for index in range(notes_page.getCount()):
+        shape = notes_page.getByIndex(index)
+        if hasattr(shape, "getString"):
+            text = shape.getString().strip()
+            if text and not _is_placeholder_text(text):
+                parts.append(text)
+    return "\n\n".join(parts)
+
+
+def extract_slide_title(slide) -> str:
+    snippets = extract_slide_snippets(slide, limit=1)
+    return snippets[0] if snippets else ""
+
+
+def extract_slide_snippets(slide, limit: int = 3) -> list[str]:
+    if slide is None or not hasattr(slide, "getCount"):
+        return []
+
+    snippets: list[str] = []
+    for index in range(slide.getCount()):
+        shape = slide.getByIndex(index)
+        if not hasattr(shape, "getString"):
+            continue
+        lines = [line.strip() for line in shape.getString().splitlines()]
+        for line in lines:
+            if line:
+                snippets.append(line)
+            if len(snippets) >= limit:
+                return snippets[:limit]
+    return snippets[:limit]
+
+
+def render_slide_preview(slide, index: int) -> str:
+    snippets = extract_slide_snippets(slide)
+    if not snippets:
+        return translate("preview.slideFallback", number=index + 1)
+    if len(snippets) == 1:
+        return snippets[0]
+    return " | ".join(snippets)
+
+
+def export_slide_png_bytes(ctx, slide) -> bytes:
+    if slide is None:
+        raise RuntimeError(translate("error.noSlideExport"))
+
+    try:
+        import uno  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError(translate("error.unoUnavailable")) from exc
+
+    service_manager = ctx.getServiceManager()
+    export_filter = service_manager.createInstanceWithContext(
+        "com.sun.star.drawing.GraphicExportFilter",
+        ctx,
+    )
+    if export_filter is None:
+        raise RuntimeError(translate("error.graphicExportFilter"))
+
+    temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    temp_file.close()
+    output_path = Path(temp_file.name)
+
+    try:
+        media_type = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+        media_type.Name = "MediaType"
+        media_type.Value = "image/png"
+
+        target_url = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+        target_url.Name = "URL"
+        target_url.Value = output_path.resolve().as_uri()
+
+        export_filter.setSourceDocument(slide)
+        exported = export_filter.filter((media_type, target_url))
+        if exported is False or not output_path.exists():
+            raise RuntimeError(translate("error.slidePreviewExport"))
+        return output_path.read_bytes()
+    finally:
+        try:
+            output_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 class ImpressController:

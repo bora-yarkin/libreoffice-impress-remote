@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
+# ruff: noqa: E402,F811
 
 import importlib.util
 import sys
@@ -9,7 +10,191 @@ from pathlib import Path
 from typing import Any, cast
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
+COMPONENT_PATH = ROOT / "extension/python/impress_remote/component.py"
+COMPONENT_DIR = str(COMPONENT_PATH.parent)
+PYTHON_DIR = str(COMPONENT_PATH.parent.parent)
+
+
+class ComponentBootstrapTests(unittest.TestCase):
+    def test_component_loads_from_its_own_directory(self) -> None:
+        original_path = list(sys.path)
+        original_modules = {
+            name: sys.modules.get(name)
+            for name in (
+                "component_under_test",
+                "impress_remote",
+                "impress_remote.local_server",
+                "unohelper",
+                "com",
+                "com.sun",
+                "com.sun.star",
+                "com.sun.star.frame",
+                "com.sun.star.lang",
+            )
+        }
+
+        try:
+            sys.path = [COMPONENT_DIR] + [entry for entry in sys.path if entry != PYTHON_DIR]
+            for name in original_modules:
+                sys.modules.pop(name, None)
+            self._install_uno_stubs()
+
+            spec = importlib.util.spec_from_file_location("component_under_test", COMPONENT_PATH)
+            if spec is None or spec.loader is None:
+                raise AssertionError("Could not create an import spec for component.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            self.assertEqual(
+                module.IMPLEMENTATION_NAME,
+                "org.borayarkin.libreoffice.impressremote.ProtocolHandler",
+            )
+        finally:
+            sys.path = original_path
+            for name, module in original_modules.items():
+                if module is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = module
+
+    def _install_uno_stubs(self) -> None:
+        unohelper = types.ModuleType("unohelper")
+        cast(Any, unohelper).Base = type("Base", (), {})
+
+        class ImplementationHelper:
+            def __init__(self) -> None:
+                self.entries = []
+
+            def addImplementation(self, ctor, implementation_name, service_names) -> None:
+                self.entries.append((ctor, implementation_name, tuple(service_names)))
+
+        cast(Any, unohelper).ImplementationHelper = ImplementationHelper
+
+        frame_module = types.ModuleType("com.sun.star.frame")
+        cast(Any, frame_module).XDispatch = type("XDispatch", (), {})
+        cast(Any, frame_module).XDispatchProvider = type("XDispatchProvider", (), {})
+        cast(Any, frame_module).XTerminateListener = type("XTerminateListener", (), {})
+
+        lang_module = types.ModuleType("com.sun.star.lang")
+        cast(Any, lang_module).XServiceInfo = type("XServiceInfo", (), {})
+
+        com_module = types.ModuleType("com")
+        sun_module = types.ModuleType("com.sun")
+        star_module = types.ModuleType("com.sun.star")
+        cast(Any, com_module).sun = sun_module
+        cast(Any, sun_module).star = star_module
+        cast(Any, star_module).frame = frame_module
+        cast(Any, star_module).lang = lang_module
+
+        sys.modules["unohelper"] = unohelper
+        sys.modules["com"] = com_module
+        sys.modules["com.sun"] = sun_module
+        sys.modules["com.sun.star"] = star_module
+        sys.modules["com.sun.star.frame"] = frame_module
+        sys.modules["com.sun.star.lang"] = lang_module
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+import importlib.util
+import sys
+import types
+import unittest
+from pathlib import Path
+from typing import Any, cast
+
+
+ROOT = Path(__file__).resolve().parents[1]
+OFFICE_UI_PATH = ROOT / "extension/python/impress_remote/office_ui.py"
+PYTHON_DIR = str(OFFICE_UI_PATH.parent.parent)
+
+
+class OfficeUiBootstrapTests(unittest.TestCase):
+    def test_office_ui_imports_with_uno_stubs(self) -> None:
+        original_path = list(sys.path)
+        original_modules = {
+            name: sys.modules.get(name)
+            for name in (
+                "office_ui_under_test",
+                "unohelper",
+                "com",
+                "com.sun",
+                "com.sun.star",
+                "com.sun.star.awt",
+            )
+        }
+
+        try:
+            sys.path = [PYTHON_DIR] + [entry for entry in sys.path if entry != PYTHON_DIR]
+            for name in original_modules:
+                sys.modules.pop(name, None)
+            self._install_uno_stubs()
+
+            spec = importlib.util.spec_from_file_location("office_ui_under_test", OFFICE_UI_PATH)
+            if spec is None or spec.loader is None:
+                raise AssertionError("Could not create an import spec for office_ui.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            self.assertTrue(hasattr(module, "show_remote_settings_dialog"))
+            self.assertTrue(hasattr(module, "DialogButtonListener"))
+            button_listener = module.DialogButtonListener(type("Dialog", (), {})())
+            item_listener = module.DialogItemListener(type("Dialog", (), {})())
+            self.assertEqual(
+                button_listener.getTypes(),
+                ("com.sun.star.awt.XActionListener",),
+            )
+            self.assertEqual(
+                item_listener.getTypes(),
+                ("com.sun.star.awt.XItemListener",),
+            )
+            self.assertEqual(button_listener.getImplementationId(), b"")
+        finally:
+            sys.path = original_path
+            for name, module in original_modules.items():
+                if module is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = module
+
+    def _install_uno_stubs(self) -> None:
+        unohelper = types.ModuleType("unohelper")
+        cast(Any, unohelper).Base = type("Base", (), {})
+
+        awt_module = types.ModuleType("com.sun.star.awt")
+        cast(Any, awt_module).XActionListener = type("XActionListener", (), {})
+        cast(Any, awt_module).XItemListener = type("XItemListener", (), {})
+
+        com_module = types.ModuleType("com")
+        sun_module = types.ModuleType("com.sun")
+        star_module = types.ModuleType("com.sun.star")
+        cast(Any, com_module).sun = sun_module
+        cast(Any, sun_module).star = star_module
+        cast(Any, star_module).awt = awt_module
+
+        sys.modules["unohelper"] = unohelper
+        sys.modules["com"] = com_module
+        sys.modules["com.sun"] = sun_module
+        sys.modules["com.sun.star"] = star_module
+        sys.modules["com.sun.star.awt"] = awt_module
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+import importlib.util
+import sys
+import types
+import unittest
+from pathlib import Path
+from typing import Any, cast
+
+
+ROOT = Path(__file__).resolve().parents[1]
 COMPONENT_PATH = ROOT / "extension/python/impress_remote/component.py"
 COMPONENT_DIR = str(COMPONENT_PATH.parent)
 PYTHON_DIR = str(COMPONENT_PATH.parent.parent)
@@ -351,3 +536,117 @@ class ComponentRuntimeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+import unittest
+
+from impress_remote.office_ui import export_qr_png_path
+
+
+class QrTests(unittest.TestCase):
+    def test_export_qr_png_path_creates_a_png_file(self) -> None:
+        output_path = export_qr_png_path(None, "http://127.0.0.1:17865/#s=demo123")
+        try:
+            self.assertTrue(output_path.exists())
+            self.assertEqual(output_path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+        finally:
+            output_path.unlink(missing_ok=True)
+
+    def test_export_qr_png_path_requires_a_payload(self) -> None:
+        with self.assertRaises(RuntimeError):
+            export_qr_png_path(None, "")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+import pytest
+
+from impress_remote import __version__
+from impress_remote.office_ui import (
+    export_packaged_resource,
+    read_packaged_user_guide,
+    render_user_guide_html,
+)
+
+
+def _fake_module_file(root: Path) -> Path:
+    module_file = root / "python" / "impress_remote" / "office_ui.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("", encoding="utf-8")
+    return module_file
+
+
+def test_read_packaged_user_guide_uses_bundled_markdown(tmp_path: Path) -> None:
+    module_file = _fake_module_file(tmp_path / "extension-root")
+    guide_path = tmp_path / "extension-root" / "resources" / "user-guide.md"
+    guide_path.parent.mkdir()
+    guide_path.write_text(
+        "<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->\n"
+        "<!-- SPDX-License-Identifier: GPL-3.0-only -->\n\n"
+        "# User Guide\n\nInstall the OXT.\n",
+        encoding="utf-8",
+    )
+
+    guide = read_packaged_user_guide(str(module_file))
+
+    assert guide.startswith("# User Guide")
+    assert "Install the OXT." in guide
+    assert "SPDX" not in guide
+
+
+def test_user_guide_markdown_renders_to_html() -> None:
+    html = render_user_guide_html(
+        "# User Guide\n\n"
+        "Use **Local network** and `Start Remote`.\n\n"
+        "1. Open Impress.\n"
+        "2. Scan QR.\n\n"
+        "| Mode | Status |\n"
+        "| --- | --- |\n"
+        "| Local network | Recommended |\n\n"
+        "```bash\nmake oxt\n```\n"
+    )
+
+    assert "<h1>User Guide</h1>" in html
+    assert "<strong>Local network</strong>" in html
+    assert "<code>Start Remote</code>" in html
+    assert "<ol>" in html
+    assert "<table>" in html
+    assert "<pre><code>make oxt</code></pre>" in html
+
+
+def test_export_packaged_resource_wraps_flat_bundles_in_archive_named_folder(
+    tmp_path: Path,
+) -> None:
+    module_file = _fake_module_file(tmp_path / "extension-root")
+    archive_name = f"impress-remote-relay-python-{__version__}.zip"
+    archive_path = tmp_path / "extension-root" / "resources" / archive_name
+    archive_path.parent.mkdir()
+    with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("run-relay.py", "runner")
+        archive.writestr("README.md", "relay docs")
+
+    destination = tmp_path / "Downloads"
+    result = export_packaged_resource("relay", destination, str(module_file))
+
+    assert result.entries == 2
+    export_root = destination / f"impress-remote-relay-python-{__version__}"
+    assert (export_root / "run-relay.py").read_text(encoding="utf-8") == "runner"
+    assert (export_root / "README.md").read_text(encoding="utf-8") == "relay docs"
+    assert not (destination / "run-relay.py").exists()
+
+
+def test_export_packaged_resource_rejects_unsafe_archive_members(tmp_path: Path) -> None:
+    module_file = _fake_module_file(tmp_path / "extension-root")
+    archive_name = f"impress-remote-relay-python-{__version__}.zip"
+    archive_path = tmp_path / "extension-root" / "resources" / archive_name
+    archive_path.parent.mkdir()
+    with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("../outside.txt", "nope")
+
+    with pytest.raises(ValueError):
+        export_packaged_resource("relay", tmp_path / "Downloads", str(module_file))

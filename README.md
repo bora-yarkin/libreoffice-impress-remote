@@ -3,73 +3,72 @@
 
 # LibreOffice Impress Remote
 
-LibreOffice Impress Remote turns your phone into a lightweight presenter remote for LibreOffice Impress. Start it from Impress, scan a QR code, and control the presentation from a clean phone UI that shows the current slide, presenter notes, and simple next/previous controls.
+LibreOffice Impress Remote turns a phone browser into a simple presenter remote for LibreOffice Impress.
 
-The extension is local-first. Same-Wi-Fi and many hotspot setups work without extra infrastructure. LocalTunnel, direct IPv6, and self-hosted relay modes are included for experimentation on harder networks, but they are not the primary experience.
+Open a presentation, start the remote from the `Slide Show` menu, scan the QR code, and use your phone to see the current slide, read presenter notes, and move through the slideshow. There is no separate phone app to install and no required cloud account for the normal local workflow.
 
-## What You Get
+## What It Does
 
-- A LibreOffice Impress extension, not a separate desktop app
-- QR-first pairing from inside Impress
-- A lightweight phone remote with current slide, notes, timers, bottom next/previous controls, and compact icon-only presentation controls
-- Local networking by default, with LocalTunnel, direct IPv6, and self-hosted relay modes
-- LibreOffice-owned mode selection, relay configuration, and help
+- Shows the current slide on your phone.
+- Shows presenter notes below the slide.
+- Provides large previous and next controls that handle slide effects before changing slides.
+- Supports tap-to-advance on the slide preview.
+- Includes presentation and per-slide timers.
+- Offers fullscreen slide mode for a cleaner landscape phone view.
+- Keeps settings in LibreOffice, not on the phone remote.
+- Works locally by default over same Wi-Fi or many phone hotspot setups.
 
-## Current Status
+## Local First
 
-Version `1.0.0` is the current first stable local-mode release. Local mode has been tested by the maintainer and works for real Impress control in the current development environment.
+The main experience is intentionally local:
 
-- Impress-only `Slide Show -> Start Remote` and `Slide Show -> Remote Settings`
-- QR-first pairing with Copy URL fallback in the QR popup
-- phone UI with slide image, notes, effect-aware previous/next, tap-to-advance, timers, fullscreen, first/last slide, and go-to-slide
-- Local network mode by default, plus optional LocalTunnel, Direct IPv6, and Relay Server modes
-- encrypted local/direct/tunnel/relay transport when Web Crypto is available
-- Safari-compatible authenticated HTTP fallback for local mode and experimental direct IPv6 testing
-- one versioned OXT that embeds matching documentation and the Python relay bundle
-- English and Turkish localization catalogs plus an import workflow for more languages
-- GitHub release automation for publishing the versioned OXT after build, lint, and tests pass
-
-Experimental or still in progress:
-
-- broader LibreOffice, OS, browser, accessibility, LocalTunnel, IPv6, and relay compatibility evidence
-- long-term maintenance cadence, which depends on volunteer time
-
-## How To Use It
-
-1. Install the extension in LibreOffice.
-2. Open `Slide Show -> Start Remote`.
+1. Open an Impress presentation.
+2. Choose `Slide Show -> Start Remote`.
 3. Scan the QR code with your phone.
-4. Use `Copy URL` in the QR popup only if scanning fails.
-5. Use `Slide Show -> Remote Settings` when you want to change the mode or relay configuration.
+4. Present.
 
-The default mode is `Local network`. Remote Settings lets you choose:
+If QR scanning is awkward, the QR popup also has a Copy URL button.
 
-1. local network
-2. direct IPv6
-3. relay server
-4. LocalTunnel
+Local mode is the recommended path because it is the simplest one: the computer running LibreOffice serves the phone page directly, and the phone controls the presentation over the local network.
 
-## Why This Exists
+## Connection Modes
 
-This is a volunteer FOSS extension for LibreOffice Impress. The goal is to make the common local presenter-remote flow useful, understandable, and dependency-light without requiring a mandatory cloud service. Experimental routes may grow over time, and other office-suite adapters may happen someday, but none of that is promised.
+Most people should use `Local network`.
 
-## Technical Documentation
+| Mode | Purpose |
+| --- | --- |
+| Local network | Same Wi-Fi or phone hotspot. This is the normal path. |
+| Direct IPv6 | Experimental fallback for networks with reachable public IPv6. |
+| Relay Server | Experimental self-hosted relay path for difficult networks. |
+| LocalTunnel | Experimental temporary public tunnel path. |
 
-This README is intentionally product-focused. Technical details live in the linked docs:
+Use `Slide Show -> Remote Settings` only when you need to change the connection mode or configure the relay server.
 
-- [Technical documentation index](docs/README.md)
+## Built For Impress
+
+The extension integrates into LibreOffice Impress instead of acting like a separate desktop app. The remote controls live under the `Slide Show` menu, and the phone page stays focused on presentation control rather than configuration.
+
+The phone UI is deliberately small:
+
+- slide at the top
+- notes in the scrollable area
+- previous and next pinned at the bottom
+- optional drawer for first slide, last slide, timer pause/resume, and go-to-slide
+
+## Privacy And Networking
+
+Local mode does not require a third-party server. Experimental relay and tunnel modes exist for harder network setups, but they are optional.
+
+When the browser supports Web Crypto, remote traffic uses an encrypted session protocol. Some local browser contexts, especially Safari on plain local HTTP, may use an authenticated local fallback for compatibility. The technical details and limitations are documented honestly in the technical reference.
+
+## Documentation
+
 - [User guide](docs/user-guide.md)
-- [Feature matrix](docs/feature-matrix.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Build and test setup](docs/development/getting-started.md)
-- [Test before release](docs/test-before-release.md)
-- [Architecture](docs/architecture.md)
-- [Localization](docs/localization.md)
-- [Protocol](docs/protocol.md)
-- [Relay and deployment](docs/relay.md)
-- [Release readiness](docs/release-readiness.md)
-- [Security model](docs/security/e2ee.md)
-- [Roadmap](docs/roadmap.md)
+- [Technical reference](docs/technical-reference.md)
+
+## Project Notes
+
+This is a volunteer FOSS extension. The goal is to make a useful, understandable Impress remote without requiring a mandatory cloud service or a separate mobile app. Experimental modes and future platform adapters may improve over time if people want to help, but the local Impress workflow is the heart of the project.
 
 ## Contributing And Project Policy
 
