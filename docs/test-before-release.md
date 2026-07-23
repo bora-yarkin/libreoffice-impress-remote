@@ -136,8 +136,9 @@ Experimental route. Test it when validating advanced self-hosted behavior.
 Experimental route. Test it when validating advanced self-hosted or edge-hosted behavior.
 
 - Select Relay Server mode.
-- Open the Deploy to Cloudflare button from LibreOffice Remote Settings, `docs/relay.md`, or `deploy/cloudflare/README.md`.
-- Deploy the Worker/Durable Object app from the browser flow.
+- Open the Deploy to Cloudflare button from LibreOffice Remote Settings and confirm it opens `docs/relay.md#cloudflare-dashboard-deploy`.
+- Copy `deploy/cloudflare/dashboard-worker.mjs` into a Cloudflare Worker using the Cloudflare dashboard only.
+- Add the Durable Object binding named `RELAY_ROOMS` for class `RelayRoom`.
 - Confirm `/health` and `/asset-manifest.json` work.
 - Save the deployed relay URL in Remote Settings.
 - Start Remote and scan the QR code.

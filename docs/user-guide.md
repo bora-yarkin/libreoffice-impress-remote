@@ -26,7 +26,7 @@ Open `Slide Show -> Remote Settings` only when you need to change the connection
 | Direct IPv6 | Both devices have public IPv6 and the desktop firewall allows the remote port. | Experimental. Useful only on networks where public IPv6 actually works end to end. |
 | Relay Server | You run the included Python relay, Cloudflare relay, or a compatible self-hosted relay. | Experimental. Enter the relay URL in Remote Settings before starting. |
 
-Remote Settings is intentionally small: mode selector, relay URL when Relay Server is selected, Python relay/documentation export buttons, Deploy to Cloudflare, Help, Save, and Close. Cloudflare relay can be deployed from LibreOffice or the relay docs without local installs.
+Remote Settings is intentionally small: mode selector, relay URL when Relay Server is selected, Python relay/documentation export buttons, Deploy to Cloudflare, Help, Save, and Close. Cloudflare relay can be deployed from the linked relay docs with only a Cloudflare account, without local installs or the maintainer's GitHub authorization.
 
 Changing settings while the remote is running stops the remote. Start it again to use the saved mode.
 

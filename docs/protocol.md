@@ -3,7 +3,7 @@
 
 # Protocol
 
-This document describes the current encrypted transport protocol implemented in `1.0.5`.
+This document describes the current encrypted transport protocol implemented in `1.0.6`.
 
 It is intentionally small and versioned so that the reference relay server can remain replaceable and the same message contract can be reused by other transports.
 
@@ -137,7 +137,7 @@ Example:
 
 ## Key Derivation
 
-The current `1.0.5` bootstrap uses ephemeral P-256 ECDH.
+The current `1.0.6` bootstrap uses ephemeral P-256 ECDH.
 
 Inputs:
 

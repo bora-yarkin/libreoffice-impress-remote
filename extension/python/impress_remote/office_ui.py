@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 
 CLOUDFLARE_DEPLOY_URL = (
-    "https://deploy.workers.cloudflare.com/?url="
-    "https://github.com/bora-yarkin/libreoffice-impress-remote/tree/main/deploy/cloudflare"
+    "https://github.com/bora-yarkin/libreoffice-impress-remote/blob/main/docs/relay.md"
+    "#cloudflare-dashboard-deploy"
 )
 
 

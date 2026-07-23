@@ -42,7 +42,7 @@ install-oxt: oxt
 	"$(LO_UNOPKG)" add -f "$(OXT_FILE)"
 
 test: $(SETUP_STAMP)
-	PYTHONPATH=extension/python:server/src $(VENV_PYTEST) tests
+	PYTHONPATH=.:extension/python:server/src $(VENV_PYTEST) tests
 
 lint: $(SETUP_STAMP)
 	$(VENV_RUFF) check extension/python server/src tests tools

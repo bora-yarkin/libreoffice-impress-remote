@@ -3,7 +3,7 @@
 
 # TODO
 
-This file tracks the `1.0.5` project snapshot: what already ships today and what is still planned next.
+This file tracks the `1.0.6` project snapshot: what already ships today and what is still planned next.
 
 For milestone order and project direction, see `docs/roadmap.md`.
 

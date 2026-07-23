@@ -1,11 +1,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Cloudflare Relay Bundle
+# Cloudflare Relay
 
 This bundle hosts the encrypted relay transport on Cloudflare Workers and Durable Objects, and serves the shared mobile remote UI from the same deployment.
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bora-yarkin/libreoffice-impress-remote/tree/main/deploy/cloudflare)
 
 It exposes:
 
@@ -17,14 +15,25 @@ It exposes:
 
 ## Deploy
 
-### Browser-Only Deploy
+### Cloudflare Dashboard Deploy
 
-Click the **Deploy to Cloudflare** button above. Cloudflare will clone this relay app into your GitHub account, generate the `public/` phone UI from the shared upstream web UI, provision the Durable Object binding, and deploy it to your Cloudflare account without requiring Node.js, npm, npx, or Wrangler on your computer.
+This path needs only a Cloudflare account.
+
+1. Open `dashboard-worker.mjs` and copy the whole file.
+2. In Cloudflare, open `Workers & Pages`, create a Worker, open the code editor, replace the starter code with the copied Worker, then deploy it.
+3. In the deployed Worker settings, add a Durable Object binding named `RELAY_ROOMS` that points to the exported class `RelayRoom`, then redeploy if Cloudflare asks for it.
+4. Visit `https://your-worker.workers.dev/health`. It should return JSON with `runtime: "cloudflare-workers"`.
 
 After deployment, copy the generated `workers.dev` URL and paste it into LibreOffice:
 
 ```text
 Slide Show -> Remote Settings -> Relay Server (Experimental)
+```
+
+`dashboard-worker.mjs` is generated from `src/index.mjs`, `shared/webui`, and `shared/localizations`. Do not edit it by hand; regenerate it with:
+
+```bash
+python tools/build_cloudflare_dashboard_worker.py
 ```
 
 ### Local CLI Deploy

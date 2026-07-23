@@ -9,14 +9,15 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
-## [1.0.5] - 2026-07-23
+## [1.0.6] - 2026-07-23
 
 ### Changed
 
 - Added a LibreOffice Remote Settings `Deploy to Cloudflare` button for Relay Server mode.
 - Removed the Cloudflare relay archive from the OXT resources and from LibreOffice resource export controls.
-- Kept Cloudflare deployment in the technical relay documentation and browser-deployable `deploy/cloudflare` app.
-- Bumped the extension, relay package, and project version to `1.0.5`.
+- Replaced the GitHub-backed Cloudflare deploy-button flow with Cloudflare dashboard deployment instructions and a generated `deploy/cloudflare/dashboard-worker.mjs` that embeds the shared phone UI.
+- Fixed `make test` so tool-module tests can import the repository-local `tools` package from the virtual environment.
+- Bumped the extension, relay package, and project version to `1.0.6`.
 
 ## [1.0.4] - 2026-07-23
 

@@ -92,7 +92,7 @@ Direct IPv6:
 Relay:
 
 - Python relay bundle runs without a repository checkout
-- Cloudflare browser deploy works without editing shared phone UI files
+- Cloudflare dashboard deploy works without editing shared phone UI files or requiring maintainer GitHub authorization
 - LibreOffice and phone connect through the relay
 - commands round-trip
 - relay never decrypts presenter notes, commands, or slide previews

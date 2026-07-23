@@ -96,7 +96,7 @@
   "office.export.chooseFolder": "Choose export folder",
   "office.export.docsDone": "Documentation exported to {path} ({count} files).",
   "office.export.relayDone": "Relay server exported to {path} ({count} files).",
-  "office.deploy.cloudflareOpened": "Cloudflare deployment page opened in your browser.",
+  "office.deploy.cloudflareOpened": "Cloudflare deployment instructions opened in your browser.",
   "office.error.copyable": "Something went wrong. Copy these details when reporting the issue:",
   "office.copyUrl.done": "Pairing URL copied.",
   "office.copyUrl.failed": "Could not copy the pairing URL automatically.",

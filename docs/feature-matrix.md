@@ -3,7 +3,7 @@
 
 # Feature Matrix
 
-This matrix reflects the `1.0.5` snapshot.
+This matrix reflects the `1.0.6` snapshot.
 
 ## User Workflow
 
@@ -53,7 +53,7 @@ This matrix reflects the `1.0.5` snapshot.
 | --- | --- | --- |
 | Single complete OXT | Implemented | One versioned package embeds local mode, experimental modes, docs, and the Python relay export bundle. |
 | Python relay bundle | Experimental | Includes the shared phone UI and Linux/Windows service helpers. |
-| Cloudflare browser deploy | Experimental | Public Deploy to Cloudflare button deploys the Worker and generates phone UI assets from shared source during Cloudflare build. |
+| Cloudflare dashboard deploy | Experimental | LibreOffice links to a browser-only dashboard flow using generated `deploy/cloudflare/dashboard-worker.mjs`; this avoids GitHub-backed deploy authorization and keeps shared assets generated from one source. |
 | Relay compatibility validator | Implemented | `make relay-compat RELAY_URL=...` checks the public HTTP contract. |
 | Localization import | Implemented | `make localization-import` validates keyed JSON catalogs; English and Turkish ship today. |
 | Grouped test suite | Implemented | Tests are grouped under `tests/extension`, `tests/shared`, `tests/relay`, and `tests/tools`. |

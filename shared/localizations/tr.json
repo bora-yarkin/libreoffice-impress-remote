@@ -96,7 +96,7 @@
   "office.export.chooseFolder": "Disa aktarma klasoru sec",
   "office.export.docsDone": "Dokumantasyon {path} konumuna aktarildi ({count} dosya).",
   "office.export.relayDone": "Relay sunucusu {path} konumuna aktarildi ({count} dosya).",
-  "office.deploy.cloudflareOpened": "Cloudflare dagitim sayfasi tarayicinizda acildi.",
+  "office.deploy.cloudflareOpened": "Cloudflare dagitim talimatlari tarayicinizda acildi.",
   "office.error.copyable": "Bir sey ters gitti. Sorunu bildirirken bu ayrintilari kopyalayin:",
   "office.copyUrl.done": "Eslestirme URL'si kopyalandi.",
   "office.copyUrl.failed": "Eslestirme URL'si otomatik kopyalanamadi.",

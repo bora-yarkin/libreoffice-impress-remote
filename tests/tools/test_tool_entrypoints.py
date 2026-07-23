@@ -12,6 +12,7 @@ def test_tool_scripts_can_be_loaded_like_direct_entrypoints() -> None:
         "tools/build_oxt.py",
         "tools/build_release_bundle.py",
         "tools/build_cloudflare_bundle.py",
+        "tools/build_cloudflare_dashboard_worker.py",
         "tools/import_localizations.py",
         "tools/validate_relay_compat.py",
     ):
