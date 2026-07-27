@@ -286,8 +286,11 @@ def _copy_windows_text_to_clipboard(text: str) -> bool:
         import ctypes
         from ctypes import wintypes
 
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        win_dll = cast(Any, getattr(ctypes, "WinDLL", None))
+        if win_dll is None:
+            return False
+        kernel32 = win_dll("kernel32", use_last_error=True)
+        user32 = win_dll("user32", use_last_error=True)
         kernel32.GlobalAlloc.argtypes = (wintypes.UINT, ctypes.c_size_t)
         kernel32.GlobalAlloc.restype = ctypes.c_void_p
         kernel32.GlobalLock.argtypes = (ctypes.c_void_p,)
