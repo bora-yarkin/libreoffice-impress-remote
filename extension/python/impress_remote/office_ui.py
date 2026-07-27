@@ -6,6 +6,7 @@ from __future__ import annotations
 from binascii import crc32
 from collections.abc import Sequence
 import html
+import os
 from pathlib import Path
 import re
 from struct import pack
@@ -222,6 +223,43 @@ class _PlainTextTransferable(_TransferableUnoMixin, _UnoBase):
 def copy_text_to_clipboard(ctx, text: str) -> bool:
     if not text:
         return False
+    if sys.platform == "win32":
+        if _copy_windows_text_to_clipboard(text):
+            return True
+        system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+        commands = (
+            [str(system_root / "System32" / "clip.exe")],
+            [
+                str(
+                    system_root
+                    / "System32"
+                    / "WindowsPowerShell"
+                    / "v1.0"
+                    / "powershell.exe"
+                ),
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+            ],
+        )
+        for command in commands:
+            try:
+                subprocess.run(
+                    command,
+                    input=text,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                    timeout=2,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                return True
+            except (OSError, subprocess.SubprocessError):
+                continue
+        return False
     try:
         clipboard = _service_manager(ctx).createInstanceWithContext(
             "com.sun.star.datatransfer.clipboard.SystemClipboard",
@@ -238,12 +276,67 @@ def copy_text_to_clipboard(ctx, text: str) -> bool:
         if sys.platform.startswith("linux"):
             subprocess.run(["xclip", "-selection", "clipboard"], input=text, text=True, check=True)
             return True
-        if sys.platform == "win32":
-            subprocess.run(["clip"], input=text, text=True, check=True)
-            return True
     except Exception:
         return False
     return False
+
+
+def _copy_windows_text_to_clipboard(text: str) -> bool:
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32.GlobalAlloc.argtypes = (wintypes.UINT, ctypes.c_size_t)
+        kernel32.GlobalAlloc.restype = ctypes.c_void_p
+        kernel32.GlobalLock.argtypes = (ctypes.c_void_p,)
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalUnlock.argtypes = (ctypes.c_void_p,)
+        kernel32.GlobalUnlock.restype = wintypes.BOOL
+        kernel32.GlobalFree.argtypes = (ctypes.c_void_p,)
+        kernel32.GlobalFree.restype = ctypes.c_void_p
+        user32.OpenClipboard.argtypes = (wintypes.HWND,)
+        user32.OpenClipboard.restype = wintypes.BOOL
+        user32.EmptyClipboard.argtypes = ()
+        user32.EmptyClipboard.restype = wintypes.BOOL
+        user32.SetClipboardData.argtypes = (wintypes.UINT, ctypes.c_void_p)
+        user32.SetClipboardData.restype = ctypes.c_void_p
+        user32.CloseClipboard.argtypes = ()
+        user32.CloseClipboard.restype = wintypes.BOOL
+
+        payload = (text + "\0").encode("utf-16-le")
+        handle = kernel32.GlobalAlloc(0x0002, len(payload))
+        if not handle:
+            return False
+        locked = kernel32.GlobalLock(handle)
+        if not locked:
+            kernel32.GlobalFree(handle)
+            return False
+        try:
+            ctypes.memmove(locked, payload, len(payload))
+        finally:
+            kernel32.GlobalUnlock(handle)
+
+        clipboard_open = False
+        for _ in range(5):
+            if user32.OpenClipboard(None):
+                clipboard_open = True
+                break
+            time.sleep(0.05)
+        if not clipboard_open:
+            kernel32.GlobalFree(handle)
+            return False
+        try:
+            if not user32.EmptyClipboard() or not user32.SetClipboardData(13, handle):
+                kernel32.GlobalFree(handle)
+                return False
+            handle = None
+            return True
+        finally:
+            user32.CloseClipboard()
+    except (AttributeError, OSError):
+        return False
 
 
 class CopyTextListener(_ActionListenerUnoMixin, _UnoBase, _XActionListenerBase):

@@ -63,23 +63,6 @@ class _FallbackXStatusListenerBase:
         return None
 
 
-class _FallbackXToolbarControllerBase:
-    def execute(self, _key_modifier) -> None:
-        return None
-
-    def click(self) -> None:
-        return None
-
-    def doubleClick(self) -> None:
-        return None
-
-    def createPopupWindow(self):
-        return None
-
-    def createItemWindow(self, _parent):
-        return None
-
-
 class _FallbackXInitializationBase:
     def initialize(self, _arguments) -> None:
         return None
@@ -95,7 +78,6 @@ XDispatchProviderBase: Any = _FallbackXDispatchProviderBase
 XDispatchBase: Any = _FallbackXDispatchBase
 XServiceInfoBase: Any = _FallbackXServiceInfoBase
 XStatusListenerBase: Any = _FallbackXStatusListenerBase
-XToolbarControllerBase: Any = _FallbackXToolbarControllerBase
 XInitializationBase: Any = _FallbackXInitializationBase
 XUpdatableBase: Any = _FallbackXUpdatableBase
 
@@ -130,12 +112,6 @@ try:
         except Exception:
             pass
         try:
-            from com.sun.star.frame import XToolbarController
-
-            XToolbarControllerBase = XToolbarController
-        except Exception:
-            pass
-        try:
             from com.sun.star.frame import XTerminateListener
 
             XTerminateListenerBase = XTerminateListener
@@ -163,11 +139,6 @@ except Exception:
 
 IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ProtocolHandler"
 SERVICE_NAMES = ("com.sun.star.frame.ProtocolHandler",)
-TOOLBAR_IMPLEMENTATION_NAME = "org.borayarkin.libreoffice.impressremote.ToolbarController"
-TOOLBAR_SERVICE_NAMES = (
-    TOOLBAR_IMPLEMENTATION_NAME,
-    "com.sun.star.frame.ToolbarController",
-)
 PROTOCOL = "vnd.org.borayarkin.impressremote:"
 
 
@@ -632,135 +603,6 @@ try:
             return None
 
 
-    class RemoteToolbarController(
-        unohelper.Base,
-        XServiceInfoBase,
-        XStatusListenerBase,
-        XInitializationBase,
-        XUpdatableBase,
-        XToolbarControllerBase,
-    ):
-        def __init__(self, ctx):
-            self.ctx = ctx
-            self.frame: Any | None = None
-            self.service_manager: Any = _service_manager(ctx)
-            self.command_url = f"{PROTOCOL}menu"
-            self._listeners: list[object] = []
-
-        def getImplementationName(self):
-            return TOOLBAR_IMPLEMENTATION_NAME
-
-        def supportsService(self, name):
-            return name in TOOLBAR_SERVICE_NAMES
-
-        def getSupportedServiceNames(self):
-            return TOOLBAR_SERVICE_NAMES
-
-        def initialize(self, arguments):
-            values = _property_values_to_dict(arguments)
-            self.frame = values.get("Frame")
-            command_url = values.get("CommandURL")
-            if isinstance(command_url, str) and command_url:
-                self.command_url = command_url
-            service_manager = values.get("ServiceManager")
-            if service_manager is not None:
-                self.service_manager = service_manager
-
-        def update(self):
-            return None
-
-        def disposing(self, _event):
-            self.frame = None
-            self._listeners.clear()
-
-        def statusChanged(self, _state):
-            return None
-
-        def dispose(self):
-            for listener in tuple(self._listeners):
-                disposing = getattr(listener, "disposing", None)
-                if disposing is None:
-                    continue
-                try:
-                    disposing(SimpleNamespace(Source=self))
-                except Exception:
-                    pass
-            self._listeners.clear()
-            self.frame = None
-
-        def addEventListener(self, listener):
-            if listener not in self._listeners:
-                self._listeners.append(listener)
-
-        def removeEventListener(self, listener):
-            self._listeners = [item for item in self._listeners if item is not listener]
-
-        def execute(self, _key_modifier):
-            self._dispatch_path("menu")
-
-        def click(self):
-            self._dispatch_path("menu")
-
-        def doubleClick(self):
-            self._dispatch_path("menu")
-
-        def createItemWindow(self, _parent):
-            return None
-
-        def createPopupWindow(self):
-            self._dispatch_path("menu")
-            return None
-
-        def _popup_parent(self) -> Any | None:
-            frame: Any | None = self.frame
-            if frame is not None:
-                try:
-                    window = frame.getContainerWindow()
-                    if window is not None:
-                        return window
-                except Exception:
-                    pass
-            try:
-                desktop = cast(
-                    Any,
-                    self.service_manager.createInstanceWithContext(
-                        "com.sun.star.frame.Desktop",
-                        self.ctx,
-                    ),
-                )
-                frame = desktop.getCurrentFrame()
-                if frame is not None:
-                    return frame.getContainerWindow()
-            except Exception:
-                pass
-            return None
-
-        def _dispatch_path(self, path: str) -> None:
-            url = _feature_url(path)
-            dispatch = None
-            frame = self.frame
-            if frame is not None:
-                query_dispatch = getattr(frame, "queryDispatch", None)
-                if query_dispatch is not None:
-                    try:
-                        dispatch = query_dispatch(url, "_self", 0)
-                    except Exception:
-                        dispatch = None
-            if dispatch is None:
-                try:
-                    desktop = cast(
-                        Any,
-                        self.service_manager.createInstanceWithContext(
-                            "com.sun.star.frame.Desktop",
-                            self.ctx,
-                        ),
-                    )
-                    dispatch = desktop.queryDispatch(url, "_self", 0)
-                except Exception:
-                    dispatch = None
-            if dispatch is None:
-                raise RuntimeError(_translate("error.dispatchUnavailable"))
-            dispatch.dispatch(url, ())
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
@@ -770,22 +612,13 @@ def create(ctx):
     return ImpressRemoteProtocolHandler(ctx)
 
 
-def create_toolbar_controller(ctx):
-    return RemoteToolbarController(ctx)
+g_ImplementationHelper = unohelper.ImplementationHelper()
+g_ImplementationHelper.addImplementation(
+    create,
+    IMPLEMENTATION_NAME,
+    SERVICE_NAMES,
+)
 
 
-try:
-    g_ImplementationHelper = unohelper.ImplementationHelper()
-    g_ImplementationHelper.addImplementation(
-        create,
-        IMPLEMENTATION_NAME,
-        SERVICE_NAMES,
-    )
-    g_ImplementationHelper.addImplementation(
-        create_toolbar_controller,
-        TOOLBAR_IMPLEMENTATION_NAME,
-        TOOLBAR_SERVICE_NAMES,
-    )
-except Exception:
-    _write_bootstrap_log(traceback.format_exc())
-    raise
+def writeRegistryInfo(service_manager, registry_key):
+    return g_ImplementationHelper.writeRegistryInfo(registry_key, service_manager)

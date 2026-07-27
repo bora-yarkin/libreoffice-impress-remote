@@ -3,9 +3,11 @@
 # ruff: noqa: E402,F811
 
 import importlib.util
+import subprocess
 import sys
 import types
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from typing import Any, cast
 
@@ -50,6 +52,12 @@ class ComponentBootstrapTests(unittest.TestCase):
                 module.IMPLEMENTATION_NAME,
                 "org.borayarkin.libreoffice.impressremote.ProtocolHandler",
             )
+            self.assertTrue(hasattr(module, "writeRegistryInfo"))
+            self.assertEqual(module.writeRegistryInfo("service-manager", "registry-key"), 1)
+            self.assertEqual(
+                module.g_ImplementationHelper.registry_calls,
+                [("registry-key", "service-manager")],
+            )
         finally:
             sys.path = original_path
             for name, module in original_modules.items():
@@ -65,9 +73,14 @@ class ComponentBootstrapTests(unittest.TestCase):
         class ImplementationHelper:
             def __init__(self) -> None:
                 self.entries = []
+                self.registry_calls = []
 
             def addImplementation(self, ctor, implementation_name, service_names) -> None:
                 self.entries.append((ctor, implementation_name, tuple(service_names)))
+
+            def writeRegistryInfo(self, registry_key, service_manager) -> int:
+                self.registry_calls.append((registry_key, service_manager))
+                return 1
 
         cast(Any, unohelper).ImplementationHelper = ImplementationHelper
 
@@ -541,10 +554,48 @@ if __name__ == "__main__":
 
 import unittest
 
-from impress_remote.office_ui import RemotePairingDialog, export_qr_png_path
+from impress_remote.office_ui import (
+    RemotePairingDialog,
+    copy_text_to_clipboard,
+    export_qr_png_path,
+)
 
 
 class QrTests(unittest.TestCase):
+    def test_windows_clipboard_copy_uses_win32_api_without_uno_clipboard(self) -> None:
+        with (
+            patch("impress_remote.office_ui.sys.platform", "win32"),
+            patch("impress_remote.office_ui._service_manager") as service_manager,
+            patch("impress_remote.office_ui._copy_windows_text_to_clipboard", return_value=True),
+            patch("impress_remote.office_ui.subprocess.run") as run,
+        ):
+            self.assertTrue(copy_text_to_clipboard(object(), "https://example.test"))
+
+        service_manager.assert_not_called()
+        run.assert_not_called()
+
+    def test_windows_clipboard_copy_falls_back_to_powershell(self) -> None:
+        calls: list[list[str]] = []
+
+        def run(command, **_kwargs):
+            calls.append(command)
+            if len(calls) == 1:
+                raise subprocess.CalledProcessError(1, command)
+
+        with (
+            patch("impress_remote.office_ui.sys.platform", "win32"),
+            patch.dict("impress_remote.office_ui.os.environ", {"SystemRoot": r"C:\Windows"}),
+            patch("impress_remote.office_ui._service_manager") as service_manager,
+            patch("impress_remote.office_ui._copy_windows_text_to_clipboard", return_value=False),
+            patch("impress_remote.office_ui.subprocess.run", side_effect=run),
+        ):
+            self.assertTrue(copy_text_to_clipboard(object(), "https://example.test"))
+
+        service_manager.assert_not_called()
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(calls[1][0].endswith("WindowsPowerShell/v1.0/powershell.exe"))
+        self.assertIn("Set-Clipboard -Value ([Console]::In.ReadToEnd())", calls[1])
+
     def test_export_qr_png_path_creates_a_png_file(self) -> None:
         output_path = export_qr_png_path(None, "http://127.0.0.1:17865/#s=demo123")
         try:

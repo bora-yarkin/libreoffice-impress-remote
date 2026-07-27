@@ -63,7 +63,7 @@
             <value xml:lang="en">Start Remote</value>
             <value xml:lang="tr">Kumandayi Baslat</value>
           </prop>
-          <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+          <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
           <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
           <prop oor:name="Style" oor:type="xs:string"><value>Icon</value></prop>
@@ -123,7 +123,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
             </node>
@@ -144,7 +144,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
             </node>
@@ -165,7 +165,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
             </node>
@@ -186,7 +186,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
             </node>
@@ -207,7 +207,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
             </node>
@@ -230,7 +230,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
               <prop oor:name="Style" oor:type="xs:string"><value>Icon</value></prop>
@@ -252,7 +252,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
               <prop oor:name="Style" oor:type="xs:string"><value>Icon</value></prop>
@@ -274,7 +274,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
               <prop oor:name="Style" oor:type="xs:string"><value>Icon</value></prop>
@@ -296,7 +296,7 @@
                 <value xml:lang="en">Start Remote</value>
                 <value xml:lang="tr">Kumandayi Baslat</value>
               </prop>
-              <prop oor:name="ControlType" oor:type="xs:string"><value>DropdownButton</value></prop>
+              <prop oor:name="ControlType" oor:type="xs:string"><value>Button</value></prop>
               <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
               <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.presentation.PresentationDocument</value></prop>
               <prop oor:name="Style" oor:type="xs:string"><value>Icon</value></prop>

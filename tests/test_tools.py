@@ -230,7 +230,6 @@ def test_extension_manifest_files_exist() -> None:
         "extension/META-INF/manifest.xml",
         "extension/description.xml",
         "extension/Addons.xcu",
-        "extension/Controller.xcu",
         "extension/ProtocolHandler.xcu",
         "extension/Settings.xcs",
         "extension/Settings.xcu",
@@ -276,33 +275,19 @@ def test_extension_manifest_includes_settings_schema_and_data() -> None:
     assert 'application/vnd.sun.star.configuration-schema' in manifest
     assert 'manifest:full-path="Settings.xcs"' in manifest
     assert 'manifest:full-path="Settings.xcu"' in manifest
-    assert 'manifest:full-path="Controller.xcu"' in manifest
+    assert 'manifest:full-path="Controller.xcu"' not in manifest
 
 
-def test_toolbar_controller_is_registered_for_remote_menu() -> None:
-    controller = (ROOT / "extension/Controller.xcu").read_text(encoding="utf-8")
+def test_toolbar_buttons_dispatch_the_remote_menu_without_a_custom_controller() -> None:
+    addons = (ROOT / "extension/Addons.xcu").read_text(encoding="utf-8")
+    manifest = (ROOT / "extension/META-INF/manifest.xml").read_text(encoding="utf-8")
     release = (ROOT / "tools/release.py").read_text(encoding="utf-8")
-    component = (ROOT / "extension/python/impress_remote/component.py").read_text(
-        encoding="utf-8"
-    )
 
-    assert 'oor:name="Controller" oor:package="org.openoffice.Office.UI"' in controller
-    assert '<node oor:name="ToolBar">' in controller
-    assert "<value>vnd.org.borayarkin.impressremote:menu</value>" in controller
-    assert (
-        "<value>vnd.org.borayarkin.impressremote:toggle;"
-        "vnd.org.borayarkin.impressremote:settings</value>"
-        in controller
-    )
-    assert '<prop oor:name="Module" oor:type="xs:string"><value/></prop>' in controller
-    assert (
-        "<value>org.borayarkin.libreoffice.impressremote.ToolbarController</value>"
-        in controller
-    )
-    assert '"Controller.xcu"' in release
-    assert "TOOLBAR_IMPLEMENTATION_NAME" in component
-    assert "createPopupWindow" in component
-    assert "com.sun.star.awt.PopupMenu" in component
+    assert "<value>vnd.org.borayarkin.impressremote:menu</value>" in addons
+    assert "<value>DropdownButton</value>" not in addons
+    assert "<value>Button</value>" in addons
+    assert 'manifest:full-path="Controller.xcu"' not in manifest
+    assert '"Controller.xcu"' not in release
 
 
 def test_extension_description_has_install_metadata() -> None:
@@ -346,8 +331,8 @@ def test_addons_merge_into_impress_slideshow_menu_and_toolbars() -> None:
     assert "org.borayarkin.libreoffice.impressremote.addonmenu.remote" in xml
     assert "OfficeToolBar" not in xml
     assert "OfficeNotebookBar" in xml
-    assert "DropdownButton" in xml
-    assert "<value>DropdownButton</value>" in xml
+    assert "DropdownButton" not in xml
+    assert "<value>Button</value>" in xml
     assert "ToggleDropdownButton" not in xml
     assert "<value>Icon</value>" in xml
     assert "<value>icon</value>" not in xml

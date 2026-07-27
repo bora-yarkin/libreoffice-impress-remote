@@ -9,6 +9,18 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-27
+
+### Fixed
+
+- Fixed Windows LibreOffice extension registration by restoring the Python UNO component registry entry point required by the LibreOffice loader.
+- Fixed Windows crashes while creating or opening Impress documents by removing the globally registered custom toolbar controller.
+- Fixed the Windows Copy URL action in the QR pairing dialog by using the native Unicode Windows clipboard API with clipboard-lock retries and isolated command fallbacks.
+
+### Changed
+
+- Replaced custom dropdown controls with standard buttons while keeping the remote available automatically in the Add-ons menu, Slide Show menu, standard toolbar, and supported NotebookBar layouts.
+
 ## [1.0.1] - 2026-07-23
 
 ### Changed
