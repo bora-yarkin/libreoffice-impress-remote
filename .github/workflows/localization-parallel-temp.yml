@@ -1,0 +1,65 @@
+name: Temporary parallel localization build
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  translate:
+    if: github.head_ref == 'chatgpt-localization-parallel-20260731'
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install ctranslate2==4.6.0 transformers==4.48.3 sentencepiece==0.2.0 huggingface_hub==0.28.1
+      - run: python tools/localization-temp/fix_turkish.py
+      - run: python tools/localization-temp/generate_shard.py --index '${{ matrix.shard }}' --count 16
+      - uses: actions/upload-artifact@v4
+        with:
+          name: localization-shard-${{ matrix.shard }}
+          path: shard-output
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    if: github.head_ref == 'chatgpt-localization-parallel-20260731'
+    needs: translate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: localization-shard-*
+          path: merged-shards
+          merge-multiple: true
+      - run: python tools/localization-temp/merge_shards.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libreoffice-impress-remote-locales
+          path: localization-build/libreoffice-impress-remote-locales.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  cleanup:
+    if: always() && github.head_ref == 'chatgpt-localization-parallel-20260731'
+    needs: [translate, merge]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr close "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --delete-branch || true
