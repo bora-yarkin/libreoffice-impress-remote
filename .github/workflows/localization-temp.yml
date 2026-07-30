@@ -1,0 +1,36 @@
+name: Temporary localization build
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    if: github.head_ref == 'chatgpt-localization-build-20260731'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install ctranslate2==4.6.0 transformers==4.48.3 sentencepiece==0.2.0 huggingface_hub==0.28.1
+      - run: python tools/localization-temp/fix_turkish.py
+      - run: python tools/localization-temp/generate_locales.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libreoffice-impress-remote-locales
+          path: localization-build/libreoffice-impress-remote-locales.zip
+          if-no-files-found: error
+          retention-days: 1
+      - if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr close "$PR_NUMBER" --delete-branch || true
