@@ -516,6 +516,16 @@ class ComponentRuntimeTests(unittest.TestCase):
 
         self.assertEqual(captured, ["Başlatıldı: http://127.0.0.1:17865\n".encode()])
 
+    def test_start_skips_console_output_when_streams_are_missing(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        handler.server = FakeServer(running=False)
+        handler.server.url = "http://127.0.0.1:17865"
+
+        with patch.object(self.component.sys, "stdout", None):
+            with patch.object(self.component.sys, "stderr", None):
+                with patch.object(self.component, "_translate", return_value="Başlatıldı"):
+                    handler.start()
+
     def test_status_listener_receives_dynamic_menu_label(self) -> None:
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
         handler.server = FakeServer(running=False)

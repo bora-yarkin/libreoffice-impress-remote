@@ -90,23 +90,28 @@ BOOTSTRAP_LOG_PATH = os.path.join(
 
 def _emit_console_message(message: str) -> None:
     payload = f"{message}\n".encode()
-    stream = sys.stdout
-    try:
-        if hasattr(stream, "buffer") and stream.buffer is not None:
-            stream.buffer.write(payload)
-            stream.buffer.flush()
+    streams = [getattr(sys, "stdout", None), getattr(sys, "stderr", None)]
+    for stream in streams:
+        if stream is None:
+            continue
+        try:
+            if hasattr(stream, "buffer") and stream.buffer is not None:
+                stream.buffer.write(payload)
+                stream.buffer.flush()
+                return
+        except Exception:
+            pass
+        try:
+            os.write(stream.fileno(), payload)
             return
-    except Exception:
-        pass
-    try:
-        os.write(stream.fileno(), payload)
-    except Exception:
+        except Exception:
+            pass
         try:
             stream.write(message)
             stream.write("\n")
+            return
         except Exception:
-            stream.write(message.encode("ascii", "replace").decode("ascii"))
-            stream.write("\n")
+            continue
 
 
 def _write_bootstrap_log(summary):
