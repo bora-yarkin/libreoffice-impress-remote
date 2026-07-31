@@ -88,6 +88,27 @@ BOOTSTRAP_LOG_PATH = os.path.join(
 )
 
 
+def _emit_console_message(message: str) -> None:
+    payload = f"{message}\n".encode("utf-8")
+    stream = sys.stdout
+    try:
+        if hasattr(stream, "buffer") and stream.buffer is not None:
+            stream.buffer.write(payload)
+            stream.buffer.flush()
+            return
+    except Exception:
+        pass
+    try:
+        os.write(stream.fileno(), payload)
+    except Exception:
+        try:
+            stream.write(message)
+            stream.write("\n")
+        except Exception:
+            stream.write(message.encode("ascii", "replace").decode("ascii"))
+            stream.write("\n")
+
+
 def _write_bootstrap_log(summary):
     try:
         with open(BOOTSTRAP_LOG_PATH, "w", encoding="utf-8") as log_file:
@@ -380,9 +401,9 @@ try:
             self._notify_status_listeners()
             server_url = str(getattr(server, "url", "")).strip()
             if server_url:
-                print(_translate("component.remoteStartedAt", url=server_url))
+                _emit_console_message(_translate("component.remoteStartedAt", url=server_url))
             else:
-                print(_translate("component.remoteStarted"))
+                _emit_console_message(_translate("component.remoteStarted"))
 
         def stop(self):
             if self.server is not None:

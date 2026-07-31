@@ -336,6 +336,7 @@ class FakeServer:
         self.http_servers = [object()] if running else []
         self.config = FakeConfig()
         self.updated = None
+        self.url = ""
         self.controller = types.SimpleNamespace(
             state=lambda: types.SimpleNamespace(
                 running=False,
@@ -477,6 +478,39 @@ class ComponentRuntimeTests(unittest.TestCase):
         assert server is not None
         self.assertFalse(server.is_running())
         self.assertEqual(paired, [])
+
+    def test_start_emits_utf8_safe_console_messages(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        handler.server = FakeServer(running=False)
+        handler.server.url = "http://127.0.0.1:17865"
+        captured: list[bytes] = []
+
+        class FakeStdout:
+            encoding = "ascii"
+
+            def __init__(self) -> None:
+                self.buffer = None
+
+            def write(self, text: str) -> int:
+                raise UnicodeEncodeError("ascii", text, 0, len(text), "ordinal not in range(128)")
+
+            def flush(self) -> None:
+                return None
+
+            def fileno(self) -> int:
+                return 1
+
+        def fake_translate(key: str, **_values: Any) -> str:
+            if key == "component.remoteStartedAt":
+                return "Başlatıldı: http://127.0.0.1:17865"
+            return "Başlatıldı"
+
+        with patch.object(self.component.sys, "stdout", FakeStdout()):
+            with patch.object(self.component.os, "write", side_effect=lambda _fd, data: captured.append(data) or len(data)):
+                with patch.object(self.component, "_translate", side_effect=fake_translate):
+                    handler.start()
+
+        self.assertEqual(captured, ["Başlatıldı: http://127.0.0.1:17865\n".encode("utf-8")])
 
     def test_status_listener_receives_dynamic_menu_label(self) -> None:
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())

@@ -278,8 +278,12 @@ def test_falls_back_to_english_for_missing_turkish_key() -> None:
 
 def test_normalizes_locale_codes() -> None:
     assert normalize_locale("tr_TR.UTF-8") == "tr"
-    assert normalize_locale("en-US") == "en"
-    assert normalize_locale("de_DE.UTF-8") == ""
+    assert normalize_locale("en-US") == "en-US"
+    assert normalize_locale("de_DE.UTF-8") == "de"
+
+
+def test_loads_region_specific_catalog_when_available() -> None:
+    assert load_catalog("en-US")["component.menu.startRemote"] == "Start Remote"
 
 
 def test_reports_available_locales_for_manifest_driven_clients() -> None:

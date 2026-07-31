@@ -9,6 +9,17 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-07-31
+
+### Fixed
+
+- Fixed UTF-8 console output for localized startup messages so Turkish and other non-ASCII UI text no longer crash the remote when started from LibreOffice.
+- Fixed locale resolution so region-specific locale variants such as `en-US`, `pt-BR`, and `zh-CN` are recognized correctly and fall back to the base language only when needed.
+
+### Changed
+
+- Expanded localization support for region-specific locale files in the shared catalogs used by the extension and web UI.
+
 ## [1.0.2] - 2026-07-27
 
 ### Fixed

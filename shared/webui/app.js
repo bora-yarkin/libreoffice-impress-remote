@@ -50,17 +50,48 @@ const relayState = {
   connectTimeoutTimer: null,
   codec: null,
   assets: {
-    current: {revision: '', url: ''},
-    next: {revision: '', url: ''},
+    current: { revision: '', url: '' },
+    next: { revision: '', url: '' },
   },
 }
 
-function normalizeLocale(value){
-  const language = String(value || '').trim().replace('-', '_').split(/[._]/)[0].toLowerCase()
-  return supportedLocales.has(language) ? language : ''
+function normalizeLocaleName(value) {
+  return String(value || '').trim().replace('_', '-').split('.')[0].toLowerCase()
 }
 
-function preferredLocale(){
+function localeCandidates(value) {
+  const normalized = normalizeLocaleName(value)
+  if (!normalized) {
+    return []
+  }
+  const parts = normalized.split('-').filter(Boolean)
+  const candidates = []
+  for (let index = parts.length; index > 0; index -= 1) {
+    candidates.push(parts.slice(0, index).join('-'))
+  }
+  return candidates
+}
+
+function normalizeLocale(value) {
+  const requestedCandidates = localeCandidates(value)
+  const availableLocales = Array.from(supportedLocales)
+  for (const candidate of requestedCandidates) {
+    const match = availableLocales.find(locale => normalizeLocaleName(locale) === candidate)
+    if (match) {
+      return match
+    }
+  }
+  for (const candidate of requestedCandidates) {
+    const base = candidate.split('-')[0]
+    const match = availableLocales.find(locale => normalizeLocaleName(locale) === base)
+    if (match) {
+      return match
+    }
+  }
+  return ''
+}
+
+function preferredLocale() {
   const params = new URLSearchParams(window.location.search)
   return normalizeLocale(params.get('lang'))
     || normalizeLocale(routeParams.get('lang'))
@@ -68,69 +99,69 @@ function preferredLocale(){
     || DEFAULT_LOCALE
 }
 
-async function loadLocalization(){
+async function loadLocalization() {
   await loadLocalizationManifest()
   activeLocale = preferredLocale()
   messages = await fetchLocalization(DEFAULT_LOCALE)
-  if(activeLocale !== DEFAULT_LOCALE){
-    messages = {...messages, ...await fetchLocalization(activeLocale)}
+  if (activeLocale !== DEFAULT_LOCALE) {
+    messages = { ...messages, ...await fetchLocalization(activeLocale) }
   }
   document.documentElement.lang = activeLocale
   applyDocumentLocalization()
 }
 
-async function loadLocalizationManifest(){
-  try{
-    const response = await fetch('/localizations/manifest.json', {cache: 'no-store'})
-    if(!response.ok){
+async function loadLocalizationManifest() {
+  try {
+    const response = await fetch('/localizations/manifest.json', { cache: 'no-store' })
+    if (!response.ok) {
       return
     }
     const payload = await response.json()
-    if(!payload || typeof payload !== 'object' || !Array.isArray(payload.locales)){
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.locales)) {
       return
     }
     const locales = payload.locales
-      .map(locale => String(locale || '').trim().replace('-', '_').split(/[._]/)[0].toLowerCase())
+      .map(locale => String(locale || '').trim())
       .filter(Boolean)
-    if(locales.includes(DEFAULT_LOCALE)){
+    if (locales.some(locale => normalizeLocaleName(locale) === DEFAULT_LOCALE)) {
       supportedLocales = new Set(locales)
     }
-  }catch(_error){
+  } catch (_error) {
   }
 }
 
-async function fetchLocalization(locale){
-  try{
-    const response = await fetch(`/localizations/${locale}.json`, {cache: 'no-store'})
-    if(!response.ok){
+async function fetchLocalization(locale) {
+  try {
+    const response = await fetch(`/localizations/${locale}.json`, { cache: 'no-store' })
+    if (!response.ok) {
       return {}
     }
     const payload = await response.json()
     return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}
-  }catch(_error){
+  } catch (_error) {
     return {}
   }
 }
 
-function t(key, values = {}){
+function t(key, values = {}) {
   const template = typeof messages[key] === 'string' ? messages[key] : key
   return template.replace(/\{([A-Za-z0-9_]+)\}/g, (_match, name) => {
     return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : `{${name}}`
   })
 }
 
-function localizedMessage(message){
+function localizedMessage(message) {
   return typeof messages[message] === 'string' ? t(message) : message
 }
 
-function applyDocumentLocalization(){
+function applyDocumentLocalization() {
   document.querySelectorAll('[data-i18n]').forEach(node => {
     node.textContent = t(node.dataset.i18n)
   })
   document.querySelectorAll('[data-i18n-attr]').forEach(node => {
     node.dataset.i18nAttr.split(',').forEach(pair => {
       const [attribute, key] = pair.split(':').map(value => value.trim())
-      if(attribute && key){
+      if (attribute && key) {
         node.setAttribute(attribute, t(key))
       }
     })
@@ -138,50 +169,50 @@ function applyDocumentLocalization(){
   document.title = t('app.title')
 }
 
-function hashParams(){
+function hashParams() {
   return new URLSearchParams(window.location.hash.replace(/^#/, ''))
 }
 
-function isRelayMode(){
+function isRelayMode() {
   return routeMode === 'relay'
 }
 
-function isLocalMode(){
+function isLocalMode() {
   return routeMode === 'local'
 }
 
-function hasWebCrypto(){
+function hasWebCrypto() {
   return !!(window.crypto && window.crypto.subtle)
 }
 
-function isLocalFallbackMode(){
+function isLocalFallbackMode() {
   return (isLocalMode() || routeMode === 'ipv6') && !hasWebCrypto()
 }
 
-function isSecureDirectMode(){
+function isSecureDirectMode() {
   return !isRelayMode() && !isLocalFallbackMode()
 }
 
-function relaySocketUrl(session, admissionToken){
+function relaySocketUrl(session, admissionToken) {
   const url = new URL('/ws', window.location.href)
   url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('role', 'phone')
   url.searchParams.set('session', session)
-  if(admissionToken){
+  if (admissionToken) {
     url.searchParams.set('a', admissionToken)
   }
   return url.toString()
 }
 
-function directSessionUrl(path){
+function directSessionUrl(path) {
   const url = new URL(path, window.location.href)
   url.searchParams.set('s', routeSession)
   return `${url.pathname}${url.search}`
 }
 
-function setConnectionPhase(nextPhase){
+function setConnectionPhase(nextPhase) {
   connectionPhase = nextPhase
-  if(nextPhase !== 'offline'){
+  if (nextPhase !== 'offline') {
     transportErrorMessage = ''
   }
   document.body.dataset.connectionState = nextPhase
@@ -192,16 +223,16 @@ function setConnectionPhase(nextPhase){
   syncNavigationButtons(lastState)
   const gotoButton = document.getElementById('goto-button')
   const timerButton = document.getElementById('timer-toggle-button')
-  if(gotoButton){
+  if (gotoButton) {
     gotoButton.disabled = !commandsEnabled
   }
-  if(timerButton){
+  if (timerButton) {
     timerButton.disabled = !commandsEnabled
   }
   renderBanner()
 }
 
-function syncNavigationButtons(state){
+function syncNavigationButtons(state) {
   const previousDisabled = connectionPhase !== 'live' || !state || !state.canGoPrevious
   const nextDisabled = connectionPhase !== 'live' || !state || !state.canGoNext
   document.querySelectorAll('[data-command="previous_slide"]').forEach(button => {
@@ -212,29 +243,29 @@ function syncNavigationButtons(state){
   })
 }
 
-function messageFromError(error){
-  if(error && typeof error === 'object' && typeof error.message === 'string'){
+function messageFromError(error) {
+  if (error && typeof error === 'object' && typeof error.message === 'string') {
     return error.message
   }
   return String(error || t('web.errorUnknown'))
 }
 
-function connectionCopy(){
-  if(connectionPhase === 'connecting'){
+function connectionCopy() {
+  if (connectionPhase === 'connecting') {
     return {
       title: isRelayMode() ? t('web.connection.connectingRelayTitle') : t('web.connection.connectingTitle'),
       detail: isRelayMode() ? t('web.connectingRelay') : t('web.connecting'),
       actions: false,
     }
   }
-  if(connectionPhase === 'reconnecting'){
+  if (connectionPhase === 'reconnecting') {
     return {
       title: t('web.connection.reconnectingTitle'),
       detail: isRelayMode() ? t('web.reconnectingRelay') : t('web.reconnecting'),
       actions: true,
     }
   }
-  if(connectionPhase === 'offline'){
+  if (connectionPhase === 'offline') {
     return {
       title: t('web.connection.offlineTitle'),
       detail: transportErrorMessage || (isRelayMode() ? t('web.offlineRelay') : t('web.offline')),
@@ -248,9 +279,9 @@ function connectionCopy(){
   }
 }
 
-function renderConnectionPanel(){
+function renderConnectionPanel() {
   const panel = document.getElementById('connection-panel')
-  if(!panel){
+  if (!panel) {
     return
   }
   const title = document.getElementById('connection-title')
@@ -260,79 +291,79 @@ function renderConnectionPanel(){
   const copy = connectionCopy()
   const shouldShow = connectionPhase !== 'live'
   panel.hidden = !shouldShow
-  if(title){
+  if (title) {
     title.textContent = copy.title
   }
-  if(detail){
+  if (detail) {
     detail.textContent = copy.detail
   }
-  if(retryButton){
+  if (retryButton) {
     retryButton.hidden = !copy.actions
   }
-  if(reloadButton){
+  if (reloadButton) {
     reloadButton.hidden = !copy.actions
   }
 }
 
-function renderBanner(){
+function renderBanner() {
   const target = document.getElementById('status')
-  if(!target){
+  if (!target) {
     return
   }
   renderConnectionPanel()
-  if(connectionPhase === 'offline' && transportErrorMessage){
+  if (connectionPhase === 'offline' && transportErrorMessage) {
     target.textContent = transportErrorMessage
     return
   }
-  if(connectionPhase === 'connecting'){
+  if (connectionPhase === 'connecting') {
     target.textContent = isRelayMode()
       ? t('web.connectingRelay')
       : t('web.connecting')
     return
   }
-  if(connectionPhase === 'reconnecting'){
+  if (connectionPhase === 'reconnecting') {
     target.textContent = isRelayMode()
       ? t('web.reconnectingRelay')
       : t('web.reconnecting')
     return
   }
-  if(connectionPhase === 'offline'){
+  if (connectionPhase === 'offline') {
     target.textContent = isRelayMode()
       ? t('web.offlineRelay')
       : t('web.offline')
     return
   }
-  if(!lastState){
+  if (!lastState) {
     target.textContent = t('web.connectedWaiting')
     return
   }
   target.textContent = lastState.statusMessage || (lastState.running ? t('web.presentationRunning') : t('web.waitingSlideshow'))
 }
 
-function slideLabel(currentSlide, slideCount){
-  if(typeof currentSlide !== 'number' || !slideCount){
+function slideLabel(currentSlide, slideCount) {
+  if (typeof currentSlide !== 'number' || !slideCount) {
     return '-- / --'
   }
   return `${currentSlide + 1} / ${slideCount}`
 }
 
-function formatElapsed(seconds){
+function formatElapsed(seconds) {
   const normalized = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
   const hours = Math.floor(normalized / 3600)
   const minutes = Math.floor((normalized % 3600) / 60)
   const remainingSeconds = normalized % 60
   const two = value => String(value).padStart(2, '0')
-  if(hours > 0){
+  if (hours > 0) {
     return `${hours}:${two(minutes)}:${two(remainingSeconds)}`
   }
   return `${two(minutes)}:${two(remainingSeconds)}`
 }
 
-function currentTimerValues(state = lastState){
-  if(!state || !state.running){
-    return {total: 0, slide: 0}
+function currentTimerValues(state = lastState) {
+  if (!state || !state.running) {
+    return { total: 0, slide: 0 }
   }
-  if(timerPaused){
+  if (timerPaused) {
     return {
       total: frozenTotalTimerSeconds,
       slide: frozenSlideTimerSeconds,
@@ -345,24 +376,24 @@ function currentTimerValues(state = lastState){
   }
 }
 
-function renderTimers(state){
+function renderTimers(state) {
   const stack = document.getElementById('timer-stack')
   const totalTimer = document.getElementById('total-timer-chip')
   const slideTimer = document.getElementById('slide-timer-chip')
-  if(!stack || !totalTimer || !slideTimer){
+  if (!stack || !totalTimer || !slideTimer) {
     return
   }
   const shouldShow = !!(state && state.running)
   stack.hidden = !shouldShow
-  if(shouldShow){
+  if (shouldShow) {
     const values = currentTimerValues(state)
     totalTimer.textContent = `Σ ${formatElapsed(values.total)}`
     slideTimer.textContent = `↻ ${formatElapsed(values.slide)}`
   }
 }
 
-function syncTimerState(state){
-  if(!state || !state.running){
+function syncTimerState(state) {
+  if (!state || !state.running) {
     previousSlideForTimer = null
     totalTimerBaseSeconds = 0
     totalTimerBaseMs = Date.now()
@@ -376,13 +407,13 @@ function syncTimerState(state){
     return
   }
   const currentSlide = typeof state.currentSlide === 'number' ? state.currentSlide : null
-  if(!totalTimerRunning){
+  if (!totalTimerRunning) {
     const elapsedSeconds = Number(state.elapsedSeconds || 0)
     totalTimerBaseSeconds = Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0
     totalTimerBaseMs = Date.now()
     totalTimerRunning = true
   }
-  if(previousSlideForTimer !== currentSlide){
+  if (previousSlideForTimer !== currentSlide) {
     previousSlideForTimer = currentSlide
     slideTimerBaseMs = Date.now()
     frozenSlideTimerSeconds = 0
@@ -391,16 +422,16 @@ function syncTimerState(state){
   syncTimerButton()
 }
 
-function toggleTimers(){
-  if(!lastState || !lastState.running){
+function toggleTimers() {
+  if (!lastState || !lastState.running) {
     return
   }
-  if(timerPaused){
+  if (timerPaused) {
     timerPaused = false
     totalTimerBaseSeconds = frozenTotalTimerSeconds
     totalTimerBaseMs = Date.now()
     slideTimerBaseMs = Date.now() - frozenSlideTimerSeconds * 1000
-  }else{
+  } else {
     const values = currentTimerValues(lastState)
     frozenTotalTimerSeconds = values.total
     frozenSlideTimerSeconds = values.slide
@@ -410,71 +441,71 @@ function toggleTimers(){
   syncTimerButton()
 }
 
-function setDrawerOpen(open){
+function setDrawerOpen(open) {
   const drawer = document.getElementById('command-drawer')
   const button = document.getElementById('more-button')
-  if(!drawer || !button){
+  if (!drawer || !button) {
     return
   }
   drawer.hidden = !open
   button.setAttribute('aria-expanded', open ? 'true' : 'false')
 }
 
-function drawerOpen(){
+function drawerOpen() {
   const drawer = document.getElementById('command-drawer')
   return !!drawer && !drawer.hidden
 }
 
-function closeDrawer(){
+function closeDrawer() {
   setDrawerOpen(false)
 }
 
-function toggleDrawer(){
+function toggleDrawer() {
   setDrawerOpen(!drawerOpen())
 }
 
-function fullscreenElement(){
+function fullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || null
 }
 
-async function requestFullscreenMode(){
+async function requestFullscreenMode() {
   const root = document.documentElement
-  try{
-    if(root.requestFullscreen){
+  try {
+    if (root.requestFullscreen) {
       await root.requestFullscreen()
-    }else if(root.webkitRequestFullscreen){
+    } else if (root.webkitRequestFullscreen) {
       root.webkitRequestFullscreen()
     }
-  }catch(_error){
+  } catch (_error) {
   }
-  try{
-    if(screen.orientation && screen.orientation.lock){
+  try {
+    if (screen.orientation && screen.orientation.lock) {
       await screen.orientation.lock('landscape')
     }
-  }catch(_error){
+  } catch (_error) {
   }
   setPresentationFullscreen(true)
 }
 
-async function exitFullscreenMode(){
-  try{
-    if(screen.orientation && screen.orientation.unlock){
+async function exitFullscreenMode() {
+  try {
+    if (screen.orientation && screen.orientation.unlock) {
       screen.orientation.unlock()
     }
-  }catch(_error){
+  } catch (_error) {
   }
-  try{
-    if(document.exitFullscreen && fullscreenElement()){
+  try {
+    if (document.exitFullscreen && fullscreenElement()) {
       await document.exitFullscreen()
-    }else if(document.webkitExitFullscreen && fullscreenElement()){
+    } else if (document.webkitExitFullscreen && fullscreenElement()) {
       document.webkitExitFullscreen()
     }
-  }catch(_error){
+  } catch (_error) {
   }
   setPresentationFullscreen(false)
 }
 
-function setPresentationFullscreen(enabled){
+function setPresentationFullscreen(enabled) {
   presentationFullscreen = !!enabled
   document.body.classList.toggle('presentation-fullscreen', presentationFullscreen)
   document.querySelectorAll('.side-controls').forEach(node => {
@@ -484,9 +515,9 @@ function setPresentationFullscreen(enabled){
   syncNavigationButtons(lastState)
 }
 
-function syncFullscreenButton(){
+function syncFullscreenButton() {
   const button = document.getElementById('fullscreen-button')
-  if(!button){
+  if (!button) {
     return
   }
   const label = presentationFullscreen ? t('aria.exitFullscreen') : t('aria.enterFullscreen')
@@ -495,18 +526,18 @@ function syncFullscreenButton(){
   button.classList.toggle('drawer-button-active', presentationFullscreen)
 }
 
-function togglePresentationFullscreen(){
+function togglePresentationFullscreen() {
   closeDrawer()
-  if(presentationFullscreen){
+  if (presentationFullscreen) {
     exitFullscreenMode()
     return
   }
   requestFullscreenMode()
 }
 
-function syncTimerButton(){
+function syncTimerButton() {
   const button = document.getElementById('timer-toggle-button')
-  if(!button){
+  if (!button) {
     return
   }
   const label = timerPaused ? t('aria.resumeTimer') : t('aria.pauseTimer')
@@ -518,13 +549,13 @@ function syncTimerButton(){
     : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6v12M15 6v12"/></svg>'
 }
 
-function revokeObjectUrl(value){
-  if(value){
+function revokeObjectUrl(value) {
+  if (value) {
     URL.revokeObjectURL(value)
   }
 }
 
-function clearSlideImage(){
+function clearSlideImage() {
   const image = document.getElementById('slide-image')
   const placeholder = document.getElementById('slide-placeholder')
   image.hidden = true
@@ -532,15 +563,15 @@ function clearSlideImage(){
   image.removeAttribute('src')
 }
 
-async function updateSlideImage(state){
-  if(isRelayMode()){
+async function updateSlideImage(state) {
+  if (isRelayMode()) {
     syncCurrentSlideAsset()
     return
   }
   const image = document.getElementById('slide-image')
   const placeholder = document.getElementById('slide-placeholder')
   const nextUrl = state.currentSlideImageUrl || ''
-  if(!nextUrl){
+  if (!nextUrl) {
     image.hidden = true
     placeholder.hidden = false
     lastImageUrl = ''
@@ -548,11 +579,11 @@ async function updateSlideImage(state){
     currentImageObjectUrl = ''
     return
   }
-  if(nextUrl !== lastImageUrl){
+  if (nextUrl !== lastImageUrl) {
     const blobUrl = isLocalFallbackMode()
       ? await fetchLocalFallbackSlideObjectUrl(nextUrl)
       : await fetchSecureSlideObjectUrl(nextUrl)
-    if((lastState && lastState.currentSlideImageUrl) !== nextUrl){
+    if ((lastState && lastState.currentSlideImageUrl) !== nextUrl) {
       revokeObjectUrl(blobUrl)
       return
     }
@@ -565,25 +596,25 @@ async function updateSlideImage(state){
   placeholder.hidden = true
 }
 
-async function preloadNextSlide(state){
-  if(isRelayMode()){
+async function preloadNextSlide(state) {
+  if (isRelayMode()) {
     syncNextSlideAsset()
     return
   }
   const nextUrl = state.nextSlideImageUrl || ''
-  if(!nextUrl){
+  if (!nextUrl) {
     lastNextImageUrl = ''
     revokeObjectUrl(nextImageObjectUrl)
     nextImageObjectUrl = ''
     return
   }
-  if(nextUrl === lastNextImageUrl){
+  if (nextUrl === lastNextImageUrl) {
     return
   }
   const blobUrl = isLocalFallbackMode()
     ? await fetchLocalFallbackSlideObjectUrl(nextUrl)
     : await fetchSecureSlideObjectUrl(nextUrl)
-  if((lastState && lastState.nextSlideImageUrl) !== nextUrl){
+  if ((lastState && lastState.nextSlideImageUrl) !== nextUrl) {
     revokeObjectUrl(blobUrl)
     return
   }
@@ -593,23 +624,23 @@ async function preloadNextSlide(state){
   lastNextImageUrl = nextUrl
 }
 
-function syncCurrentSlideAsset(){
+function syncCurrentSlideAsset() {
   const image = document.getElementById('slide-image')
   const placeholder = document.getElementById('slide-placeholder')
   const expectedRevision = lastState && typeof lastState.currentSlideImageRevision === 'string'
     ? lastState.currentSlideImageRevision
     : ''
   const asset = relayState.assets.current
-  if(!expectedRevision || asset.revision !== expectedRevision || !asset.url){
+  if (!expectedRevision || asset.revision !== expectedRevision || !asset.url) {
     clearSlideImage()
     currentImageObjectUrl = ''
     return
   }
-  if(currentImageObjectUrl !== asset.url){
+  if (currentImageObjectUrl !== asset.url) {
     const previousUrl = currentImageObjectUrl
     image.src = asset.url
     currentImageObjectUrl = asset.url
-    if(previousUrl && previousUrl !== asset.url && previousUrl !== relayState.assets.next.url){
+    if (previousUrl && previousUrl !== asset.url && previousUrl !== relayState.assets.next.url) {
       revokeObjectUrl(previousUrl)
     }
   }
@@ -617,35 +648,35 @@ function syncCurrentSlideAsset(){
   placeholder.hidden = true
 }
 
-function syncNextSlideAsset(){
+function syncNextSlideAsset() {
   const expectedRevision = lastState && typeof lastState.nextSlideImageRevision === 'string'
     ? lastState.nextSlideImageRevision
     : ''
   const asset = relayState.assets.next
-  if(!expectedRevision || asset.revision !== expectedRevision || !asset.url){
+  if (!expectedRevision || asset.revision !== expectedRevision || !asset.url) {
     nextImageObjectUrl = ''
     nextImagePreload.removeAttribute('src')
     return
   }
-  if(nextImageObjectUrl !== asset.url){
+  if (nextImageObjectUrl !== asset.url) {
     const previousUrl = nextImageObjectUrl
     nextImageObjectUrl = asset.url
     nextImagePreload.src = asset.url
-    if(previousUrl && previousUrl !== asset.url && previousUrl !== currentImageObjectUrl){
+    if (previousUrl && previousUrl !== asset.url && previousUrl !== currentImageObjectUrl) {
       revokeObjectUrl(previousUrl)
     }
   }
 }
 
-function syncRenderedAssets(){
-  if(!isRelayMode()){
+function syncRenderedAssets() {
+  if (!isRelayMode()) {
     return
   }
   syncCurrentSlideAsset()
   syncNextSlideAsset()
 }
 
-function showPlaceholderMessage(message){
+function showPlaceholderMessage(message) {
   document.getElementById('current-title').textContent = message
   document.getElementById('notes').textContent = ''
   document.querySelectorAll('.slide-label').forEach(node => {
@@ -655,12 +686,12 @@ function showPlaceholderMessage(message){
   clearSlideImage()
 }
 
-function showTransportError(error){
+function showTransportError(error) {
   transportErrorMessage = messageFromError(error)
   setConnectionPhase('offline')
 }
 
-function renderState(state){
+function renderState(state) {
   lastState = state
   document.querySelectorAll('.slide-label').forEach(node => {
     node.textContent = slideLabel(state.currentSlide, state.slideCount)
@@ -673,27 +704,27 @@ function renderState(state){
   syncTimerState(state)
   updateSlideImage(state).catch(showTransportError)
   preloadNextSlide(state).catch(showTransportError)
-  if(isRelayMode()){
+  if (isRelayMode()) {
     syncRenderedAssets()
   }
   renderBanner()
 }
 
-async function fetchJson(url, options){
+async function fetchJson(url, options) {
   const response = await fetch(url, options)
   let data = {}
-  try{
+  try {
     data = await response.json()
-  }catch(_error){
+  } catch (_error) {
     data = {}
   }
-  if(!response.ok){
+  if (!response.ok) {
     throw new Error(data.error || `${response.status} ${response.statusText}`)
   }
   return data
 }
 
-function localFallbackHeaders(extra = {}){
+function localFallbackHeaders(extra = {}) {
   return {
     ...extra,
     'X-Impress-Remote-Session': routeSession,
@@ -701,116 +732,116 @@ function localFallbackHeaders(extra = {}){
   }
 }
 
-async function fetchLocalFallbackJson(url, options = {}){
+async function fetchLocalFallbackJson(url, options = {}) {
   return fetchJson(url, {
     ...options,
     headers: localFallbackHeaders(options.headers || {}),
   })
 }
 
-async function refreshLocalFallbackStateSnapshot(){
+async function refreshLocalFallbackStateSnapshot() {
   const state = await fetchLocalFallbackJson('/api/local/state')
   hasEverConnected = true
   setConnectionPhase('live')
   renderState(state)
 }
 
-async function sendLocalFallbackCommand(commandName, payload = {}){
+async function sendLocalFallbackCommand(commandName, payload = {}) {
   await fetchLocalFallbackJson('/api/local/command', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({command: commandName, ...payload}),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command: commandName, ...payload }),
   })
   await refreshLocalFallbackStateSnapshot()
 }
 
-async function fetchLocalFallbackSlideObjectUrl(url){
+async function fetchLocalFallbackSlideObjectUrl(url) {
   const response = await fetch(url, {
     headers: localFallbackHeaders(),
   })
-  if(!response.ok){
+  if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`)
   }
   const blob = await response.blob()
   return URL.createObjectURL(blob)
 }
 
-async function refreshStateSnapshot(){
-  if(isRelayMode()){
+async function refreshStateSnapshot() {
+  if (isRelayMode()) {
     return
   }
-  if(isLocalFallbackMode()){
+  if (isLocalFallbackMode()) {
     return refreshLocalFallbackStateSnapshot()
   }
-  if(isSecureDirectMode()){
+  if (isSecureDirectMode()) {
     return refreshSecureDirectStateSnapshot()
   }
 }
 
-function connectEvents(){
-  if(isRelayMode()){
+function connectEvents() {
+  if (isRelayMode()) {
     connectRelay().catch(showTransportError)
     return
   }
-  if(isLocalFallbackMode()){
+  if (isLocalFallbackMode()) {
     startPollingFallback()
     return
   }
-  if(isSecureDirectMode()){
+  if (isSecureDirectMode()) {
     connectSecureDirectEvents().catch(showTransportError)
     return
   }
 }
 
-function startPollingFallback(){
-  if(pollTimer){
+function startPollingFallback() {
+  if (pollTimer) {
     window.clearInterval(pollTimer)
   }
   const poll = async () => {
-    try{
+    try {
       await refreshStateSnapshot()
-    }catch(_error){
+    } catch (_error) {
       setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
     }
   }
-  poll().catch(() => {})
+  poll().catch(() => { })
   pollTimer = window.setInterval(() => {
-    poll().catch(() => {})
+    poll().catch(() => { })
   }, 1500)
 }
 
-async function command(name, payload = {}){
-  if(isRelayMode()){
+async function command(name, payload = {}) {
+  if (isRelayMode()) {
     await sendRelayCommand(name, payload)
     return
   }
-  if(isLocalFallbackMode()){
+  if (isLocalFallbackMode()) {
     await sendLocalFallbackCommand(name, payload)
     return
   }
-  if(isSecureDirectMode()){
+  if (isSecureDirectMode()) {
     await sendSecureDirectCommand(name, payload)
     return
   }
 }
 
-function stopTransports(){
-  if(eventSource){
+function stopTransports() {
+  if (eventSource) {
     eventSource.close()
     eventSource = null
   }
-  if(pollTimer){
+  if (pollTimer) {
     window.clearInterval(pollTimer)
     pollTimer = null
   }
-  if(relayState.reconnectTimer){
+  if (relayState.reconnectTimer) {
     window.clearTimeout(relayState.reconnectTimer)
     relayState.reconnectTimer = null
   }
   closeSocket()
 }
 
-function retryConnection(){
+function retryConnection() {
   stopTransports()
   transportErrorMessage = ''
   setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
@@ -834,13 +865,13 @@ document.getElementById('fullscreen-button').addEventListener('click', event => 
 })
 
 document.addEventListener('fullscreenchange', () => {
-  if(!fullscreenElement()){
+  if (!fullscreenElement()) {
     setPresentationFullscreen(false)
   }
 })
 
 document.addEventListener('webkitfullscreenchange', () => {
-  if(!fullscreenElement()){
+  if (!fullscreenElement()) {
     setPresentationFullscreen(false)
   }
 })
@@ -852,7 +883,7 @@ document.getElementById('timer-toggle-button').addEventListener('click', () => {
 document.getElementById('goto-button').addEventListener('click', () => {
   const input = document.getElementById('goto-input')
   const value = Number.parseInt(input.value, 10)
-  if(!Number.isFinite(value) || value < 1){
+  if (!Number.isFinite(value) || value < 1) {
     input.focus()
     return
   }
@@ -860,7 +891,7 @@ document.getElementById('goto-button').addEventListener('click', () => {
     ? Math.max(lastState.slideCount, 1)
     : value
   input.value = ''
-  command('goto_slide', {index: Math.min(value, maxSlide) - 1})
+  command('goto_slide', { index: Math.min(value, maxSlide) - 1 })
     .then(closeDrawer)
     .catch(showTransportError)
 })
@@ -870,7 +901,7 @@ window.setInterval(() => {
 }, 1000)
 
 document.getElementById('goto-input').addEventListener('keydown', event => {
-  if(event.key !== 'Enter'){
+  if (event.key !== 'Enter') {
     return
   }
   event.preventDefault()
@@ -878,12 +909,12 @@ document.getElementById('goto-input').addEventListener('keydown', event => {
 })
 
 document.addEventListener('click', event => {
-  if(!drawerOpen()){
+  if (!drawerOpen()) {
     return
   }
   const drawer = document.getElementById('command-drawer')
   const moreButton = document.getElementById('more-button')
-  if(drawer.contains(event.target) || moreButton.contains(event.target)){
+  if (drawer.contains(event.target) || moreButton.contains(event.target)) {
     return
   }
   closeDrawer()
@@ -897,12 +928,12 @@ document.getElementById('reload-button').addEventListener('click', () => {
   window.location.reload()
 })
 
-function canAdvanceWithSlideTap(){
+function canAdvanceWithSlideTap() {
   return connectionPhase === 'live' && !!lastState && !!lastState.canGoNext
 }
 
-function handleSlideAdvance(){
-  if(!canAdvanceWithSlideTap()){
+function handleSlideAdvance() {
+  if (!canAdvanceWithSlideTap()) {
     return
   }
   command('next_slide').catch(showTransportError)
@@ -913,7 +944,7 @@ slideFrame.addEventListener('click', () => {
   handleSlideAdvance()
 })
 slideFrame.addEventListener('keydown', event => {
-  if(event.key !== 'Enter' && event.key !== ' '){
+  if (event.key !== 'Enter' && event.key !== ' ') {
     return
   }
   event.preventDefault()
@@ -924,20 +955,20 @@ document.getElementById('slide-image').addEventListener('error', () => {
   clearSlideImage()
 })
 
-function closeSocket(){
-  if(relayState.connectTimeoutTimer){
+function closeSocket() {
+  if (relayState.connectTimeoutTimer) {
     window.clearTimeout(relayState.connectTimeoutTimer)
     relayState.connectTimeoutTimer = null
   }
-  if(relayState.socket){
+  if (relayState.socket) {
     relayState.socket.onclose = null
     relayState.socket.close()
     relayState.socket = null
   }
 }
 
-function scheduleReconnect(){
-  if(relayState.reconnectTimer || !relayState.session || !relayState.pairingSecret){
+function scheduleReconnect() {
+  if (relayState.reconnectTimer || !relayState.session || !relayState.pairingSecret) {
     return
   }
   relayState.reconnectTimer = window.setTimeout(() => {
@@ -946,33 +977,33 @@ function scheduleReconnect(){
   }, 1500)
 }
 
-function utf8(text){
+function utf8(text) {
   return new TextEncoder().encode(text)
 }
 
-function concatBytes(...chunks){
+function concatBytes(...chunks) {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
   const joined = new Uint8Array(total)
   let offset = 0
-  for(const chunk of chunks){
+  for (const chunk of chunks) {
     joined.set(chunk, offset)
     offset += chunk.length
   }
   return joined
 }
 
-function base64UrlToBytes(text){
+function base64UrlToBytes(text) {
   const padding = '='.repeat((4 - (text.length % 4 || 4)) % 4)
   const base64 = (text + padding).replace(/-/g, '+').replace(/_/g, '/')
   const binary = window.atob(base64)
   const bytes = new Uint8Array(binary.length)
-  for(let index = 0; index < binary.length; index += 1){
+  for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index)
   }
   return bytes
 }
 
-function bytesToBase64Url(bytes){
+function bytesToBase64Url(bytes) {
   let binary = ''
   bytes.forEach(value => {
     binary += String.fromCharCode(value)
@@ -980,20 +1011,20 @@ function bytesToBase64Url(bytes){
   return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
-function rememberReplay(cache, nonceText){
-  if(cache.values.has(nonceText)){
+function rememberReplay(cache, nonceText) {
+  if (cache.values.has(nonceText)) {
     return false
   }
   cache.values.add(nonceText)
   cache.order.push(nonceText)
-  while(cache.order.length > REPLAY_CACHE_SIZE){
+  while (cache.order.length > REPLAY_CACHE_SIZE) {
     const expired = cache.order.shift()
     cache.values.delete(expired)
   }
   return true
 }
 
-function frameAad(session, keyId, kind, nonceText){
+function frameAad(session, keyId, kind, nonceText) {
   return utf8(JSON.stringify({
     kind,
     k: keyId,
@@ -1003,12 +1034,12 @@ function frameAad(session, keyId, kind, nonceText){
   }))
 }
 
-async function deriveRelayCodec(session, secretText, hello){
+async function deriveRelayCodec(session, secretText, hello) {
   const pairingVerifier = base64UrlToBytes(secretText)
   const pluginNonce = base64UrlToBytes(hello.pluginNonce)
   const pluginPublicKey = base64UrlToBytes(hello.publicKey)
   const phoneKeyPair = await crypto.subtle.generateKey(
-    {name: 'ECDH', namedCurve: 'P-256'},
+    { name: 'ECDH', namedCurve: 'P-256' },
     false,
     ['deriveBits'],
   )
@@ -1016,7 +1047,7 @@ async function deriveRelayCodec(session, secretText, hello){
   const importedPluginPublicKey = await crypto.subtle.importKey(
     'raw',
     pluginPublicKey,
-    {name: 'ECDH', namedCurve: 'P-256'},
+    { name: 'ECDH', namedCurve: 'P-256' },
     false,
     [],
   )
@@ -1053,9 +1084,9 @@ async function deriveRelayCodec(session, secretText, hello){
   )
   const material = new Uint8Array(bits)
   const keySet = {
-    stateKey: await crypto.subtle.importKey('raw', material.slice(0, 32), {name: 'AES-GCM'}, false, ['decrypt']),
-    commandKey: await crypto.subtle.importKey('raw', material.slice(32, 64), {name: 'AES-GCM'}, false, ['encrypt']),
-    pluginReplay: {values: new Set(), order: []},
+    stateKey: await crypto.subtle.importKey('raw', material.slice(0, 32), { name: 'AES-GCM' }, false, ['decrypt']),
+    commandKey: await crypto.subtle.importKey('raw', material.slice(32, 64), { name: 'AES-GCM' }, false, ['encrypt']),
+    pluginReplay: { values: new Set(), order: [] },
   }
   return {
     keyId: hello.keyId,
@@ -1075,8 +1106,8 @@ async function deriveRelayCodec(session, secretText, hello){
   }
 }
 
-function parseHello(payload){
-  if(
+function parseHello(payload) {
+  if (
     payload.type !== 'hello'
     || payload.v !== RELAY_PROTOCOL_VERSION
     || typeof payload.s !== 'string'
@@ -1084,7 +1115,7 @@ function parseHello(payload){
     || typeof payload.nonce !== 'string'
     || payload.role !== 'plugin'
     || typeof payload.pub !== 'string'
-  ){
+  ) {
     return null
   }
   return {
@@ -1096,47 +1127,47 @@ function parseHello(payload){
   }
 }
 
-function storeNegotiatedCodec(existingCodec, negotiated){
-  const codec = existingCodec || {activeKeyId: '', keys: {}}
+function storeNegotiatedCodec(existingCodec, negotiated) {
+  const codec = existingCodec || { activeKeyId: '', keys: {} }
   codec.keys[negotiated.keyId] = negotiated.keySet
   codec.activeKeyId = negotiated.keyId
   return codec
 }
 
-async function applySecureHelloPayload(payload, responseHandler = null){
+async function applySecureHelloPayload(payload, responseHandler = null) {
   const hello = parseHello(payload)
-  if(!hello){
+  if (!hello) {
     throw new Error(t('web.directHandshakeInvalid'))
   }
-  if(hello.sessionId !== routeSession){
+  if (hello.sessionId !== routeSession) {
     throw new Error(t('web.directHandshakeMismatch'))
   }
   const negotiated = await deriveRelayCodec(routeSession, pairingSecret, hello)
   secureState.codec = storeNegotiatedCodec(secureState.codec, negotiated)
-  if(responseHandler){
+  if (responseHandler) {
     await responseHandler(negotiated.responseHello)
   }
 }
 
-async function establishSecureDirectHandshake(){
-  if(secureState.codec){
+async function establishSecureDirectHandshake() {
+  if (secureState.codec) {
     return
   }
   const hello = await fetchJson(directSessionUrl('/api/direct/handshake'))
   await applySecureHelloPayload(hello, responseHello => {
     return fetchJson(directSessionUrl('/api/direct/handshake'), {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(responseHello),
     })
   })
 }
 
-async function decryptSecureFramePayload(payload){
-  if(!secureState.codec){
+async function decryptSecureFramePayload(payload) {
+  if (!secureState.codec) {
     throw new Error(t('web.secureDirectHandshakeWaiting'))
   }
-  if(
+  if (
     payload.type !== 'frame'
     || payload.v !== RELAY_PROTOCOL_VERSION
     || payload.s !== routeSession
@@ -1144,18 +1175,18 @@ async function decryptSecureFramePayload(payload){
     || typeof payload.kind !== 'string'
     || typeof payload.n !== 'string'
     || typeof payload.ct !== 'string'
-  ){
+  ) {
     return null
   }
   const keySet = secureState.codec.keys[payload.k]
-  if(!keySet){
+  if (!keySet) {
     return null
   }
-  if(!rememberReplay(keySet.pluginReplay, payload.n)){
+  if (!rememberReplay(keySet.pluginReplay, payload.n)) {
     throw new Error(t('web.secureDirectReplay'))
   }
   const blob = base64UrlToBytes(payload.ct)
-  if(blob.length < 16){
+  if (blob.length < 16) {
     throw new Error(t('web.directPayloadTruncated'))
   }
   const ciphertext = blob.slice(0, blob.length - 16)
@@ -1179,20 +1210,20 @@ async function decryptSecureFramePayload(payload){
   }
 }
 
-async function refreshSecureDirectStateSnapshot(){
+async function refreshSecureDirectStateSnapshot() {
   await establishSecureDirectHandshake()
   const payload = await fetchJson(directSessionUrl('/api/direct/state'))
-  if(payload.hello){
+  if (payload.hello) {
     await applySecureHelloPayload(payload.hello, responseHello => {
       return fetchJson(directSessionUrl('/api/direct/handshake'), {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(responseHello),
       })
     })
   }
   const decrypted = await decryptSecureFramePayload(payload.frame)
-  if(!decrypted || decrypted.kind !== RELAY_KIND_STATE){
+  if (!decrypted || decrypted.kind !== RELAY_KIND_STATE) {
     throw new Error(t('web.directStateInvalid'))
   }
   hasEverConnected = true
@@ -1200,19 +1231,19 @@ async function refreshSecureDirectStateSnapshot(){
   renderState(decrypted.payload)
 }
 
-async function connectSecureDirectEvents(){
-  if(!pairingSecret || !routeSession){
+async function connectSecureDirectEvents() {
+  if (!pairingSecret || !routeSession) {
     throw new Error(t('web.directLinkRequired'))
   }
-  if(!hasWebCrypto()){
+  if (!hasWebCrypto()) {
     throw new Error(t('web.webCryptoDirectUnsupported'))
   }
-  if(!('EventSource' in window)){
+  if (!('EventSource' in window)) {
     startPollingFallback()
     return
   }
   await establishSecureDirectHandshake()
-  if(eventSource){
+  if (eventSource) {
     eventSource.close()
   }
   eventSource = new EventSource(directSessionUrl('/api/direct/events'))
@@ -1223,13 +1254,13 @@ async function connectSecureDirectEvents(){
     applySecureHelloPayload(JSON.parse(event.data), responseHello => {
       return fetchJson(directSessionUrl('/api/direct/handshake'), {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(responseHello),
       })
     })
       .then(() => {
         hasEverConnected = true
-        if(connectionPhase !== 'offline'){
+        if (connectionPhase !== 'offline') {
           setConnectionPhase('live')
         }
       })
@@ -1238,7 +1269,7 @@ async function connectSecureDirectEvents(){
   eventSource.addEventListener('state', event => {
     decryptSecureFramePayload(JSON.parse(event.data))
       .then(decrypted => {
-        if(!decrypted || decrypted.kind !== RELAY_KIND_STATE){
+        if (!decrypted || decrypted.kind !== RELAY_KIND_STATE) {
           return
         }
         hasEverConnected = true
@@ -1252,11 +1283,11 @@ async function connectSecureDirectEvents(){
   }
 }
 
-async function buildSecureCommandFrame(commandName, payload = {}){
+async function buildSecureCommandFrame(commandName, payload = {}) {
   await establishSecureDirectHandshake()
   const nonce = crypto.getRandomValues(new Uint8Array(12))
   const nonceText = bytesToBase64Url(nonce)
-  const plaintext = utf8(JSON.stringify({command: commandName, ...payload}))
+  const plaintext = utf8(JSON.stringify({ command: commandName, ...payload }))
   const encrypted = await crypto.subtle.encrypt(
     {
       name: 'AES-GCM',
@@ -1278,53 +1309,53 @@ async function buildSecureCommandFrame(commandName, payload = {}){
   }
 }
 
-async function sendSecureDirectCommand(commandName, payload = {}){
+async function sendSecureDirectCommand(commandName, payload = {}) {
   const frame = await buildSecureCommandFrame(commandName, payload)
   await fetchJson(directSessionUrl('/api/direct/command'), {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(frame),
   })
-  if(!eventSource){
+  if (!eventSource) {
     await refreshSecureDirectStateSnapshot()
   }
 }
 
-async function fetchSecureSlideObjectUrl(url){
+async function fetchSecureSlideObjectUrl(url) {
   const payload = await fetchJson(url)
-  if(payload.hello){
+  if (payload.hello) {
     await applySecureHelloPayload(payload.hello, responseHello => {
       return fetchJson(directSessionUrl('/api/direct/handshake'), {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(responseHello),
       })
     })
   }
   const decrypted = await decryptSecureFramePayload(payload.frame)
-  if(!decrypted || decrypted.kind !== RELAY_KIND_ASSET){
+  if (!decrypted || decrypted.kind !== RELAY_KIND_ASSET) {
     throw new Error(t('web.directSlideInvalid'))
   }
   const contentType = decrypted.payload.contentType
   const encoding = decrypted.payload.encoding
   const data = decrypted.payload.data
-  if(
+  if (
     typeof contentType !== 'string'
     || typeof encoding !== 'string'
     || typeof data !== 'string'
     || encoding !== 'base64url'
-  ){
+  ) {
     throw new Error(t('web.directPayloadMalformed'))
   }
-  const blob = new Blob([base64UrlToBytes(data)], {type: contentType})
+  const blob = new Blob([base64UrlToBytes(data)], { type: contentType })
   return URL.createObjectURL(blob)
 }
 
-async function decryptRelayFrame(payload){
-  if(!relayState.codec){
+async function decryptRelayFrame(payload) {
+  if (!relayState.codec) {
     throw new Error(t('web.relayHandshakeWaiting'))
   }
-  if(
+  if (
     payload.type !== 'frame'
     || payload.v !== RELAY_PROTOCOL_VERSION
     || payload.s !== relayState.session
@@ -1332,18 +1363,18 @@ async function decryptRelayFrame(payload){
     || typeof payload.kind !== 'string'
     || typeof payload.n !== 'string'
     || typeof payload.ct !== 'string'
-  ){
+  ) {
     return null
   }
   const keySet = relayState.codec.keys[payload.k]
-  if(!keySet){
+  if (!keySet) {
     return null
   }
-  if(!rememberReplay(keySet.pluginReplay, payload.n)){
+  if (!rememberReplay(keySet.pluginReplay, payload.n)) {
     throw new Error(t('web.relayReplay'))
   }
   const blob = base64UrlToBytes(payload.ct)
-  if(blob.length < 16){
+  if (blob.length < 16) {
     throw new Error(t('web.relayFrameTruncated'))
   }
   const ciphertext = blob.slice(0, blob.length - 16)
@@ -1367,13 +1398,13 @@ async function decryptRelayFrame(payload){
   }
 }
 
-async function applyAssetPayload(payload){
+async function applyAssetPayload(payload) {
   const contentType = payload.contentType
   const encoding = payload.encoding
   const data = payload.data
   const slot = payload.slot
   const revision = payload.revision
-  if(
+  if (
     typeof contentType !== 'string'
     || typeof encoding !== 'string'
     || typeof data !== 'string'
@@ -1381,66 +1412,66 @@ async function applyAssetPayload(payload){
     || typeof revision !== 'string'
     || encoding !== 'base64url'
     || !['current', 'next'].includes(slot)
-  ){
+  ) {
     throw new Error(t('web.relayAssetMalformed'))
   }
-  const blob = new Blob([base64UrlToBytes(data)], {type: contentType})
+  const blob = new Blob([base64UrlToBytes(data)], { type: contentType })
   const objectUrl = URL.createObjectURL(blob)
   const existing = relayState.assets[slot]
-  if(existing.url && existing.url !== currentImageObjectUrl && existing.url !== nextImageObjectUrl){
+  if (existing.url && existing.url !== currentImageObjectUrl && existing.url !== nextImageObjectUrl) {
     revokeObjectUrl(existing.url)
   }
-  relayState.assets[slot] = {revision, url: objectUrl}
+  relayState.assets[slot] = { revision, url: objectUrl }
   syncRenderedAssets()
 }
 
-async function handleIncoming(raw){
+async function handleIncoming(raw) {
   const payload = JSON.parse(raw)
   const hello = parseHello(payload)
-  if(hello){
-    if(hello.sessionId !== relayState.session){
+  if (hello) {
+    if (hello.sessionId !== relayState.session) {
       return
     }
     const negotiated = await deriveRelayCodec(relayState.session, relayState.pairingSecret, hello)
     relayState.codec = storeNegotiatedCodec(relayState.codec, negotiated)
-    if(relayState.socket && relayState.socket.readyState === WebSocket.OPEN){
+    if (relayState.socket && relayState.socket.readyState === WebSocket.OPEN) {
       relayState.socket.send(JSON.stringify(negotiated.responseHello))
     }
     renderBanner()
     return
   }
-  if(payload.type === 'error' && typeof payload.message === 'string'){
+  if (payload.type === 'error' && typeof payload.message === 'string') {
     throw new Error(localizedMessage(payload.message))
   }
   const decrypted = await decryptRelayFrame(payload)
-  if(!decrypted){
+  if (!decrypted) {
     return
   }
-  if(decrypted.kind === RELAY_KIND_STATE && decrypted.payload){
+  if (decrypted.kind === RELAY_KIND_STATE && decrypted.payload) {
     hasEverConnected = true
     setConnectionPhase('live')
     renderState(decrypted.payload)
     return
   }
-  if(decrypted.kind === RELAY_KIND_ASSET && decrypted.payload){
+  if (decrypted.kind === RELAY_KIND_ASSET && decrypted.payload) {
     await applyAssetPayload(decrypted.payload)
     return
   }
-  if(
+  if (
     decrypted.kind === RELAY_KIND_ERROR
     && typeof decrypted.payload.message === 'string'
-  ){
+  ) {
     throw new Error(localizedMessage(decrypted.payload.message))
   }
 }
 
-async function sendRelayCommand(commandName, payload = {}){
-  if(!relayState.socket || relayState.socket.readyState !== WebSocket.OPEN || !relayState.codec){
+async function sendRelayCommand(commandName, payload = {}) {
+  if (!relayState.socket || relayState.socket.readyState !== WebSocket.OPEN || !relayState.codec) {
     throw new Error(t('web.relayNotReady'))
   }
   const nonce = crypto.getRandomValues(new Uint8Array(12))
   const nonceText = bytesToBase64Url(nonce)
-  const plaintext = utf8(JSON.stringify({command: commandName, ...payload}))
+  const plaintext = utf8(JSON.stringify({ command: commandName, ...payload }))
   const encrypted = await crypto.subtle.encrypt(
     {
       name: 'AES-GCM',
@@ -1462,24 +1493,24 @@ async function sendRelayCommand(commandName, payload = {}){
   }))
 }
 
-async function connectRelay(){
+async function connectRelay() {
   closeSocket()
   relayState.codec = null
-  if(!relayState.session || !relayState.pairingSecret || !relayState.admissionToken){
+  if (!relayState.session || !relayState.pairingSecret || !relayState.admissionToken) {
     const message = t('web.relayOpenFullLink')
     showPlaceholderMessage(message)
     transportErrorMessage = message
     setConnectionPhase('offline')
     return
   }
-  if(!hasWebCrypto()){
+  if (!hasWebCrypto()) {
     const message = t('web.secureRelayUnsupported')
     showPlaceholderMessage(message)
     transportErrorMessage = message
     setConnectionPhase('offline')
     return
   }
-  if(relayState.reconnectTimer){
+  if (relayState.reconnectTimer) {
     window.clearTimeout(relayState.reconnectTimer)
     relayState.reconnectTimer = null
   }
@@ -1489,14 +1520,14 @@ async function connectRelay(){
   const socket = new WebSocket(relaySocketUrl(relayState.session, relayState.admissionToken))
   relayState.socket = socket
   relayState.connectTimeoutTimer = window.setTimeout(() => {
-    if(relayState.socket === socket && socket.readyState === WebSocket.CONNECTING){
+    if (relayState.socket === socket && socket.readyState === WebSocket.CONNECTING) {
       showTransportError(t('web.relayConnectionTimeout'))
       socket.close()
     }
   }, 8000)
 
   socket.addEventListener('open', () => {
-    if(relayState.connectTimeoutTimer){
+    if (relayState.connectTimeoutTimer) {
       window.clearTimeout(relayState.connectTimeoutTimer)
       relayState.connectTimeoutTimer = null
     }
@@ -1509,11 +1540,11 @@ async function connectRelay(){
 
   socket.addEventListener('close', () => {
     relayState.codec = null
-    if(relayState.connectTimeoutTimer){
+    if (relayState.connectTimeoutTimer) {
       window.clearTimeout(relayState.connectTimeoutTimer)
       relayState.connectTimeoutTimer = null
     }
-    if(connectionPhase === 'offline'){
+    if (connectionPhase === 'offline') {
       return
     }
     setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
@@ -1525,21 +1556,21 @@ async function connectRelay(){
   })
 }
 
-async function bootstrap(){
+async function bootstrap() {
   await loadLocalization()
   setConnectionPhase('connecting')
-  if(isRelayMode() || isSecureDirectMode() || isLocalFallbackMode()){
-    if(!pairingSecret || !routeSession){
+  if (isRelayMode() || isSecureDirectMode() || isLocalFallbackMode()) {
+    if (!pairingSecret || !routeSession) {
       throw new Error(
         isRelayMode()
           ? t('web.relayLinkRequired')
           : t('web.directLinkRequired')
       )
     }
-    if((isRelayMode() || isSecureDirectMode()) && !hasWebCrypto()){
+    if ((isRelayMode() || isSecureDirectMode()) && !hasWebCrypto()) {
       throw new Error(t('web.webCryptoTransportUnsupported'))
     }
-    if(isRelayMode() && !relayAdmissionToken){
+    if (isRelayMode() && !relayAdmissionToken) {
       throw new Error(t('web.relayLinkRequired'))
     }
   }

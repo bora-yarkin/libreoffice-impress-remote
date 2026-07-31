@@ -8,6 +8,7 @@ import json
 import locale
 import os
 from pathlib import Path
+import re
 from string import Formatter
 from typing import Any
 
@@ -62,9 +63,35 @@ def current_locale() -> str:
     return DEFAULT_LOCALE
 
 
+def _normalize_locale_name(value: str) -> str:
+    return value.strip().replace("_", "-").split(".", 1)[0].lower()
+
+
+def _locale_candidates(value: str) -> list[str]:
+    normalized = _normalize_locale_name(value)
+    if not normalized:
+        return []
+    parts = [part for part in normalized.split("-") if part]
+    if not parts:
+        return []
+    candidates: list[str] = []
+    for index in range(len(parts), 0, -1):
+        candidate = "-".join(parts[:index])
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
 def normalize_locale(value: str) -> str:
-    language = value.strip().replace("-", "_").split(".", 1)[0].split("_", 1)[0].lower()
-    return language if language in available_locales() else ""
+    available = available_locales()
+    available_lookup = {_normalize_locale_name(locale): locale for locale in available}
+    for candidate in _locale_candidates(value):
+        if candidate in available_lookup:
+            return available_lookup[candidate]
+    if not value:
+        return ""
+    base = _normalize_locale_name(value).split("-", 1)[0]
+    return available_lookup.get(base, "")
 
 
 @lru_cache(maxsize=16)
