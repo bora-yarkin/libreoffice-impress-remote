@@ -8,7 +8,6 @@ import json
 import locale
 import os
 from pathlib import Path
-import re
 from string import Formatter
 from typing import Any
 

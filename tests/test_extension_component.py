@@ -506,11 +506,15 @@ class ComponentRuntimeTests(unittest.TestCase):
             return "Başlatıldı"
 
         with patch.object(self.component.sys, "stdout", FakeStdout()):
-            with patch.object(self.component.os, "write", side_effect=lambda _fd, data: captured.append(data) or len(data)):
+            with patch.object(
+                self.component.os,
+                "write",
+                side_effect=lambda _fd, data: captured.append(data) or len(data),
+            ):
                 with patch.object(self.component, "_translate", side_effect=fake_translate):
                     handler.start()
 
-        self.assertEqual(captured, ["Başlatıldı: http://127.0.0.1:17865\n".encode("utf-8")])
+        self.assertEqual(captured, ["Başlatıldı: http://127.0.0.1:17865\n".encode()])
 
     def test_status_listener_receives_dynamic_menu_label(self) -> None:
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())

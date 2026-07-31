@@ -89,7 +89,7 @@ BOOTSTRAP_LOG_PATH = os.path.join(
 
 
 def _emit_console_message(message: str) -> None:
-    payload = f"{message}\n".encode("utf-8")
+    payload = f"{message}\n".encode()
     stream = sys.stdout
     try:
         if hasattr(stream, "buffer") and stream.buffer is not None:
