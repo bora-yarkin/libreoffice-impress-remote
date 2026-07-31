@@ -207,7 +207,7 @@ async def test_localization_catalog_is_served() -> None:
         response = await client.get("/localizations/tr.json")
         assert response.status == 200
         payload = await response.json()
-        assert payload["component.menu.startRemote"] == "Kumandayi Baslat"
+        assert payload["component.menu.startRemote"] == "Kumandayı Başlat"
 
         manifest_response = await client.get("/localizations/manifest.json")
         assert manifest_response.status == 200

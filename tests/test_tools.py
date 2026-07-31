@@ -433,7 +433,7 @@ def test_shared_phone_ui_exposes_presentation_controls_without_settings() -> Non
     assert "currentTimerValues" in app_js
     assert "slideTimerBaseMs" in app_js
     assert "totalTimerRunning" in app_js
-    assert "if(!totalTimerRunning)" in app_js
+    assert "if (!totalTimerRunning)" in app_js
     assert "totalTimerBaseSeconds = Number(state.elapsedSeconds" not in app_js
     assert "requestFullscreenMode" in app_js
     assert "screen.orientation.lock('landscape')" in app_js
@@ -456,7 +456,7 @@ def test_shared_phone_ui_binds_direct_requests_to_pairing_session() -> None:
 def test_shared_phone_ui_uses_ecdh_bootstrap_for_encrypted_transport() -> None:
     app_js = (ROOT / "shared/webui/app.js").read_text(encoding="utf-8")
 
-    assert "{name: 'ECDH', namedCurve: 'P-256'}" in app_js
+    assert "{ name: 'ECDH', namedCurve: 'P-256' }" in app_js
     assert "role: 'phone'" in app_js
     assert "pub: bytesToBase64Url(phonePublicKey)" in app_js
     assert "ECDH-P256+HKDF-SHA256+AES-256-GCM" in app_js

@@ -268,12 +268,12 @@ def test_loads_english_catalog() -> None:
 
 
 def test_translates_turkish_catalog_for_testing() -> None:
-    assert translate("component.menu.startRemote", language="tr") == "Kumandayi Baslat"
+    assert translate("component.menu.startRemote", language="tr") == "Kumandayı Başlat"
 
 
 def test_falls_back_to_english_for_missing_turkish_key() -> None:
     assert translate("missing.key", language="tr") == "missing.key"
-    assert translate("component.menu.stopRemote", language="tr") == "Kumandayi Durdur"
+    assert translate("component.menu.stopRemote", language="tr") == "Kumandayı Durdur"
 
 
 def test_normalizes_locale_codes() -> None:
