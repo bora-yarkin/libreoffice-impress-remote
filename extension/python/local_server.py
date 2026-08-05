@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from impress_remote.config import (
+from config import (
     DEFAULT_PREFERRED_ROUTE,
     RemoteConfig,
     normalize_preferred_route,
@@ -26,23 +26,23 @@ from impress_remote.config import (
     relay_session_status_url,
     route_label,
 )
-from impress_remote.controller import ImpressController
-from impress_remote.crypto import base64url_encode, random_token
-from impress_remote.network import (
+from controller import ImpressController
+from crypto import base64url_encode, random_token
+from network import (
     discover_direct_ipv6_addresses,
     discover_local_urls,
     format_http_url,
     probe_ipv6_listener,
 )
-from impress_remote.localization import (
+from localization import (
     available_locales,
     localization_manifest,
     localization_root,
     translate,
 )
-from impress_remote.localtunnel_client import LocalTunnelClient
-from impress_remote.paths import resolve_packaged_or_shared_dir
-from impress_remote.protocol import (
+from localtunnel_client import LocalTunnelClient
+from paths import resolve_packaged_or_shared_dir
+from protocol import (
     RELAY_KIND_COMMAND,
     RelayProtocolFailure,
     SecureRelayCodec,
@@ -50,7 +50,7 @@ from impress_remote.protocol import (
     decode_hello_message,
     encode_hello_message,
 )
-from impress_remote.relay_client import RelayClient
+from relay_client import RelayClient
 
 WEB_ROOT = resolve_packaged_or_shared_dir(
     __file__,

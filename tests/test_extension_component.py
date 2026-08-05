@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # ruff: noqa: E402,F811
 
+import hashlib
 import importlib.util
 import subprocess
 import sys
@@ -13,9 +14,9 @@ from typing import Any, cast
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPONENT_PATH = ROOT / "extension/python/impress_remote/component.py"
+COMPONENT_PATH = ROOT / "extension/python/component.py"
 COMPONENT_DIR = str(COMPONENT_PATH.parent)
-PYTHON_DIR = str(COMPONENT_PATH.parent.parent)
+PYTHON_DIR = str(COMPONENT_PATH.parent)
 
 
 class ComponentBootstrapTests(unittest.TestCase):
@@ -25,8 +26,7 @@ class ComponentBootstrapTests(unittest.TestCase):
             name: sys.modules.get(name)
             for name in (
                 "component_under_test",
-                "impress_remote",
-                "impress_remote.local_server",
+                "local_server",
                 "unohelper",
                 "com",
                 "com.sun",
@@ -121,8 +121,8 @@ from typing import Any, cast
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OFFICE_UI_PATH = ROOT / "extension/python/impress_remote/office_ui.py"
-PYTHON_DIR = str(OFFICE_UI_PATH.parent.parent)
+OFFICE_UI_PATH = ROOT / "extension/python/office_ui.py"
+PYTHON_DIR = str(OFFICE_UI_PATH.parent)
 
 
 class OfficeUiBootstrapTests(unittest.TestCase):
@@ -208,9 +208,9 @@ from typing import Any, cast
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPONENT_PATH = ROOT / "extension/python/impress_remote/component.py"
+COMPONENT_PATH = ROOT / "extension/python/component.py"
 COMPONENT_DIR = str(COMPONENT_PATH.parent)
-PYTHON_DIR = str(COMPONENT_PATH.parent.parent)
+PYTHON_DIR = str(COMPONENT_PATH.parent)
 
 
 def load_component_module():
@@ -602,20 +602,21 @@ if __name__ == "__main__":
 
 import unittest
 
-from impress_remote.office_ui import (
+from office_ui import (
     RemotePairingDialog,
     copy_text_to_clipboard,
     export_qr_png_path,
 )
+from qr import make_qr_matrix
 
 
 class QrTests(unittest.TestCase):
     def test_windows_clipboard_copy_uses_win32_api_without_uno_clipboard(self) -> None:
         with (
-            patch("impress_remote.office_ui.sys.platform", "win32"),
-            patch("impress_remote.office_ui._service_manager") as service_manager,
-            patch("impress_remote.office_ui._copy_windows_text_to_clipboard", return_value=True),
-            patch("impress_remote.office_ui.subprocess.run") as run,
+            patch("office_ui.sys.platform", "win32"),
+            patch("office_ui._service_manager") as service_manager,
+            patch("office_ui._copy_windows_text_to_clipboard", return_value=True),
+            patch("office_ui.subprocess.run") as run,
         ):
             self.assertTrue(copy_text_to_clipboard(object(), "https://example.test"))
 
@@ -631,11 +632,11 @@ class QrTests(unittest.TestCase):
                 raise subprocess.CalledProcessError(1, command)
 
         with (
-            patch("impress_remote.office_ui.sys.platform", "win32"),
-            patch.dict("impress_remote.office_ui.os.environ", {"SystemRoot": r"C:\Windows"}),
-            patch("impress_remote.office_ui._service_manager") as service_manager,
-            patch("impress_remote.office_ui._copy_windows_text_to_clipboard", return_value=False),
-            patch("impress_remote.office_ui.subprocess.run", side_effect=run),
+            patch("office_ui.sys.platform", "win32"),
+            patch.dict("office_ui.os.environ", {"SystemRoot": r"C:\Windows"}),
+            patch("office_ui._service_manager") as service_manager,
+            patch("office_ui._copy_windows_text_to_clipboard", return_value=False),
+            patch("office_ui.subprocess.run", side_effect=run),
         ):
             self.assertTrue(copy_text_to_clipboard(object(), "https://example.test"))
 
@@ -651,6 +652,26 @@ class QrTests(unittest.TestCase):
             self.assertEqual(output_path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
         finally:
             output_path.unlink(missing_ok=True)
+
+    def test_qr_matrix_matches_byte_mode_regression_vectors(self) -> None:
+        vectors = (
+            (
+                "http://127.0.0.1:17865/#s=demo123",
+                37,
+                "68a2b57829b64eded20383b11795976e5e275126237706decb0ca60b941d048d",
+            ),
+            (
+                "https://relay.example.com/ws?session=" + "a" * 180,
+                69,
+                "54cf8a8ec55fd27419adc579c8f3dd656c089b5c4899a2ff089079119c48e334",
+            ),
+        )
+        for payload, size, expected_digest in vectors:
+            matrix = make_qr_matrix(payload)
+            encoded = bytes(1 if cell else 0 for row in matrix for cell in row)
+
+            self.assertEqual(len(matrix), size)
+            self.assertEqual(hashlib.sha256(encoded).hexdigest(), expected_digest)
 
     def test_export_qr_png_path_requires_a_payload(self) -> None:
         with self.assertRaises(RuntimeError):
@@ -779,8 +800,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
-from impress_remote import __version__
-from impress_remote.office_ui import (
+from version import __version__
+from office_ui import (
     export_packaged_resource,
     read_packaged_user_guide,
     render_user_guide_html,
@@ -788,7 +809,7 @@ from impress_remote.office_ui import (
 
 
 def _fake_module_file(root: Path) -> Path:
-    module_file = root / "python" / "impress_remote" / "office_ui.py"
+    module_file = root / "python" / "office_ui.py"
     module_file.parent.mkdir(parents=True)
     module_file.write_text("", encoding="utf-8")
     return module_file

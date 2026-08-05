@@ -1,7 +1,11 @@
 {
   "python.analysis.exclude": [
     "third_party/libreoffice-sdk/**",
-    "extension/python/qrcode/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "**/.*",
+    "**/.git/**",
+    ".uv-cache",
     ".venv/**",
     "build/**",
     "dist/**"
@@ -10,5 +14,11 @@
     "${workspaceFolder}/extension/python",
     "${workspaceFolder}"
   ],
-  "python.analysis.stubPath": "${workspaceFolder}/typings"
+  "python.analysis.stubPath": "${workspaceFolder}/typings",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none"
+  },
+  "files.associations": {
+    "VERSION": "plaintext"
+  }
 }

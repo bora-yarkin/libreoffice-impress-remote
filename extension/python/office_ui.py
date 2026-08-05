@@ -22,17 +22,18 @@ from urllib.request import url2pathname
 from zlib import compress
 from zipfile import ZipFile
 
-from impress_remote import __version__
-from impress_remote.config import (
+from version import __version__
+from config import (
     DEFAULT_PREFERRED_ROUTE,
     ROUTE_LABELS,
     normalize_preferred_route,
     route_label,
 )
-from impress_remote.localization import translate
+from localization import translate
+from qr import make_qr_matrix
 
 if TYPE_CHECKING:
-    from impress_remote.component import ImpressRemoteProtocolHandler
+    from component import ImpressRemoteProtocolHandler
 
 
 class _XActionListenerBase:
@@ -149,8 +150,6 @@ def export_qr_png_path(_ctx, payload: str) -> Path:
     if not payload:
         raise RuntimeError(translate("error.noPairingUrl"))
 
-    from qrcode import QRCode, constants
-
     temp_file = tempfile.NamedTemporaryFile(
         prefix="impress-remote-qr-",
         suffix=".png",
@@ -160,15 +159,7 @@ def export_qr_png_path(_ctx, payload: str) -> Path:
     output_path = Path(temp_file.name)
 
     try:
-        qr_code = QRCode(
-            version=None,
-            error_correction=constants.ERROR_CORRECT_M,
-            box_size=8,
-            border=4,
-        )
-        qr_code.add_data(payload)
-        qr_code.make(fit=True)
-        output_path.write_bytes(_matrix_to_png_bytes(qr_code.get_matrix()))
+        output_path.write_bytes(_matrix_to_png_bytes(make_qr_matrix(payload)))
         return output_path
     except Exception:
         try:
@@ -230,13 +221,7 @@ def copy_text_to_clipboard(ctx, text: str) -> bool:
         commands = (
             [str(system_root / "System32" / "clip.exe")],
             [
-                str(
-                    system_root
-                    / "System32"
-                    / "WindowsPowerShell"
-                    / "v1.0"
-                    / "powershell.exe"
-                ),
+                str(system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"),
                 "-NoLogo",
                 "-NoProfile",
                 "-NonInteractive",
@@ -401,11 +386,11 @@ def packaged_resource_path(kind: str, module_file: str = __file__) -> Path:
         raise ValueError(translate("resource.error.unknownKind", kind=kind))
 
     module_path = _file_url_to_path(module_file)
-    packaged_path = module_path.parents[2] / "resources" / archive_name
+    packaged_path = module_path.parents[1] / "resources" / archive_name
     if packaged_path.is_file():
         return packaged_path
 
-    source_tree_path = module_path.parents[3] / "dist" / archive_name
+    source_tree_path = module_path.parents[2] / "dist" / archive_name
     if source_tree_path.is_file():
         return source_tree_path
 
@@ -414,11 +399,11 @@ def packaged_resource_path(kind: str, module_file: str = __file__) -> Path:
 
 def packaged_user_guide_path(module_file: str = __file__) -> Path:
     module_path = _file_url_to_path(module_file)
-    packaged_path = module_path.parents[2] / "resources" / "user-guide.md"
+    packaged_path = module_path.parents[1] / "resources" / "user-guide.md"
     if packaged_path.is_file():
         return packaged_path
 
-    source_tree_path = module_path.parents[3] / "docs" / "user-guide.md"
+    source_tree_path = module_path.parents[2] / "docs" / "user-guide.md"
     if source_tree_path.is_file():
         return source_tree_path
 
@@ -542,7 +527,7 @@ def render_user_guide_html(markdown: str) -> str:
         body.append("<pre><code>" + html.escape("\n".join(code_lines)) + "</code></pre>")
 
     return (
-        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        '<!doctype html><html><head><meta charset="utf-8">'
         "<title>LibreOffice Impress Remote Help</title>"
         "<style>"
         ":root{color-scheme:light dark;font:16px/1.55 Georgia,serif;}"
@@ -558,9 +543,7 @@ def render_user_guide_html(markdown: str) -> str:
         "th{background:#eee8d8;}li{margin:.25rem 0;}"
         "@media(prefers-color-scheme:dark){body{background:#181713;color:#efeadc;}"
         "h2{border-color:#3b3529;}code,th{background:#302a20;}th,td{border-color:#4a4234;}}"
-        "</style></head><body>"
-        + "\n".join(body)
-        + "</body></html>"
+        "</style></head><body>" + "\n".join(body) + "</body></html>"
     )
 
 
@@ -1071,10 +1054,11 @@ class RemotePairingDialog(RemoteDialogBase):
                 return translate("localServer.hint.tunnelError", error=tunnel_error)
             if tunnel_status in {"connecting", "retrying", "ready"}:
                 return ""
-            if (
-                not pairing.get("selectedUrl")
-                and tunnel_status not in {"connecting", "retrying", "ready"}
-            ):
+            if not pairing.get("selectedUrl") and tunnel_status not in {
+                "connecting",
+                "retrying",
+                "ready",
+            }:
                 return str(pairing.get("hint") or translate("error.noPairingUrl"))
         if not pairing.get("selectedUrl"):
             return str(pairing.get("hint") or translate("error.noPairingUrl"))
@@ -1453,9 +1437,10 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             config.get("preferredRoute")
         ):
             return True
-        if "relayUrl" in payload and str(payload["relayUrl"]).strip() != str(
-            config.get("relayUrl", "")
-        ).strip():
+        if (
+            "relayUrl" in payload
+            and str(payload["relayUrl"]).strip() != str(config.get("relayUrl", "")).strip()
+        ):
             return True
         return False
 

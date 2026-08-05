@@ -23,9 +23,8 @@ help:
 
 venv: $(SETUP_STAMP)
 
-$(SETUP_STAMP): pyproject.toml relay/pyproject.toml
-	@if [ ! -x "$(VENV_PYTHON)" ]; then UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) venv $(VENV_DIR); fi
-	UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) pip install --python $(VENV_PYTHON) -e '.[dev,security]' -e './relay[dev]'
+$(SETUP_STAMP): pyproject.toml relay/pyproject.toml uv.lock
+	UV_CACHE_DIR=$(UV_CACHE_DIR) UV_PROJECT_ENVIRONMENT=$(VENV_DIR) $(UV) sync --locked --all-packages --all-extras
 	@touch $(SETUP_STAMP)
 	@echo "Environment ready at $(VENV_DIR)"
 

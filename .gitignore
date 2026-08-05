@@ -11,3 +11,4 @@ build/
 third_party/libreoffice-sdk/
 .DS_Store
 *.oxt
+.uv-cache

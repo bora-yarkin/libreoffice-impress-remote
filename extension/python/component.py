@@ -11,7 +11,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from impress_remote.local_server import RemoteServer
+    from local_server import RemoteServer
 
 
 class _FallbackXTerminateListenerBase:
@@ -169,7 +169,7 @@ PROTOCOL = "vnd.org.borayarkin.impressremote:"
 
 
 def _ensure_python_root():
-    python_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    python_root = os.path.dirname(os.path.abspath(__file__))
     if python_root not in sys.path:
         sys.path.insert(0, python_root)
 
@@ -177,7 +177,7 @@ def _ensure_python_root():
 def _translate(key: str, **values: Any) -> str:
     _ensure_python_root()
     try:
-        from impress_remote.localization import translate
+        from localization import translate
 
         return translate(key, **values)
     except Exception:
@@ -302,6 +302,7 @@ def _command_path(url: object) -> str:
 
 
 try:
+
     class ProtocolTerminateListener(unohelper.Base, XTerminateListenerBase):
         def __init__(self, handler):
             self.handler = handler
@@ -314,7 +315,6 @@ try:
 
         def notifyTermination(self, _event):
             self.handler.shutdown()
-
 
     class ImpressRemoteProtocolHandler(
         unohelper.Base,
@@ -374,7 +374,7 @@ try:
                 self.report_runtime_error(message)
                 try:
                     _ensure_python_root()
-                    from impress_remote.office_ui import show_error_message
+                    from office_ui import show_error_message
 
                     show_error_message(self.ctx, message, details=traceback.format_exc())
                 except Exception:
@@ -430,7 +430,7 @@ try:
             server = self._ensure_server()
             server.start()
             _ensure_python_root()
-            from impress_remote.office_ui import open_external_url
+            from office_ui import open_external_url
 
             target = server.settings_url() if view == "settings" else server.console_url()
             if not target:
@@ -441,13 +441,13 @@ try:
 
         def show_pairing(self):
             _ensure_python_root()
-            from impress_remote.office_ui import show_remote_pairing_dialog
+            from office_ui import show_remote_pairing_dialog
 
             show_remote_pairing_dialog(self.ctx, self)
 
         def show_settings(self):
             _ensure_python_root()
-            from impress_remote.office_ui import show_remote_advanced_dialog
+            from office_ui import show_remote_advanced_dialog
 
             show_remote_advanced_dialog(self.ctx, self)
 
@@ -522,7 +522,7 @@ try:
         def _ensure_server(self) -> RemoteServer:
             if self.server is None:
                 _ensure_python_root()
-                from impress_remote.local_server import RemoteServer
+                from local_server import RemoteServer
 
                 self.server = RemoteServer(self.ctx)
             return self.server

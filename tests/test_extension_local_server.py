@@ -11,9 +11,9 @@ from typing import cast
 
 from types import SimpleNamespace
 
-from impress_remote.config import RemoteConfig
-from impress_remote.local_server import RemoteServer, SecureDirectSession, _url_with_fragment_params
-from impress_remote.protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
+from config import RemoteConfig
+from local_server import RemoteServer, SecureDirectSession, _url_with_fragment_params
+from protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
 
 
 class PairingServerStub:
@@ -438,10 +438,10 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from impress_remote.config import RemoteConfig
-from impress_remote.crypto import base64url_decode
-from impress_remote.local_server import RemoteServer, _is_local_compatibility_client
-from impress_remote.protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
+from config import RemoteConfig
+from crypto import base64url_decode
+from local_server import RemoteServer, _is_local_compatibility_client
+from protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
 
 
 class FakeController:

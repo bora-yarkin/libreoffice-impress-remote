@@ -85,7 +85,7 @@ jobs:
         continue-on-error: true
         uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc
         with:
-          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
+          repo_token: ${{ github.token }}
           results_file: scorecard-results.sarif
           results_format: sarif
           publish_results: false

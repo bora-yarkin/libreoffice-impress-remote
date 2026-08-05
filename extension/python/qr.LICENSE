@@ -15,7 +15,7 @@ modification, are permitted provided that the following conditions are met:
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -24,25 +24,20 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
--------------------------------------------------------------------------------
-
-
 Original text and license from the pyqrnative package where this was forked
 from (http://code.google.com/p/pyqrnative):
 
-#Ported from the Javascript library by Sam Curren
+# Ported from the Javascript library by Sam Curren
 #
-#QRCode for Javascript
-#http://d-project.googlecode.com/svn/trunk/misc/qrcode/js/qrcode.js
+# QRCode for Javascript
+# http://d-project.googlecode.com/svn/trunk/misc/qrcode/js/qrcode.js
 #
-#Copyright (c) 2009 Kazuhiko Arase
+# Copyright (c) 2009 Kazuhiko Arase
 #
-#URL: http://www.d-project.com/
+# URL: http://www.d-project.com/
 #
-#Licensed under the MIT license:
+# Licensed under the MIT license:
 #   http://www.opensource.org/licenses/mit-license.php
 #
-# The word "QR Code" is registered trademark of
-# DENSO WAVE INCORPORATED
+# The word "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
 #   http://www.denso-wave.com/qrcode/faqpatent-e.html

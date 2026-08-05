@@ -45,7 +45,7 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         assert not any(".DS_Store" in name for name in names)
         index_html = package.read("web/index.html").decode("utf-8")
         asset_manifest = package.read("web/asset-manifest.json").decode("utf-8")
-        build_features = package.read("python/impress_remote/BUILD_FEATURES.json").decode("utf-8")
+        build_features = package.read("python/BUILD_FEATURES.json").decode("utf-8")
         user_guide = package.read("resources/user-guide.md").decode("utf-8")
         assert relay_archive_name in names
         resource_archives = [
@@ -53,8 +53,7 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         ]
         assert resource_archives == [relay_archive_name]
         assert all(
-            not name.startswith("resources/impress-remote-relay-")
-            or name == relay_archive_name
+            not name.startswith("resources/impress-remote-relay-") or name == relay_archive_name
             for name in names
         )
 
@@ -67,8 +66,7 @@ def test_build_oxt_packages_shared_webui_assets(tmp_path) -> None:
         root_files = {
             name.removeprefix(bundle_root)
             for name in relay_names
-            if name.startswith(bundle_root)
-            and "/" not in name.removeprefix(bundle_root).strip("/")
+            if name.startswith(bundle_root) and "/" not in name.removeprefix(bundle_root).strip("/")
         }
         assert root_files == {"configure.sh", "configure.ps1"}
         assert f"{bundle_root}relay-runtime/run-relay.py" in relay_names
@@ -238,7 +236,7 @@ def test_extension_manifest_files_exist() -> None:
         "extension/icons/remote-settings.svg",
         "extension/descriptions/description-en.txt",
         "extension/descriptions/description-tr.txt",
-        "extension/python/impress_remote/component.py",
+        "extension/python/component.py",
         "shared/webui/index.html",
         "shared/localizations/en.json",
         "shared/localizations/tr.json",
@@ -250,9 +248,7 @@ def test_extension_manifest_files_exist() -> None:
 
 
 def test_libreoffice_settings_exposes_only_python_relay_export_and_user_guide_help() -> None:
-    office_ui = (ROOT / "extension/python/impress_remote/office_ui.py").read_text(
-        encoding="utf-8"
-    )
+    office_ui = (ROOT / "extension/python/office_ui.py").read_text(encoding="utf-8")
     english = (ROOT / "shared/localizations/en.json").read_text(encoding="utf-8")
     turkish = (ROOT / "shared/localizations/tr.json").read_text(encoding="utf-8")
 
@@ -267,12 +263,12 @@ def test_libreoffice_settings_exposes_only_python_relay_export_and_user_guide_he
 
 def test_python_component_manifest_entry_uses_python_component_media_type() -> None:
     manifest = (ROOT / "extension/META-INF/manifest.xml").read_text(encoding="utf-8")
-    assert 'application/vnd.sun.star.uno-component;type=Python' in manifest
+    assert "application/vnd.sun.star.uno-component;type=Python" in manifest
 
 
 def test_extension_manifest_includes_settings_schema_and_data() -> None:
     manifest = (ROOT / "extension/META-INF/manifest.xml").read_text(encoding="utf-8")
-    assert 'application/vnd.sun.star.configuration-schema' in manifest
+    assert "application/vnd.sun.star.configuration-schema" in manifest
     assert 'manifest:full-path="Settings.xcs"' in manifest
     assert 'manifest:full-path="Settings.xcu"' in manifest
     assert 'manifest:full-path="Controller.xcu"' not in manifest
@@ -301,9 +297,7 @@ def test_extension_description_has_install_metadata() -> None:
 
 
 def test_packaged_resource_map_includes_only_relay_bundle() -> None:
-    resources = (ROOT / "extension/python/impress_remote/office_ui.py").read_text(
-        encoding="utf-8"
-    )
+    resources = (ROOT / "extension/python/office_ui.py").read_text(encoding="utf-8")
 
     assert '"relay": f"impress-remote-relay-python-' in resources
     assert resources.count("RESOURCE_ARCHIVES = {") == 1
@@ -359,7 +353,7 @@ def test_addons_merge_into_impress_slideshow_menu_and_toolbars() -> None:
     assert "vnd.org.borayarkin.impressremote:menu" in toolbar_xml
     assert "vnd.org.borayarkin.impressremote:toggle" in xml
     assert "vnd.org.borayarkin.impressremote:settings" in xml
-    assert xml.count("<node oor:name=\"remote_settings\"") == 1
+    assert xml.count('<node oor:name="remote_settings"') == 1
 
 
 def test_shared_phone_ui_does_not_call_plaintext_local_control_endpoints() -> None:
@@ -491,7 +485,7 @@ def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:
         "python -m ruff check extension/python relay tests tools",
         "python -m pytest tests",
         "python -m tools.release oxt",
-        "sha256sum \"libreoffice-impress-remote-${version}.oxt\" > SHA256SUMS",
+        'sha256sum "libreoffice-impress-remote-${version}.oxt" > SHA256SUMS',
         "gh release create",
         "gh release upload",
         "dist/libreoffice-impress-remote-${version}.oxt",
@@ -504,9 +498,7 @@ def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:
 
 def test_documentation_links_are_direct_and_release_gate_is_inline() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    technical_reference = (ROOT / "docs/technical-reference.md").read_text(
-        encoding="utf-8"
-    )
+    technical_reference = (ROOT / "docs/technical-reference.md").read_text(encoding="utf-8")
 
     assert "docs/user-guide.md" in readme
     assert "docs/technical-reference.md" in readme

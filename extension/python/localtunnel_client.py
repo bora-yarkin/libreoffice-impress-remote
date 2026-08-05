@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
-from impress_remote.localization import translate
+from localization import translate
 
 DEFAULT_TUNNEL_HOST = "https://localtunnel.me"
 CONNECT_TIMEOUT_SECONDS = 10.0

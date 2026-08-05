@@ -8,7 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from impress_remote.config import (
+from config import (
     RemoteConfig,
     normalize_relay_url,
     relay_health_url,
@@ -177,7 +177,7 @@ class ConfigTests(unittest.TestCase):
 
 import pytest
 
-from impress_remote.crypto import (
+from crypto import (
     aes_gcm_decrypt,
     aes_gcm_encrypt,
     base64url_decode,
@@ -250,7 +250,7 @@ def test_aes_gcm_rejects_tampered_tags() -> None:
         aes_gcm_decrypt(key, nonce, ciphertext, bytes(tampered))
 
 
-from impress_remote.localization import (
+from localization import (
     DEFAULT_LOCALE,
     available_locales,
     localization_manifest,
@@ -258,7 +258,7 @@ from impress_remote.localization import (
     normalize_locale,
     translate,
 )
-from impress_remote.config import route_label
+from config import route_label
 
 
 def test_loads_english_catalog() -> None:
@@ -322,8 +322,8 @@ import json
 
 import pytest
 
-from impress_remote import localtunnel_client
-from impress_remote.localtunnel_client import (
+import localtunnel_client
+from localtunnel_client import (
     LocalTunnelClient,
     LocalTunnelInfo,
     _request_tunnel_info,
@@ -464,7 +464,7 @@ def test_localtunnel_client_retries_until_tunnel_info_is_available(monkeypatch) 
 
 import unittest
 
-from impress_remote.network import _filter_unique_ipv4, _filter_unique_ipv6, format_http_url
+from network import _filter_unique_ipv4, _filter_unique_ipv6, format_http_url
 
 
 class NetworkTests(unittest.TestCase):
@@ -498,7 +498,7 @@ class NetworkTests(unittest.TestCase):
 import unittest
 from pathlib import Path
 
-from impress_remote.paths import module_file_path
+from paths import module_file_path
 
 
 class PathTests(unittest.TestCase):
@@ -514,7 +514,7 @@ class PathTests(unittest.TestCase):
 import json
 import unittest
 
-from impress_remote.protocol import (
+from protocol import (
     RelayProtocolFailure,
     SecureRelayCodec,
     decode_command_payload,
@@ -679,7 +679,7 @@ class ProtocolTests(unittest.TestCase):
 from pathlib import Path
 import tomllib
 
-from impress_remote import __version__ as extension_version
+from version import __version__ as extension_version
 from relay import __version__ as relay_version
 from tools.release import read_project_version
 

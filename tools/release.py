@@ -291,9 +291,9 @@ def build_oxt(output_path: Path = OUT, *, clean_dist: bool = True) -> Path:
                     continue
                 add_path(package, EXTENSION / item, EXTENSION)
             package.write(USER_GUIDE, "resources/user-guide.md")
-            package.writestr("python/impress_remote/VERSION", project_version() + "\n")
+            package.writestr("python/VERSION", project_version() + "\n")
             package.writestr(
-                "python/impress_remote/BUILD_FEATURES.json",
+                "python/BUILD_FEATURES.json",
                 json.dumps({"localtunnel": True, "relay": True}, indent=2, sort_keys=True) + "\n",
             )
             add_webui_to_zip(package, "web")

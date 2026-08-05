@@ -52,12 +52,12 @@ Relay Server:
 Phone browser -> relay UI/WS <- LibreOffice extension relay client
 ```
 
-| Route | Status | Phone UI Source | Transport | Use When |
-| --- | --- | --- | --- | --- |
-| Local network | Main path | LibreOffice extension | Encrypted direct transport when Web Crypto is available; authenticated LAN fallback when needed | Phone and computer share Wi-Fi or hotspot. |
-| LocalTunnel | Experimental | LibreOffice extension through tunnel | Encrypted direct transport through the tunnel | Local network access is blocked and a temporary public URL is acceptable. |
-| Direct IPv6 | Experimental | LibreOffice extension | Encrypted direct transport when Web Crypto is available; authenticated plaintext fallback only when explicitly selected | Both devices have real public IPv6 and firewall rules allow it. |
-| Relay Server | Experimental | Self-hosted relay | Opaque encrypted websocket frames | Local/tunnel/direct routes do not fit and the user can self-host infrastructure. |
+| Route         | Status       | Phone UI Source                      | Transport                                                                                                               | Use When                                                                         |
+| ------------- | ------------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Local network | Main path    | LibreOffice extension                | Encrypted direct transport when Web Crypto is available; authenticated LAN fallback when needed                         | Phone and computer share Wi-Fi or hotspot.                                       |
+| LocalTunnel   | Experimental | LibreOffice extension through tunnel | Encrypted direct transport through the tunnel                                                                           | Local network access is blocked and a temporary public URL is acceptable.        |
+| Direct IPv6   | Experimental | LibreOffice extension                | Encrypted direct transport when Web Crypto is available; authenticated plaintext fallback only when explicitly selected | Both devices have real public IPv6 and firewall rules allow it.                  |
+| Relay Server  | Experimental | Self-hosted relay                    | Opaque encrypted websocket frames                                                                                       | Local/tunnel/direct routes do not fit and the user can self-host infrastructure. |
 
 ## Architecture
 
@@ -128,14 +128,14 @@ Key rotation
 
 Route security summary:
 
-| Route | Confidentiality | Authentication | Main Caveat |
-| --- | --- | --- | --- |
-| Local network with Web Crypto | Encrypted frames for state, commands, and slide assets | ECDH plus pairing verifier and session id | Initial web shell is still served over HTTP. |
-| Local Safari compatibility | Plaintext authenticated local API | Session id plus pairing verifier headers; local clients only | Same-LAN observers can see traffic. Use trusted local networks. |
-| LocalTunnel | Encrypted frames through tunnel | ECDH plus pairing verifier and session id | Tunnel provider is frontend-delivery infrastructure. |
-| Direct IPv6 with Web Crypto | Encrypted frames over public IPv6 | ECDH plus pairing verifier and session id | Firewall/public exposure must be handled carefully. |
-| Direct IPv6 compatibility | Plaintext authenticated API | Session id plus pairing verifier headers | Public-path observers can see traffic. Experimental only. |
-| Relay Server | End-to-end encrypted frames through relay | ECDH plus pairing verifier and admission token | Relay-served JavaScript still has to be trusted or verified. |
+| Route                         | Confidentiality                                        | Authentication                                               | Main Caveat                                                     |
+| ----------------------------- | ------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------------- |
+| Local network with Web Crypto | Encrypted frames for state, commands, and slide assets | ECDH plus pairing verifier and session id                    | Initial web shell is still served over HTTP.                    |
+| Local Safari compatibility    | Plaintext authenticated local API                      | Session id plus pairing verifier headers; local clients only | Same-LAN observers can see traffic. Use trusted local networks. |
+| LocalTunnel                   | Encrypted frames through tunnel                        | ECDH plus pairing verifier and session id                    | Tunnel provider is frontend-delivery infrastructure.            |
+| Direct IPv6 with Web Crypto   | Encrypted frames over public IPv6                      | ECDH plus pairing verifier and session id                    | Firewall/public exposure must be handled carefully.             |
+| Direct IPv6 compatibility     | Plaintext authenticated API                            | Session id plus pairing verifier headers                     | Public-path observers can see traffic. Experimental only.       |
+| Relay Server                  | End-to-end encrypted frames through relay              | ECDH plus pairing verifier and admission token               | Relay-served JavaScript still has to be trusted or verified.    |
 
 Important limitation: browser-hosted E2E cannot protect against a server or network attacker that replaces the first HTML/JavaScript page. The current baseline protects against passive observers and honest-but-curious relays, not malicious frontend delivery.
 
@@ -259,7 +259,7 @@ Quit LibreOffice completely before reinstalling.
 Common install/runtime failures:
 
 - `premature end of file ... component.py`: LibreOffice cached or unpacked a broken OXT. Quit LibreOffice, remove the extension if visible, rebuild, and reinstall.
-- `No module named 'impress_remote'`: OXT package layout is wrong or stale. Rebuild the versioned OXT and inspect the archive.
+- `No module named 'component'`: OXT package layout is wrong or stale. Rebuild the versioned OXT and inspect the archive.
 - `No module named 'com'`: a UNO module was imported outside LibreOffice runtime or too early during registration.
 - `NameError` during registration: a runtime-only class leaked into a top-level annotation/import path.
 - Menu missing: open an actual Impress presentation; commands are Impress-only under `Slide Show`.

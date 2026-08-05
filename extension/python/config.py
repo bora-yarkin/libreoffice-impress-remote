@@ -9,11 +9,11 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
-from impress_remote.localization import translate
-from impress_remote.localtunnel_client import DEFAULT_TUNNEL_HOST, normalize_tunnel_host
+from localization import translate
+from localtunnel_client import DEFAULT_TUNNEL_HOST, normalize_tunnel_host
 
 APP_NAME = "libreoffice-impress-remote"
 CONFIG_NODE_PATH = "org.borayarkin.libreoffice.impressremote.Settings"
@@ -26,9 +26,7 @@ ROUTE_LABELS = {
     "relay": "route.relay",
     "tunnel": "route.localtunnel",
 }
-ROUTE_LABEL_KEYS = {
-    route: key for route, key in ROUTE_LABELS.items()
-}
+ROUTE_LABEL_KEYS = {route: key for route, key in ROUTE_LABELS.items()}
 OFFICE_CONFIG_PROPERTIES = {
     "LocalHost": "local_host",
     "LocalPort": "local_port",
@@ -267,6 +265,22 @@ class RemoteConfig:
     enable_ipv6_direct: bool = True
     enable_local_listener: bool = True
     preferred_route: str = DEFAULT_PREFERRED_ROUTE
+
+    if TYPE_CHECKING:
+
+        def __init__(
+            self,
+            local_host: str = DEFAULT_LOCAL_HOST,
+            local_port: int = DEFAULT_LOCAL_PORT,
+            relay_url: str = "",
+            enable_relay: bool = False,
+            enable_tunnel: bool = True,
+            tunnel_host: str = DEFAULT_TUNNEL_HOST,
+            tunnel_subdomain: str = "",
+            enable_ipv6_direct: bool = True,
+            enable_local_listener: bool = True,
+            preferred_route: str = DEFAULT_PREFERRED_ROUTE,
+        ) -> None: ...
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> RemoteConfig:

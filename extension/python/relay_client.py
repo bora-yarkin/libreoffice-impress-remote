@@ -16,10 +16,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from impress_remote import __version__
-from impress_remote.config import relay_health_url, relay_session_status_url, relay_websocket_url
-from impress_remote.localization import translate
-from impress_remote.protocol import (
+from version import __version__
+from config import relay_health_url, relay_session_status_url, relay_websocket_url
+from localization import translate
+from protocol import (
     RelayProtocolFailure,
     SecureRelayCodec,
     decode_command_payload,

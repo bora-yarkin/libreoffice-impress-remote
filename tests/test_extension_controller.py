@@ -4,7 +4,7 @@
 import unittest
 from unittest.mock import patch
 
-from impress_remote.controller import ImpressController
+from controller import ImpressController
 
 
 class FakeShape:
@@ -329,7 +329,7 @@ class ControllerTests(unittest.TestCase):
             exported.append(slide.getName())
             return f"png:{slide.getName()}".encode()
 
-        with patch("impress_remote.controller.export_slide_png_bytes", side_effect=export):
+        with patch("controller.export_slide_png_bytes", side_effect=export):
             result = controller.prewarm_slide_previews()
             current_png = controller.current_slide_png_bytes()
             next_png = controller.next_slide_png_bytes()

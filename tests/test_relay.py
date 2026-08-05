@@ -9,7 +9,7 @@ from aiohttp import WSMsgType
 from aiohttp.test_utils import TestClient, TestServer, make_mocked_request
 import pytest
 
-from impress_remote.protocol import (
+from protocol import (
     SecureRelayCodec,
     decode_command_payload,
     decode_hello_message,

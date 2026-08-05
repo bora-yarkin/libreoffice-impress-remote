@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import json
 from typing import Any
 
-from impress_remote.crypto import (
+from crypto import (
     aes_gcm_decrypt,
     aes_gcm_encrypt,
     base64url_decode,
@@ -20,7 +20,7 @@ from impress_remote.crypto import (
     random_bytes,
     random_token,
 )
-from impress_remote.localization import translate
+from localization import translate
 
 RELAY_PROTOCOL_VERSION = 1
 RELAY_CIPHER_SUITE = "ECDH-P256+HKDF-SHA256+AES-256-GCM"

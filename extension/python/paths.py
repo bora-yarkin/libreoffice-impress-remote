@@ -29,10 +29,10 @@ def resolve_packaged_or_shared_dir(
     shared_parts: tuple[str, ...],
 ) -> Path:
     module_path = module_file_path(module_file)
-    packaged_root = module_path.parents[2].joinpath(*packaged_parts)
+    packaged_root = module_path.parents[1].joinpath(*packaged_parts)
     if _has_packaged_content(packaged_root):
         return packaged_root
-    shared_root = module_path.parents[3].joinpath(*shared_parts)
+    shared_root = module_path.parents[2].joinpath(*shared_parts)
     if _has_packaged_content(shared_root):
         return shared_root
     return packaged_root

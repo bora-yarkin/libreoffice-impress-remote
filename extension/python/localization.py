@@ -11,17 +11,17 @@ from pathlib import Path
 from string import Formatter
 from typing import Any
 
-from impress_remote.paths import module_file_path
+from paths import module_file_path
 
 DEFAULT_LOCALE = "en"
 
 
 def localization_root() -> Path:
     module_path = module_file_path(__file__)
-    packaged_root = module_path.parents[2] / "web" / "localizations"
+    packaged_root = module_path.parents[1] / "web" / "localizations"
     if _has_catalog(packaged_root):
         return packaged_root
-    shared_root = module_path.parents[3] / "shared" / "localizations"
+    shared_root = module_path.parents[2] / "shared" / "localizations"
     if _has_catalog(shared_root):
         return shared_root
     return packaged_root

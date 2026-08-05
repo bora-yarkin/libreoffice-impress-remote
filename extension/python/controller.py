@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 import time
 
-from impress_remote.localization import translate
+from localization import translate
 
 
 @dataclass
