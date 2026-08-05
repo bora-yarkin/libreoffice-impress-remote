@@ -84,6 +84,7 @@ class LibreOfficeCallbackQueue:
     """Runs worker-thread requests on LibreOffice's native message queue."""
 
     _TIMEOUT_SECONDS = 5.0
+    _MAX_PENDING_REQUESTS = 8
 
     def __init__(self, ctx) -> None:
         self._async_callback = None
@@ -119,6 +120,8 @@ class LibreOfficeCallbackQueue:
         request = _UnoRequest(callback)
         request_id = random_token(18)
         with self._requests_lock:
+            if len(self._requests) >= self._MAX_PENDING_REQUESTS:
+                raise RuntimeError(translate("error.dispatchUnavailable"))
             self._requests[request_id] = request
         try:
             self._async_callback.addCallback(self._callback, request_id)

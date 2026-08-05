@@ -131,6 +131,17 @@ class LocalServerTests(unittest.TestCase):
 
         self.assertFalse(called)
 
+    def test_uno_callback_queue_rejects_requests_when_full(self) -> None:
+        queue = LibreOfficeCallbackQueue(SimpleNamespace())
+        queue._async_callback = cast(Any, object())
+        queue._callback = cast(Any, object())
+        queue._requests = {
+            str(index): cast(Any, object()) for index in range(queue._MAX_PENDING_REQUESTS)
+        }
+
+        with self.assertRaises(RuntimeError):
+            queue.call(lambda: None)
+
     def test_url_with_fragment_params_preserves_existing_fragment_values(self) -> None:
         self.assertEqual(
             _url_with_fragment_params(
