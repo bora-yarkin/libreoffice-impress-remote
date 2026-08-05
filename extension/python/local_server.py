@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import hmac
 import base64
@@ -12,6 +13,7 @@ import os
 import socket
 import threading
 import time
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -68,6 +70,81 @@ DEFAULT_FEATURES: dict[str, bool] = {
 
 class StaleSlideRevision(RuntimeError):
     pass
+
+
+@dataclass
+class _UnoRequest:
+    callback: Callable[[], Any]
+    completed: threading.Event = field(default_factory=threading.Event)
+    result: Any = None
+    error: BaseException | None = None
+
+
+class LibreOfficeCallbackQueue:
+    """Runs worker-thread requests on LibreOffice's native message queue."""
+
+    _TIMEOUT_SECONDS = 5.0
+
+    def __init__(self, ctx) -> None:
+        self._async_callback = None
+        self._callback = None
+        self._requires_callback = callable(getattr(ctx, "getServiceManager", None))
+        self._requests: dict[str, _UnoRequest] = {}
+        self._requests_lock = threading.Lock()
+        try:
+            import unohelper
+            from com.sun.star.awt import XCallback
+
+            class Callback(unohelper.Base, XCallback):
+                def notify(self, data) -> None:
+                    if isinstance(data, str):
+                        self_queue._execute(data)
+
+            service_manager = ctx.getServiceManager()
+            self._async_callback = service_manager.createInstanceWithContext(
+                "com.sun.star.awt.AsyncCallback",
+                ctx,
+            )
+            self_queue = self
+            self._callback = Callback()
+        except Exception:
+            self._async_callback = None
+            self._callback = None
+
+    def call(self, callback: Callable[[], Any]) -> Any:
+        if self._async_callback is None or self._callback is None:
+            if self._requires_callback:
+                raise RuntimeError(translate("error.unoUnavailable"))
+            return callback()
+        request = _UnoRequest(callback)
+        request_id = random_token(18)
+        with self._requests_lock:
+            self._requests[request_id] = request
+        try:
+            self._async_callback.addCallback(self._callback, request_id)
+        except Exception:
+            with self._requests_lock:
+                self._requests.pop(request_id, None)
+            raise RuntimeError(translate("error.dispatchUnavailable")) from None
+        if not request.completed.wait(self._TIMEOUT_SECONDS):
+            with self._requests_lock:
+                self._requests.pop(request_id, None)
+            raise RuntimeError(translate("error.dispatchUnavailable"))
+        if request.error is not None:
+            raise request.error
+        return request.result
+
+    def _execute(self, request_id: str) -> None:
+        with self._requests_lock:
+            request = self._requests.pop(request_id, None)
+        if request is None:
+            return
+        try:
+            request.result = request.callback()
+        except BaseException as exc:
+            request.error = exc
+        finally:
+            request.completed.set()
 
 
 def _url_with_fragment_params(url: str, **params: str) -> str:
@@ -249,7 +326,12 @@ class SecureDirectSession:
         return _json_object(encode_hello_message(self._hello))
 
 
-class IPv6ThreadingHTTPServer(ThreadingHTTPServer):
+class NativeThreadingHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    block_on_close = False
+
+
+class IPv6ThreadingHTTPServer(NativeThreadingHTTPServer):
     address_family = socket.AF_INET6
 
     def server_bind(self) -> None:
@@ -267,6 +349,7 @@ class RemoteServer:
         self.relay_admission_token = random_token(24)
         self.direct_session = SecureDirectSession(self.session_id, self.pairing_secret)
         self.controller = ImpressController(ctx)
+        self._uno_callback_queue = LibreOfficeCallbackQueue(ctx)
         self.http_servers: list[ThreadingHTTPServer] = []
         self.threads: list[threading.Thread] = []
         self.url = ""
@@ -284,12 +367,6 @@ class RemoteServer:
         self.client_connected = False
         self.client_connection_source = ""
         self.last_client_seen_at = 0.0
-        self.preload_status: dict[str, object] = {
-            "state": "idle",
-            "slides": 0,
-            "cacheSize": 0,
-            "lastError": "",
-        }
 
     def is_running(self) -> bool:
         relay_running = self.relay_client is not None and self.relay_client.is_running()
@@ -328,7 +405,6 @@ class RemoteServer:
             self._sync_tunnel_client()
             self._sync_relay_client()
             self._refresh_urls()
-            self._prewarm_local_slide_cache()
             if not self.is_running():
                 raise RuntimeError(translate("error.remoteRouteRequired"))
         except Exception:
@@ -356,15 +432,9 @@ class RemoteServer:
         self.client_connected = False
         self.client_connection_source = ""
         self.last_client_seen_at = 0.0
-        self.preload_status = {
-            "state": "idle",
-            "slides": 0,
-            "cacheSize": 0,
-            "lastError": "",
-        }
 
     def state_payload(self) -> dict[str, object]:
-        state = self.controller.state()
+        state = self._run_uno(self.controller.state)
         payload = self._state_payload(
             state,
             current_slide_image_url=self.current_slide_image_url(state),
@@ -374,7 +444,7 @@ class RemoteServer:
         return payload
 
     def relay_state_payload(self) -> dict[str, object]:
-        state = self.controller.state()
+        state = self._run_uno(self.controller.state)
         payload = self._state_payload(
             state,
             current_slide_image_url="",
@@ -466,7 +536,7 @@ class RemoteServer:
         return _url_with_fragment_params(console_url, view="settings")
 
     def secure_direct_state_payload(self) -> dict[str, object]:
-        state = self.controller.state()
+        state = self._run_uno(self.controller.state)
         payload = self._state_payload(
             state,
             current_slide_image_url=self.secure_current_slide_image_url(state),
@@ -494,7 +564,7 @@ class RemoteServer:
         return f"/api/local/slide/next?rev={state.next_render_token}"
 
     def local_fallback_state_payload(self) -> dict[str, object]:
-        state = self.controller.state()
+        state = self._run_uno(self.controller.state)
         payload = self._state_payload(
             state,
             current_slide_image_url=self.local_fallback_current_slide_image_url(state),
@@ -532,11 +602,7 @@ class RemoteServer:
                 "missing-hello",
                 translate("protocol.error.missingNegotiatedKey"),
             )
-        self._validate_slide_revision(slot, revision)
-        if slot == "current":
-            data = self.controller.current_slide_png_bytes()
-        else:
-            data = self.controller.next_slide_png_bytes()
+        data = self._run_uno(lambda: self._slide_bytes(slot, revision))
         return self.direct_session.asset_response(
             content_type="image/png",
             data=data,
@@ -545,6 +611,9 @@ class RemoteServer:
         )
 
     def local_fallback_slide_bytes(self, *, slot: str, revision: str = "") -> bytes:
+        return self._run_uno(lambda: self._slide_bytes(slot, revision))
+
+    def _slide_bytes(self, slot: str, revision: str) -> bytes:
         self._validate_slide_revision(slot, revision)
         if slot == "current":
             return self.controller.current_slide_png_bytes()
@@ -570,6 +639,9 @@ class RemoteServer:
         raise RuntimeError(translate("error.noSlideExport"))
 
     def relay_asset_payload(self, slot: str, revision: str) -> dict[str, object] | None:
+        return self._run_uno(lambda: RemoteServer._relay_asset_payload(self, slot, revision))
+
+    def _relay_asset_payload(self, slot: str, revision: str) -> dict[str, object] | None:
         expected_revision = str(revision).strip()
         if not expected_revision:
             return None
@@ -666,13 +738,6 @@ class RemoteServer:
             "relayLastError": relay_status["lastError"],
             "clientConnected": self.client_connected,
             "clientConnectionSource": self.client_connection_source,
-            "slidePreloadStatus": dict(
-                getattr(
-                    self,
-                    "preload_status",
-                    {"state": "idle", "slides": 0, "cacheSize": 0, "lastError": ""},
-                )
-            ),
         }
 
     def config_payload(self) -> dict[str, object]:
@@ -844,7 +909,13 @@ class RemoteServer:
         self.client_connection_source = source
         self.last_client_seen_at = time.monotonic()
         if first_client_connection:
-            self._start_presentation_for_client()
+            self._run_uno(self._start_presentation_for_client)
+
+    def run_command(self, name: str, index: int | None = None) -> None:
+        self._run_uno(lambda: self.controller.command(name, index))
+
+    def _run_uno(self, callback: Callable[[], Any]) -> Any:
+        return self._uno_callback_queue.call(callback)
 
     def _start_presentation_for_client(self) -> None:
         state = self.controller.state()
@@ -854,49 +925,6 @@ class RemoteServer:
             self.controller.command("start_presentation_from_first_slide")
         except Exception:
             return
-
-    def _prewarm_local_slide_cache(self) -> None:
-        if not self.http_servers:
-            self.preload_status = {
-                "state": "disabled",
-                "slides": 0,
-                "cacheSize": 0,
-                "lastError": "",
-            }
-            return
-
-        prewarm = getattr(self.controller, "prewarm_slide_previews", None)
-        if not callable(prewarm):
-            self.preload_status = {
-                "state": "unavailable",
-                "slides": 0,
-                "cacheSize": 0,
-                "lastError": "",
-            }
-            return
-
-        try:
-            result = prewarm()
-        except Exception as exc:
-            self.preload_status = {
-                "state": "error",
-                "slides": 0,
-                "cacheSize": 0,
-                "lastError": str(exc),
-            }
-            self.listener_warnings.append(
-                translate("localServer.listener.preloadFailed", error=exc)
-            )
-            return
-
-        if not isinstance(result, dict):
-            result = {}
-        self.preload_status = {
-            "state": str(result.get("state", "ready")),
-            "slides": int(result.get("slides", 0)),
-            "cacheSize": int(result.get("cacheSize", 0)),
-            "lastError": "",
-        }
 
     def _pairing_hint(
         self,
@@ -984,7 +1012,10 @@ class RemoteServer:
     def _bind_ipv4_server(self, handler_cls) -> ThreadingHTTPServer:
         for candidate_port in range(self.config.local_port, self.config.local_port + 10):
             try:
-                server = ThreadingHTTPServer((self.config.local_host, candidate_port), handler_cls)
+                server = NativeThreadingHTTPServer(
+                    (self.config.local_host, candidate_port),
+                    handler_cls,
+                )
             except OSError:
                 continue
             if candidate_port != self.config.local_port:
@@ -1053,7 +1084,7 @@ class RemoteServer:
             admission_token=self.relay_admission_token,
             state_provider=self.relay_state_payload,
             asset_provider=self.relay_asset_payload,
-            command_handler=self.controller.command,
+            command_handler=self.run_command,
             activity_callback=self.mark_client_activity,
         )
         self.relay_client.start()
@@ -1119,6 +1150,14 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self) -> None:
+        try:
+            self._do_get()
+        except RuntimeError as exc:
+            self._runtime_error(exc, HTTPStatus.SERVICE_UNAVAILABLE)
+        except Exception as exc:
+            self._runtime_error(exc, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _do_get(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path in {"/", "/index.html"}:
             self._send_file(WEB_ROOT / "index.html", "text/html; charset=utf-8")
@@ -1158,6 +1197,14 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
+        try:
+            self._do_post()
+        except RuntimeError as exc:
+            self._runtime_error(exc, HTTPStatus.SERVICE_UNAVAILABLE)
+        except Exception as exc:
+            self._runtime_error(exc, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _do_post(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/direct/command":
             if self._authorize_direct_session(parsed):
@@ -1204,7 +1251,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.BAD_REQUEST)
             return
 
-        self.server_ref.controller.command(command, index)
+        self.server_ref.run_command(command, index)
         self._json({"ok": True})
 
     def _handle_local_command(self) -> None:
@@ -1223,7 +1270,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.BAD_REQUEST,
             )
             return
-        self.server_ref.controller.command(command.command, command.index)
+        self.server_ref.run_command(command.command, command.index)
         self._json({"ok": True})
 
     def _mark_authorized_client_activity(self) -> None:
@@ -1234,9 +1281,8 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
     def _authorize_direct_session(self, parsed, *, mark_activity: bool = True) -> bool:
         query_session = dict(parse_qsl(parsed.query, keep_blank_values=True)).get("s", "")
         header_session = self.headers.get("X-Impress-Remote-Session", "")
-        if (
-            hmac.compare_digest(query_session, self.server_ref.session_id)
-            or hmac.compare_digest(header_session, self.server_ref.session_id)
+        if hmac.compare_digest(query_session, self.server_ref.session_id) or hmac.compare_digest(
+            header_session, self.server_ref.session_id
         ):
             if mark_activity:
                 self._mark_authorized_client_activity()
@@ -1249,15 +1295,12 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
 
     def _authorize_local_fallback(self) -> bool:
         client_host = self.client_address[0] if self.client_address else None
-        has_pairing_headers = (
-            hmac.compare_digest(
-                self.headers.get("X-Impress-Remote-Session", ""),
-                self.server_ref.session_id,
-            )
-            and hmac.compare_digest(
-                self.headers.get("X-Impress-Remote-Secret", ""),
-                self.server_ref.pairing_secret,
-            )
+        has_pairing_headers = hmac.compare_digest(
+            self.headers.get("X-Impress-Remote-Session", ""),
+            self.server_ref.session_id,
+        ) and hmac.compare_digest(
+            self.headers.get("X-Impress-Remote-Secret", ""),
+            self.server_ref.pairing_secret,
         )
         if not has_pairing_headers:
             self._json(
@@ -1344,6 +1387,18 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
                     self.wfile.flush()
                     last_heartbeat = now
                 time.sleep(0.35)
+        except RuntimeError as exc:
+            self._sse_error(exc)
+            return
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+    def _sse_error(self, error: Exception) -> None:
+        try:
+            payload = json.dumps({"ok": False, "error": str(error)}, separators=(",", ":"))
+            self.wfile.write(b"event: error\n")
+            self.wfile.write(f"data: {payload}\n\n".encode())
+            self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
@@ -1407,6 +1462,11 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _runtime_error(self, error: Exception, status: HTTPStatus) -> None:
+        if self.wfile.closed:
+            return
+        self._json({"ok": False, "error": str(error)}, status)
 
     def _bytes(self, data: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK) -> None:
         self.send_response(status)

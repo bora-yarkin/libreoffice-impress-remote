@@ -68,8 +68,7 @@ def _is_placeholder_text(text: str) -> bool:
     if normalized.startswith("<") and normalized.endswith(">"):
         inner = normalized[1:-1]
         return bool(inner) and all(
-            character.isalnum() or character in {" ", "/", "-", "_"}
-            for character in inner
+            character.isalnum() or character in {" ", "/", "-", "_"} for character in inner
         )
     return False
 
@@ -335,49 +334,6 @@ class ImpressController:
             raise RuntimeError(translate("error.noNextSlideExport"))
         slide = self._slide_for_index(document, state.next_slide)
         return self._cached_slide_png_bytes(slide, state.next_render_token)
-
-    def prewarm_slide_previews(self) -> dict[str, object]:
-        document = self._require_impress_document()
-        resolved = self._resolve_presentation(document)
-        if resolved.slide_count <= 0:
-            return {"state": "empty", "slides": 0, "cacheSize": len(self._slide_png_cache)}
-
-        warmed = 0
-        for index in range(resolved.slide_count):
-            slide = self._slide_for_index(document, index)
-            if slide is None:
-                continue
-            title = extract_slide_title(slide)
-            notes = extract_notes_for_slide(slide)
-            preview = render_slide_preview(slide, index)
-            render_tokens = {
-                self._render_token(slide, index, title, notes, preview, True, False),
-                self._render_token(
-                    slide,
-                    index,
-                    title,
-                    notes,
-                    preview,
-                    resolved.running,
-                    resolved.paused,
-                ),
-                self._render_token(slide, index, title, "", preview, False, False),
-            }
-            render_tokens.discard("")
-            missing_tokens = [
-                token for token in render_tokens if token not in self._slide_png_cache
-            ]
-            if not missing_tokens:
-                continue
-            data = export_slide_png_bytes(self.ctx, slide)
-            warmed += 1
-            for token in missing_tokens:
-                self._remember_slide_png(token, data)
-        return {
-            "state": "ready",
-            "slides": warmed,
-            "cacheSize": len(self._slide_png_cache),
-        }
 
     def _cached_slide_png_bytes(self, slide, render_token: str) -> bytes:
         if render_token:

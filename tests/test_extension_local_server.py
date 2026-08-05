@@ -7,12 +7,17 @@ from __future__ import annotations
 import json
 import socket
 import unittest
-from typing import cast
+from typing import Any, cast
 
 from types import SimpleNamespace
 
 from config import RemoteConfig
-from local_server import RemoteServer, SecureDirectSession, _url_with_fragment_params
+from local_server import (
+    LibreOfficeCallbackQueue,
+    RemoteServer,
+    SecureDirectSession,
+    _url_with_fragment_params,
+)
 from protocol import SecureRelayCodec, decode_hello_message, encode_hello_message
 
 
@@ -24,6 +29,7 @@ class PairingServerStub:
     console_url = RemoteServer.console_url
     mark_client_activity = RemoteServer.mark_client_activity
     _start_presentation_for_client = RemoteServer._start_presentation_for_client
+    _run_uno = RemoteServer._run_uno
     _pairing_hint = RemoteServer._pairing_hint
     _direct_ipv6_status = RemoteServer._direct_ipv6_status
     _direct_ipv6_hint = RemoteServer._direct_ipv6_hint
@@ -85,12 +91,46 @@ class PairingServerStub:
         self.client_connected = False
         self.client_connection_source = ""
         self.last_client_seen_at = 0.0
+        self._uno_callback_queue = SimpleNamespace(call=lambda callback: callback())
 
     def is_running(self) -> bool:
         return self._running
 
 
 class LocalServerTests(unittest.TestCase):
+    def test_uno_callback_queue_sends_a_string_token_through_uno(self) -> None:
+        queue = LibreOfficeCallbackQueue(SimpleNamespace())
+        callback_payloads: list[object] = []
+
+        class AsyncCallback:
+            def addCallback(self, _callback, data) -> None:
+                callback_payloads.append(data)
+                queue._execute(data)
+
+        queue._async_callback = AsyncCallback()
+        queue._callback = cast(Any, object())
+
+        self.assertEqual(queue.call(lambda: "completed"), "completed")
+        self.assertEqual(len(callback_payloads), 1)
+        self.assertIsInstance(callback_payloads[0], str)
+
+    def test_unavailable_uno_callback_never_runs_worker_callback_directly(self) -> None:
+        class UnoContext:
+            def getServiceManager(self):
+                raise RuntimeError("callback service unavailable")
+
+        queue = LibreOfficeCallbackQueue(UnoContext())
+        called = False
+
+        def callback() -> None:
+            nonlocal called
+            called = True
+
+        with self.assertRaises(RuntimeError):
+            queue.call(callback)
+
+        self.assertFalse(called)
+
     def test_url_with_fragment_params_preserves_existing_fragment_values(self) -> None:
         self.assertEqual(
             _url_with_fragment_params(
@@ -193,8 +233,10 @@ class LocalServerTests(unittest.TestCase):
             current_render_token="current123",
             next_render_token="next456",
         )
+
         class StatePayloadServerStub:
             _state_payload = RemoteServer._state_payload
+            _run_uno = RemoteServer._run_uno
             local_fallback_current_slide_image_url = (
                 RemoteServer.local_fallback_current_slide_image_url
             )
@@ -202,6 +244,7 @@ class LocalServerTests(unittest.TestCase):
 
             def __init__(self) -> None:
                 self.controller = SimpleNamespace(state=lambda: state)
+                self._uno_callback_queue = SimpleNamespace(call=lambda callback: callback())
 
             def connection_info(self) -> dict[str, object]:
                 return {"session": "demo123"}
@@ -213,49 +256,6 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(payload["transportSecurity"], "local-authenticated-plaintext")
         self.assertEqual(payload["currentSlideImageUrl"], "/api/local/slide/current?rev=current123")
         self.assertEqual(payload["nextSlideImageUrl"], "/api/local/slide/next?rev=next456")
-
-    def test_prewarm_local_slide_cache_records_controller_status(self) -> None:
-        controller = SimpleNamespace(
-            prewarm_slide_previews=lambda: {
-                "state": "ready",
-                "slides": 4,
-                "cacheSize": 12,
-            },
-        )
-        server = cast(
-            RemoteServer,
-            SimpleNamespace(
-                http_servers=[object()],
-                controller=controller,
-                listener_warnings=[],
-            ),
-        )
-
-        RemoteServer._prewarm_local_slide_cache(server)
-
-        self.assertEqual(
-            server.preload_status,
-            {"state": "ready", "slides": 4, "cacheSize": 12, "lastError": ""},
-        )
-
-    def test_prewarm_local_slide_cache_records_non_fatal_failures(self) -> None:
-        def fail():
-            raise RuntimeError("export failed")
-
-        server = cast(
-            RemoteServer,
-            SimpleNamespace(
-                http_servers=[object()],
-                controller=SimpleNamespace(prewarm_slide_previews=fail),
-                listener_warnings=[],
-            ),
-        )
-
-        RemoteServer._prewarm_local_slide_cache(server)
-
-        self.assertEqual(server.preload_status["state"], "error")
-        self.assertEqual(server.preload_status["lastError"], "export failed")
-        self.assertTrue(server.listener_warnings)
 
     def test_relay_asset_payload_encodes_current_slide_png_for_the_expected_revision(self) -> None:
         state = SimpleNamespace(
@@ -270,7 +270,13 @@ class LocalServerTests(unittest.TestCase):
             current_slide_png_bytes=lambda: b"png-bytes",
             next_slide_png_bytes=lambda: b"next-png-bytes",
         )
-        server = cast(RemoteServer, SimpleNamespace(controller=controller))
+        server = cast(
+            RemoteServer,
+            SimpleNamespace(
+                controller=controller,
+                _run_uno=lambda callback: callback(),
+            ),
+        )
 
         payload = RemoteServer.relay_asset_payload(server, "current", "current123")
 
@@ -293,7 +299,13 @@ class LocalServerTests(unittest.TestCase):
             current_slide_png_bytes=lambda: b"png-bytes",
             next_slide_png_bytes=lambda: b"next-png-bytes",
         )
-        server = cast(RemoteServer, SimpleNamespace(controller=controller))
+        server = cast(
+            RemoteServer,
+            SimpleNamespace(
+                controller=controller,
+                _run_uno=lambda callback: callback(),
+            ),
+        )
 
         payload = RemoteServer.relay_asset_payload(server, "current", "stale999")
 
@@ -693,6 +705,28 @@ def test_local_fallback_state_requires_pairing_headers(remote_server: RemoteServ
         _json_request(remote_server, "/api/local/state")
 
     assert exc_info.value.code == 403
+
+
+def test_local_fallback_returns_service_error_when_uno_callback_fails(
+    remote_server: RemoteServer,
+) -> None:
+    def fail_callback(_callback):
+        raise RuntimeError("LibreOffice callback unavailable")
+
+    remote_server._uno_callback_queue = cast(Any, SimpleNamespace(call=fail_callback))
+
+    with pytest.raises(HTTPError) as exc_info:
+        _json_request(
+            remote_server,
+            "/api/local/state",
+            headers=_fallback_headers(remote_server),
+        )
+
+    assert exc_info.value.code == 503
+    assert json.loads(exc_info.value.read().decode("utf-8")) == {
+        "ok": False,
+        "error": "LibreOffice callback unavailable",
+    }
 
 
 def test_local_fallback_state_returns_authenticated_payload(remote_server: RemoteServer) -> None:

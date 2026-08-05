@@ -1278,7 +1278,20 @@ async function connectSecureDirectEvents() {
       })
       .catch(showTransportError)
   })
+  eventSource.addEventListener('error', event => {
+    try {
+      const payload = JSON.parse(event.data)
+      throw new Error(payload.error || t('web.errorUnknown'))
+    } catch (error) {
+      eventSource.close()
+      eventSource = null
+      showTransportError(error)
+    }
+  })
   eventSource.onerror = () => {
+    if (connectionPhase === 'offline') {
+      return
+    }
     setConnectionPhase(hasEverConnected ? 'reconnecting' : 'connecting')
   }
 }
