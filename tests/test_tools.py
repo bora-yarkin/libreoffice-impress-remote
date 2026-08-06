@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # ruff: noqa: E402,F811
 
+"""Tests for release artifacts, localization imports, and compatibility checks."""
+
 from pathlib import Path
 from io import BytesIO
 import sys

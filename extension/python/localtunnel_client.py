@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Minimal LocalTunnel client used for the experimental tunnel route.
+
+The client creates a public tunnel for the local listener and forwards bytes
+between the tunnel socket and the local HTTP server. It intentionally uses
+the standard library because this code is bundled inside the LibreOffice
+extension.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,6 +31,7 @@ RETRY_DELAY_SECONDS = 2.0
 
 @dataclass(frozen=True)
 class LocalTunnelInfo:
+    """Public endpoint and socket metadata returned by a tunnel server."""
     name: str
     url: str
     remote_host: str
@@ -32,6 +41,7 @@ class LocalTunnelInfo:
 
 
 def normalize_tunnel_host(value: str) -> str:
+    """Validate and normalize a LocalTunnel control-plane URL."""
     text = value.strip() or DEFAULT_TUNNEL_HOST
     parsed = urlparse(text if "://" in text else f"https://{text}")
     if parsed.scheme not in {"http", "https"}:
@@ -43,6 +53,7 @@ def normalize_tunnel_host(value: str) -> str:
 
 
 def _request_tunnel_info(host: str, subdomain: str = "") -> LocalTunnelInfo:
+    """Request one public tunnel endpoint from the configured service."""
     normalized_host = normalize_tunnel_host(host)
     parsed_host = urlparse(normalized_host)
     endpoint = f"{normalized_host}/"
@@ -94,6 +105,7 @@ def _request_tunnel_info(host: str, subdomain: str = "") -> LocalTunnelInfo:
 
 
 class LocalTunnelClient:
+    """Run a reconnecting TCP bridge to an experimental LocalTunnel endpoint."""
     def __init__(
         self,
         *,

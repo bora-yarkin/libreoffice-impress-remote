@@ -1,5 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
+# Keep targets aligned with the developer commands documented in
+# docs/technical-reference.md.
 
 .PHONY: help oxt install-oxt test lint security clean refresh relay-dev localization-import relay-compat
 

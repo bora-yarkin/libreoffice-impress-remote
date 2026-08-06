@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Small, dependency-free cryptographic primitives used by the extension.
+
+LibreOffice may run the bundled code with a Python environment that does not
+contain third-party crypto packages. The implementation therefore includes
+the limited AES-GCM, P-256, HKDF, and encoding operations required by the
+protocol. Changes must preserve the wire-format and validation guarantees.
+"""
+
 from __future__ import annotations
 
 import base64
@@ -10,6 +18,8 @@ import secrets
 
 from localization import translate
 
+# These constants stay local because the embedded LibreOffice Python may not
+# have a third-party cryptography package installed.
 _SBOX = (
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB,
     0x76, 0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4,
@@ -44,18 +54,22 @@ _P256_INFINITY: tuple[int, int] | None = None
 
 
 def random_token(bytes_len: int = 32) -> str:
+    """Return cryptographically random URL-safe text of the requested size."""
     return base64url_encode(secrets.token_bytes(bytes_len))
 
 
 def random_bytes(length: int) -> bytes:
+    """Return cryptographically random bytes for nonces and ephemeral keys."""
     return secrets.token_bytes(length)
 
 
 def p256_generate_private_key() -> int:
+    """Generate a valid private scalar for the NIST P-256 curve."""
     return secrets.randbelow(_P256_N - 1) + 1
 
 
 def p256_public_key(private_key: int) -> bytes:
+    """Encode the uncompressed P-256 public point for wire transport."""
     _validate_p256_private_key(private_key)
     point = _p256_scalar_multiply(private_key, (_P256_GX, _P256_GY))
     if point is None:
@@ -64,6 +78,7 @@ def p256_public_key(private_key: int) -> bytes:
 
 
 def p256_shared_secret(private_key: int, peer_public_key: bytes) -> bytes:
+    """Derive the x-coordinate shared secret from two P-256 key halves."""
     _validate_p256_private_key(private_key)
     peer_point = _p256_decode_point(peer_public_key)
     shared_point = _p256_scalar_multiply(private_key, peer_point)
@@ -73,15 +88,18 @@ def p256_shared_secret(private_key: int, peer_public_key: bytes) -> bytes:
 
 
 def base64url_encode(data: bytes) -> str:
+    """Encode bytes as unpadded URL-safe base64 used by pairing links."""
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
 def base64url_decode(text: str) -> bytes:
+    """Decode unpadded URL-safe base64 and reject malformed input."""
     padding = "=" * (-len(text) % 4)
     return base64.urlsafe_b64decode(f"{text}{padding}".encode("ascii"))
 
 
 def hkdf_sha256(secret: bytes, salt: bytes, info: bytes, length: int = 32) -> bytes:
+    """Expand a shared secret with HKDF-SHA256 to the requested key length."""
     prk = hmac.new(salt, secret, hashlib.sha256).digest()
     output = b""
     block = b""
@@ -99,6 +117,7 @@ def aes_gcm_encrypt(
     plaintext: bytes,
     aad: bytes = b"",
 ) -> tuple[bytes, bytes]:
+    """Encrypt plaintext with AES-GCM and return ciphertext plus authentication tag."""
     _validate_aes_gcm_inputs(key, nonce)
     cipher = _AesCipher(key)
     h = int.from_bytes(cipher.encrypt_block(b"\0" * 16), "big")
@@ -115,6 +134,7 @@ def aes_gcm_decrypt(
     tag: bytes,
     aad: bytes = b"",
 ) -> bytes:
+    """Authenticate and decrypt AES-GCM data, raising on any integrity failure."""
     _validate_aes_gcm_inputs(key, nonce)
     if len(tag) != 16:
         raise ValueError(translate("crypto.error.tagLength"))
@@ -128,6 +148,7 @@ def aes_gcm_decrypt(
 
 
 def _validate_aes_gcm_inputs(key: bytes, nonce: bytes) -> None:
+    """Validate AES-GCM key and nonce sizes before entering the primitive."""
     if len(key) not in {16, 24, 32}:
         raise ValueError(translate("crypto.error.keyLength"))
     if len(nonce) != 12:
@@ -135,6 +156,7 @@ def _validate_aes_gcm_inputs(key: bytes, nonce: bytes) -> None:
 
 
 class _AesCipher:
+    """Expanded AES key schedule and block encryptor used by GCM."""
     def __init__(self, key: bytes):
         self._round_keys, self._rounds = _expand_key(key)
 
@@ -157,6 +179,7 @@ class _AesCipher:
 
 
 def _expand_key(key: bytes) -> tuple[bytes, int]:
+    """Expand an AES-128/256 key into round-key bytes."""
     nk = len(key) // 4
     nr = nk + 6
     words = [int.from_bytes(key[index : index + 4], "big") for index in range(0, len(key), 4)]
@@ -172,10 +195,12 @@ def _expand_key(key: bytes) -> tuple[bytes, int]:
 
 
 def _rot_word(word: int) -> int:
+    """Rotate one 32-bit AES key-schedule word."""
     return ((word << 8) & 0xFFFFFFFF) | (word >> 24)
 
 
 def _sub_word(word: int) -> int:
+    """Apply the AES S-box to each byte of a key-schedule word."""
     return (
         (_SBOX[(word >> 24) & 0xFF] << 24)
         | (_SBOX[(word >> 16) & 0xFF] << 16)
@@ -185,22 +210,26 @@ def _sub_word(word: int) -> int:
 
 
 def _add_round_key(state: list[int], round_key: bytes) -> None:
+    """XOR one expanded key round into the AES state."""
     for index, key_byte in enumerate(round_key):
         state[index] ^= key_byte
 
 
 def _sub_bytes(state: list[int]) -> None:
+    """Apply the AES S-box substitution to the state."""
     for index, value in enumerate(state):
         state[index] = _SBOX[value]
 
 
 def _shift_rows(state: list[int]) -> None:
+    """Apply AES row rotation in the column-major state layout."""
     state[1], state[5], state[9], state[13] = state[5], state[9], state[13], state[1]
     state[2], state[6], state[10], state[14] = state[10], state[14], state[2], state[6]
     state[3], state[7], state[11], state[15] = state[15], state[3], state[7], state[11]
 
 
 def _xtime(value: int) -> int:
+    """Multiply one byte by x in the AES finite field."""
     doubled = (value << 1) & 0xFF
     if value & 0x80:
         doubled ^= 0x1B
@@ -208,6 +237,7 @@ def _xtime(value: int) -> int:
 
 
 def _mix_columns(state: list[int]) -> None:
+    """Mix each AES state column using the Rijndael matrix."""
     for offset in range(0, 16, 4):
         a0, a1, a2, a3 = state[offset : offset + 4]
         mix = a0 ^ a1 ^ a2 ^ a3
@@ -218,6 +248,7 @@ def _mix_columns(state: list[int]) -> None:
 
 
 def _gctr(cipher: _AesCipher, counter_block: bytes, data: bytes) -> bytes:
+    """Apply GCM counter-mode encryption to arbitrary-length data."""
     if not data:
         return b""
     counter = counter_block
@@ -231,6 +262,7 @@ def _gctr(cipher: _AesCipher, counter_block: bytes, data: bytes) -> bytes:
 
 
 def _inc32(counter_block: bytes) -> bytes:
+    """Increment the low 32-bit counter portion of a GCM block."""
     counter = bytearray(counter_block)
     value = (int.from_bytes(counter[-4:], "big") + 1) & 0xFFFFFFFF
     counter[-4:] = value.to_bytes(4, "big")
@@ -244,6 +276,7 @@ def _gcm_tag(
     aad: bytes,
     ciphertext: bytes,
 ) -> bytes:
+    """Compute the AES-GCM authentication tag over AAD and ciphertext."""
     ghash_input = b"".join(
         (
             _pad16(aad),
@@ -259,6 +292,7 @@ def _gcm_tag(
 
 
 def _pad16(data: bytes) -> bytes:
+    """Pad data to the next 16-byte GHASH block boundary."""
     if not data:
         return b""
     remainder = len(data) % 16
@@ -268,6 +302,7 @@ def _pad16(data: bytes) -> bytes:
 
 
 def _ghash(hash_subkey: int, data: bytes) -> int:
+    """Hash padded blocks with the GCM GHASH polynomial."""
     value = 0
     for offset in range(0, len(data), 16):
         block = int.from_bytes(data[offset : offset + 16], "big")
@@ -276,6 +311,7 @@ def _ghash(hash_subkey: int, data: bytes) -> int:
 
 
 def _gf128_multiply(left: int, right: int) -> int:
+    """Multiply two 128-bit values in the GCM finite field."""
     result = 0
     value = right
     for bit_index in range(128):
@@ -289,11 +325,13 @@ def _gf128_multiply(left: int, right: int) -> int:
 
 
 def _validate_p256_private_key(private_key: int) -> None:
+    """Reject private scalars outside the valid P-256 range."""
     if not 1 <= private_key < _P256_N:
         raise ValueError(translate("crypto.error.p256PrivateKey"))
 
 
 def _p256_encode_point(point: tuple[int, int]) -> bytes:
+    """Encode a P-256 point in uncompressed SEC1 form."""
     return b"\x04" + point[0].to_bytes(_P256_FIELD_BYTES, "big") + point[1].to_bytes(
         _P256_FIELD_BYTES,
         "big",
@@ -301,6 +339,7 @@ def _p256_encode_point(point: tuple[int, int]) -> bytes:
 
 
 def _p256_decode_point(raw: bytes) -> tuple[int, int]:
+    """Decode and validate an uncompressed SEC1 P-256 point."""
     if len(raw) != 65 or raw[0] != _P256_POINT_PREFIX:
         raise ValueError(translate("crypto.error.p256PublicKey"))
     x = int.from_bytes(raw[1:33], "big")
@@ -312,6 +351,7 @@ def _p256_decode_point(raw: bytes) -> tuple[int, int]:
 
 
 def _p256_is_on_curve(point: tuple[int, int]) -> bool:
+    """Return whether a point satisfies the P-256 curve equation."""
     x, y = point
     if not 0 <= x < _P256_P or not 0 <= y < _P256_P:
         return False
@@ -319,6 +359,7 @@ def _p256_is_on_curve(point: tuple[int, int]) -> bool:
 
 
 def _p256_inverse(value: int) -> int:
+    """Return a modular inverse in the P-256 field."""
     return pow(value, -1, _P256_P)
 
 
@@ -326,6 +367,7 @@ def _p256_add(
     left: tuple[int, int] | None,
     right: tuple[int, int] | None,
 ) -> tuple[int, int] | None:
+    """Add two P-256 points, including point-at-infinity cases."""
     if left is None:
         return right
     if right is None:
@@ -347,6 +389,7 @@ def _p256_scalar_multiply(
     scalar: int,
     point: tuple[int, int],
 ) -> tuple[int, int] | None:
+    """Multiply a P-256 point by a scalar using double-and-add."""
     result: tuple[int, int] | None = _P256_INFINITY
     addend: tuple[int, int] | None = point
     value = scalar

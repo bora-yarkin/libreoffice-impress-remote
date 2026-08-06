@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # ruff: noqa: E402,F811
 
+"""Unit tests for extension configuration, crypto, localization, and protocol code."""
+
 from __future__ import annotations
 
 from pathlib import Path

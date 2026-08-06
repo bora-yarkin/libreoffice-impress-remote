@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Locale discovery, catalog loading, and safe message formatting.
+
+The same catalog layout is used by the extension and the relay bundle. The
+module falls back to English when a locale or translation is unavailable so
+localization failures cannot prevent the remote from starting.
+"""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -17,6 +24,7 @@ DEFAULT_LOCALE = "en"
 
 
 def localization_root() -> Path:
+    """Choose packaged catalogs first and source-tree catalogs in development."""
     module_path = module_file_path(__file__)
     packaged_root = module_path.parents[1] / "web" / "localizations"
     if _has_catalog(packaged_root):
@@ -28,10 +36,12 @@ def localization_root() -> Path:
 
 
 def _has_catalog(path: Path) -> bool:
+    """Return whether a locale catalog exists at *path*."""
     return (path / f"{DEFAULT_LOCALE}.json").is_file()
 
 
 def available_locales() -> tuple[str, ...]:
+    """Return sorted locale names available to the local UI."""
     root = localization_root()
     locales = sorted(path.stem for path in root.glob("*.json") if path.name != "manifest.json")
     if DEFAULT_LOCALE not in locales and (root / f"{DEFAULT_LOCALE}.json").is_file():
@@ -40,6 +50,7 @@ def available_locales() -> tuple[str, ...]:
 
 
 def localization_manifest() -> dict[str, object]:
+    """Return the locale manifest served to the browser."""
     return {
         "version": 1,
         "defaultLocale": DEFAULT_LOCALE,
@@ -48,6 +59,7 @@ def localization_manifest() -> dict[str, object]:
 
 
 def current_locale() -> str:
+    """Read the user's OS locale without allowing locale errors to escape."""
     for value in (
         os.environ.get("IMPRESS_REMOTE_LANG", ""),
         os.environ.get("LANGUAGE", "").split(":", 1)[0],
@@ -63,10 +75,12 @@ def current_locale() -> str:
 
 
 def _normalize_locale_name(value: str) -> str:
+    """Normalize separators and casing for locale lookup."""
     return value.strip().replace("_", "-").split(".", 1)[0].lower()
 
 
 def _locale_candidates(value: str) -> list[str]:
+    """Return progressively broader locale candidates for fallback lookup."""
     normalized = _normalize_locale_name(value)
     if not normalized:
         return []
@@ -82,6 +96,7 @@ def _locale_candidates(value: str) -> list[str]:
 
 
 def normalize_locale(value: str) -> str:
+    """Resolve a requested locale to the closest shipped catalog."""
     available = available_locales()
     available_lookup = {_normalize_locale_name(locale): locale for locale in available}
     for candidate in _locale_candidates(value):
@@ -95,6 +110,7 @@ def normalize_locale(value: str) -> str:
 
 @lru_cache(maxsize=16)
 def load_catalog(language: str = DEFAULT_LOCALE) -> dict[str, str]:
+    """Load one catalog, falling back to English when it is unavailable."""
     normalized = normalize_locale(language) or DEFAULT_LOCALE
     path = localization_root() / f"{normalized}.json"
     try:
@@ -107,6 +123,7 @@ def load_catalog(language: str = DEFAULT_LOCALE) -> dict[str, str]:
 
 
 def translate(key: str, language: str | None = None, **values: Any) -> str:
+    """Translate *key* and safely interpolate values into its message."""
     selected_language = normalize_locale(language or "") or current_locale()
     text = load_catalog(selected_language).get(key)
     if text is None and selected_language != DEFAULT_LOCALE:
@@ -119,10 +136,12 @@ def translate(key: str, language: str | None = None, **values: Any) -> str:
 
 
 def _format_message(template: str, values: dict[str, Any]) -> str:
+    """Format a message while preserving unknown placeholders verbatim."""
     safe_values = _SafeFormatValues(values)
     return Formatter().vformat(template, (), safe_values)
 
 
 class _SafeFormatValues(dict[str, Any]):
+    """Formatting mapping that leaves missing localization fields visible."""
     def __missing__(self, key: str) -> str:
         return "{" + key + "}"

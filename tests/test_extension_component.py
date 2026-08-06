@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # ruff: noqa: E402,F811
 
+"""Bootstrap and packaging tests for the LibreOffice component entry point."""
+
 import hashlib
 import importlib.util
 import subprocess
@@ -153,7 +155,6 @@ class OfficeUiBootstrapTests(unittest.TestCase):
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
-            self.assertTrue(hasattr(module, "show_remote_settings_dialog"))
             self.assertTrue(hasattr(module, "DialogButtonListener"))
             button_listener = module.DialogButtonListener(type("Dialog", (), {})())
             item_listener = module.DialogItemListener(type("Dialog", (), {})())

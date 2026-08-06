@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Load and format the catalogs shipped with the relay bundle."""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -15,6 +17,7 @@ SOURCE_LOCALIZATION_ROOT = Path(__file__).resolve().parents[3] / "shared" / "loc
 
 
 def localization_root() -> Path:
+    """Choose bundled catalogs first and source catalogs in development."""
     if (PACKAGE_LOCALIZATION_ROOT / f"{DEFAULT_LOCALE}.json").is_file():
         return PACKAGE_LOCALIZATION_ROOT
     return SOURCE_LOCALIZATION_ROOT
@@ -22,6 +25,7 @@ def localization_root() -> Path:
 
 @lru_cache(maxsize=4)
 def load_catalog(language: str = DEFAULT_LOCALE) -> dict[str, str]:
+    """Load one relay catalog, falling back to English."""
     path = localization_root() / f"{language}.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -33,6 +37,7 @@ def load_catalog(language: str = DEFAULT_LOCALE) -> dict[str, str]:
 
 
 def translate(key: str, **values: Any) -> str:
+    """Translate a relay message and safely interpolate its values."""
     text = load_catalog(DEFAULT_LOCALE).get(key, key)
     if not values:
         return text
@@ -40,5 +45,6 @@ def translate(key: str, **values: Any) -> str:
 
 
 class _SafeFormatValues(dict[str, Any]):
+    """Formatting mapping that leaves missing relay fields visible."""
     def __missing__(self, key: str) -> str:
         return "{" + key + "}"

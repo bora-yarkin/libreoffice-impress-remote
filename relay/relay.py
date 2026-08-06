@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""aiohttp application for session admission and opaque frame forwarding.
+
+The relay deliberately has no presentation-domain logic and no decryption
+keys. It authenticates session participants, serves verified static assets,
+and forwards encrypted websocket messages between the plugin and phone.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,12 +45,14 @@ SRI_ASSETS = {
 
 @dataclass(frozen=True)
 class _RelayEnvelope:
+    """Validated envelope metadata used to route an opaque websocket frame."""
     message_type: str
     key_id: str = ""
     frame_kind: str = ""
 
 
 class _RelayProtocolViolation(ValueError):
+    """Internal exception carrying a stable client-visible rejection code."""
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
@@ -51,6 +60,7 @@ class _RelayProtocolViolation(ValueError):
 
 
 def _has_packaged_content(path: Path) -> bool:
+    """Return whether *path* contains a usable packaged web root."""
     if path.is_file():
         return True
     if not path.is_dir():
@@ -59,6 +69,7 @@ def _has_packaged_content(path: Path) -> bool:
 
 
 def web_root() -> Path:
+    """Choose packaged web assets first, then source-tree assets for development."""
     if _has_packaged_content(PACKAGE_WEB_ROOT):
         return PACKAGE_WEB_ROOT
     if _has_packaged_content(SHARED_WEB_ROOT):
@@ -67,6 +78,7 @@ def web_root() -> Path:
 
 
 def read_web_asset(name: str) -> str:
+    """Read one safe web asset and inject SRI into source-tree HTML when needed."""
     if name == "index.html":
         index_path = web_root() / "index.html"
         html = index_path.read_text(encoding="utf-8")
@@ -87,6 +99,7 @@ def read_web_asset(name: str) -> str:
 
 
 def localization_files() -> tuple[Path, ...]:
+    """Return the locale catalogs available to the relay web UI."""
     packaged_root = web_root() / "localizations"
     if packaged_root.exists():
         files = tuple(
@@ -98,6 +111,7 @@ def localization_files() -> tuple[Path, ...]:
 
 
 def localization_manifest() -> dict[str, object]:
+    """Return the JSON manifest advertised to browsers for locale discovery."""
     return {
         "version": 1,
         "defaultLocale": DEFAULT_LOCALE,
@@ -106,10 +120,12 @@ def localization_manifest() -> dict[str, object]:
 
 
 def localization_manifest_text() -> str:
+    """Serialize the locale manifest with stable formatting."""
     return json.dumps(localization_manifest(), indent=2, sort_keys=True) + "\n"
 
 
 def _trusted_index_html(html: str) -> str:
+    """Add integrity attributes for the shared JavaScript and CSS assets."""
     for marker, relative_name in SRI_ASSETS.items():
         source = web_root() / relative_name
         if not source.exists():
@@ -121,6 +137,7 @@ def _trusted_index_html(html: str) -> str:
 
 
 def web_asset_manifest() -> dict[str, object]:
+    """Build hashes and sizes for every static asset served by the relay."""
     root = web_root()
     manifest_path = root / "asset-manifest.json"
     if manifest_path.exists():
@@ -180,6 +197,7 @@ def web_asset_manifest() -> dict[str, object]:
 
 @dataclass
 class RelaySession:
+    """Track one plugin, its phones, admission token, and cached frames."""
     session_id: str
     admission_token: str = ""
     created_at: float = field(default_factory=time.time)
@@ -264,6 +282,7 @@ class RelaySession:
 
 @dataclass
 class RelayState:
+    """Own bounded relay sessions and operational counters."""
     session_ttl: int = 3600
     max_phones_per_session: int = 8
     max_message_bytes: int = 8 * 1024 * 1024
@@ -303,6 +322,8 @@ class RelayState:
         return session
 
     def cleanup(self) -> None:
+        # Cleanup is opportunistic on access; idle sessions do not need a
+        # background timer and are removed before capacity is evaluated.
         now = time.time()
         expired = [
             key
@@ -318,6 +339,7 @@ class RelayState:
 
 
 def _log_event(level: int, event: str, **fields: object) -> None:
+    """Emit one structured JSON log event."""
     payload = {"event": event, **fields}
     LOGGER.log(level, json.dumps(payload, separators=(",", ":"), sort_keys=True))
 
@@ -326,12 +348,14 @@ RELAY_STATE_KEY = web.AppKey("relay_state", RelayState)
 
 
 def get_relay_state(app) -> RelayState:
+    """Retrieve relay state regardless of aiohttp AppKey support."""
     if RELAY_STATE_KEY in app:
         return app[RELAY_STATE_KEY]
     return app["relay_state"]
 
 
 def create_app(state: RelayState | None = None) -> web.Application:
+    """Create the aiohttp application and register its routes."""
     app = web.Application()
     app[RELAY_STATE_KEY] = state or RelayState()
     app.router.add_get("/health", health)
@@ -347,6 +371,7 @@ def create_app(state: RelayState | None = None) -> web.Application:
 
 
 async def health(request: web.Request) -> web.Response:
+    """Return a liveness response for reverse proxies and operators."""
     state = get_relay_state(request.app)
     state.cleanup()
     return web.json_response(
@@ -371,6 +396,7 @@ async def health(request: web.Request) -> web.Response:
 
 
 async def session_status(request: web.Request) -> web.Response:
+    """Return authenticated session metadata without exposing message contents."""
     state = get_relay_state(request.app)
     state.cleanup()
     state.count("sessionStatusRequests")
@@ -391,10 +417,12 @@ async def session_status(request: web.Request) -> web.Response:
 
 
 async def asset_manifest(_request: web.Request) -> web.Response:
+    """Serve the integrity manifest for the active web asset root."""
     return web.json_response(web_asset_manifest())
 
 
 async def index(_request: web.Request) -> web.Response:
+    """Serve the shared phone UI entry page."""
     return web.Response(
         text=read_web_asset("index.html"),
         content_type="text/html",
@@ -402,6 +430,7 @@ async def index(_request: web.Request) -> web.Response:
 
 
 async def app_js(_request: web.Request) -> web.Response:
+    """Serve the shared phone UI JavaScript."""
     return web.Response(
         text=read_web_asset("app.js"),
         content_type="application/javascript",
@@ -409,6 +438,7 @@ async def app_js(_request: web.Request) -> web.Response:
 
 
 async def app_css(_request: web.Request) -> web.Response:
+    """Serve the shared phone UI stylesheet."""
     return web.Response(
         text=read_web_asset("app.css"),
         content_type="text/css",
@@ -416,6 +446,7 @@ async def app_css(_request: web.Request) -> web.Response:
 
 
 async def localization_json(request: web.Request) -> web.Response:
+    """Serve one requested locale catalog after validating its filename."""
     name = request.match_info.get("name", "")
     if name == "manifest.json":
         return web.json_response(localization_manifest())
@@ -431,6 +462,7 @@ async def localization_json(request: web.Request) -> web.Response:
 
 
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
+    """Authenticate and connect a plugin or phone websocket to a session."""
     role = request.query.get("role", "")
     session_id = request.query.get("session", "")
     admission_token = request.query.get("a", "")
@@ -550,6 +582,7 @@ async def relay_message(
     raw_message: str,
     max_cached_plugin_frames: int,
 ) -> bool:
+    """Validate one websocket message and forward it to the opposite peers."""
     state.count("framesReceived")
     try:
         envelope = _validate_protocol_message(
@@ -601,6 +634,7 @@ async def relay_message(
 
 
 async def send_text_message(target: Any, raw_message: str, *, timeout_seconds: float) -> bool:
+    """Send text with a timeout and return whether the peer accepted it."""
     await asyncio.wait_for(target.send_str(raw_message), timeout=max(timeout_seconds, 0.1))
     return True
 
@@ -612,6 +646,7 @@ def _record_plugin_metadata(
     raw_message: str,
     max_cached_plugin_frames: int,
 ) -> None:
+    """Cache the latest plugin hello and replayable frames for new phones."""
     if role != "plugin":
         return
     if envelope.message_type == "hello":
@@ -627,6 +662,7 @@ def _record_plugin_metadata(
 
 
 def _hello_key_id(raw_hello: str) -> str:
+    """Extract a hello key identifier for reconnect metadata, if present."""
     try:
         payload = json.loads(raw_hello)
     except (TypeError, json.JSONDecodeError):
@@ -643,6 +679,7 @@ def _validate_protocol_message(
     session_id: str,
     latest_plugin_hello: str,
 ) -> _RelayEnvelope:
+    """Validate an envelope's role, session, and frame kind before forwarding."""
     try:
         payload = json.loads(raw_message)
     except (TypeError, json.JSONDecodeError) as exc:
@@ -744,6 +781,7 @@ def _validate_protocol_message(
 
 
 def _required_string(payload: dict[str, object], key: str, message: str) -> str:
+    """Read a non-empty string field or raise a protocol violation."""
     value = payload.get(key)
     if not isinstance(value, str) or not value:
         raise _RelayProtocolViolation("invalid-envelope", message)
@@ -756,6 +794,7 @@ async def _reject_protocol(
     code: str,
     message: str,
 ) -> None:
+    """Send a structured protocol error and close the offending websocket."""
     try:
         if not ws.closed:
             await ws.send_str(_encode_error_message(session_id, code, message))
@@ -769,6 +808,7 @@ async def _reject_protocol(
 
 
 def _encode_error_message(session_id: str, code: str, message: str) -> str:
+    """Serialize a relay-side protocol error without importing extension code."""
     return json.dumps(
         {
             "type": "error",
@@ -782,4 +822,5 @@ def _encode_error_message(session_id: str, code: str, message: str) -> str:
 
 
 def _is_valid_session_id(session_id: str) -> bool:
+    """Check the session identifier length and URL-safe character set."""
     return bool(session_id) and all(character in _SESSION_ID_CHARS for character in session_id)

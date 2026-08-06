@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Local HTTP/WebSocket server that exposes a presentation session.
+
+The server bridges browser requests to LibreOffice callbacks, serves the
+packaged phone UI, and provides the authenticated local/direct transports.
+LibreOffice objects must only be touched through ``LibreOfficeCallbackQueue``;
+the request-handler threads are not office threads.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -69,17 +77,21 @@ DEFAULT_FEATURES: dict[str, bool] = {
 
 
 class StaleSlideRevision(RuntimeError):
+    """Raised when a requested slide image no longer matches current state."""
     pass
 
 
 @dataclass
 class _UnoRequest:
+    """One callback queued for execution on LibreOffice's native thread."""
     callback: Callable[[], Any]
     completed: threading.Event = field(default_factory=threading.Event)
     result: Any = None
     error: BaseException | None = None
 
 
+# HTTP worker threads enqueue office work here; only the LibreOffice callback
+# pump may execute functions that touch UNO presentation objects.
 class LibreOfficeCallbackQueue:
     """Runs worker-thread requests on LibreOffice's native message queue."""
 
@@ -151,6 +163,7 @@ class LibreOfficeCallbackQueue:
 
 
 def _url_with_fragment_params(url: str, **params: str) -> str:
+    """Merge pairing parameters into a URL fragment without losing existing values."""
     parsed = urlparse(url)
     values = dict(parse_qsl(parsed.fragment, keep_blank_values=True))
     for key, value in params.items():
@@ -160,6 +173,7 @@ def _url_with_fragment_params(url: str, **params: str) -> str:
 
 
 def _json_object(raw: str) -> dict[str, object]:
+    """Parse *raw* and reject JSON values that are not top-level objects."""
     payload = json.loads(raw)
     if not isinstance(payload, dict):
         raise ValueError(translate("error.configJson"))
@@ -167,6 +181,7 @@ def _json_object(raw: str) -> dict[str, object]:
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
+    """Convert common JSON/config boolean representations to ``bool``."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -177,6 +192,7 @@ def _coerce_bool(value: Any, default: bool) -> bool:
 
 
 def build_features() -> dict[str, bool]:
+    """Load build-time feature flags, falling back to all supported features."""
     features = dict(DEFAULT_FEATURES)
     try:
         payload = json.loads(FEATURES_FILE.read_text(encoding="utf-8"))
@@ -193,18 +209,22 @@ def build_features() -> dict[str, bool]:
 
 
 def feature_enabled(name: str) -> bool:
+    """Return whether a named optional feature is enabled for this build."""
     return build_features().get(name, False)
 
 
 def relay_enabled() -> bool:
+    """Return whether relay support is available in the current artifact."""
     return feature_enabled("relay")
 
 
 def localtunnel_enabled() -> bool:
+    """Return whether the experimental LocalTunnel route is available."""
     return feature_enabled("localtunnel")
 
 
 def _asset_entry(data: bytes) -> dict[str, object]:
+    """Describe one static asset with the hashes used by integrity checks."""
     digest = hashlib.sha256(data)
     return {
         "sha256": digest.hexdigest(),
@@ -214,6 +234,7 @@ def _asset_entry(data: bytes) -> dict[str, object]:
 
 
 def _web_asset_manifest() -> dict[str, object]:
+    """Build the manifest for the web assets served by the local listener."""
     files: dict[str, dict[str, object]] = {}
     bundle_hash = hashlib.sha256()
     for path in sorted(WEB_ROOT.rglob("*")):
@@ -241,6 +262,7 @@ def _web_asset_manifest() -> dict[str, object]:
 
 
 def _is_local_compatibility_client(client_host: str | None) -> bool:
+    """Identify loopback clients allowed to use the authenticated plaintext fallback."""
     if client_host is None:
         return False
     try:
@@ -251,6 +273,7 @@ def _is_local_compatibility_client(client_host: str | None) -> bool:
 
 
 class SecureDirectSession:
+    """Manage ECDH keys and encrypted frames for one direct browser session."""
     def __init__(self, session_id: str, pairing_secret: str):
         self.session_id = session_id
         self._lock = threading.Lock()
@@ -330,11 +353,13 @@ class SecureDirectSession:
 
 
 class NativeThreadingHTTPServer(ThreadingHTTPServer):
+    """Threaded HTTP server that allows address reuse during restarts."""
     daemon_threads = True
     block_on_close = False
 
 
 class IPv6ThreadingHTTPServer(NativeThreadingHTTPServer):
+    """IPv6 variant that disables dual-stack ambiguity where supported."""
     address_family = socket.AF_INET6
 
     def server_bind(self) -> None:
@@ -344,6 +369,7 @@ class IPv6ThreadingHTTPServer(NativeThreadingHTTPServer):
 
 
 class RemoteServer:
+    """Coordinate the local listener, presentation controller, and transports."""
     def __init__(self, ctx, config: RemoteConfig | None = None):
         self.ctx = ctx
         self.config = config or RemoteConfig.load(ctx=ctx)
@@ -1139,12 +1165,15 @@ class RemoteServer:
 
 
 class RemoteRequestHandler(BaseHTTPRequestHandler):
+    """Translate browser HTTP requests into ``RemoteServer`` operations."""
+
     server_ref: RemoteServer
 
     def log_message(self, format: str, *args) -> None:
         return
 
     def do_GET(self) -> None:
+        """Handle static assets, state, events, and slide-image requests."""
         try:
             self._do_get()
         except RuntimeError as exc:
@@ -1192,6 +1221,7 @@ class RemoteRequestHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
+        """Handle secure handshakes, commands, and local fallback requests."""
         try:
             self._do_post()
         except RuntimeError as exc:

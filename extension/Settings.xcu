@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Default values matching the RemoteConfig normalization rules. -->
 <oor:component-data
     xmlns:oor="http://openoffice.org/2001/registry"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"

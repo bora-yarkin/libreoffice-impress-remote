@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Client for the optional self-hosted encrypted relay service.
+
+The relay only forwards opaque protocol envelopes. This client manages the
+plugin-side websocket, health/session admission requests, reconnect behavior,
+and the bridge between the local presentation server and the relay.
+"""
+
 from __future__ import annotations
 
 import base64
@@ -39,6 +46,7 @@ USER_AGENT = f"LibreOfficeImpressRemote/{__version__}"
 
 
 def _read_exact(sock: socket.socket, size: int) -> bytes:
+    """Read exactly *size* bytes or raise when the peer closes the socket."""
     chunks = []
     remaining = size
     while remaining > 0:
@@ -51,6 +59,7 @@ def _read_exact(sock: socket.socket, size: int) -> bytes:
 
 
 class RelayWebSocket:
+    """Small standard-library websocket client for the relay plugin connection."""
     def __init__(self, url: str):
         self.url = url
         self._socket: socket.socket | None = None
@@ -178,6 +187,7 @@ class RelayWebSocket:
 
 
 class RelayClient:
+    """Bridge presentation state, assets, and commands to a relay session."""
     def __init__(
         self,
         relay_url: str,

@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # ruff: noqa: E402,F811
 
+"""Async tests for relay sessions, websocket forwarding, and runtime config."""
+
 import asyncio
 import json
 

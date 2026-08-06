@@ -73,6 +73,12 @@ Runtime components:
 
 The extension owns slideshow control, notes extraction, state generation, local HTTP service, transport configuration, pairing, and relay-client behavior.
 
+The development-only `typings/` tree contains the small UNO interface surface
+used by the extension and the `unohelper` classes needed by static analysis. It
+is not a replacement for LibreOffice's runtime UNO modules and is not included
+in the OXT. Keep this surface limited to interfaces imported by the extension
+so editor completions and type diagnostics remain easy to maintain.
+
 The local listener prefers port `9734`. Users can change that preferred port in Remote Settings. If the preferred port is occupied, the extension asks the operating system for a random free port for that remote session and reports the active port in its connection details. Desktop firewalls must allow inbound LibreOffice traffic on the active port; Direct IPv6 also requires the network firewall to allow that port.
 
 The relay owns only session matching, hosted phone UI delivery, admission-controlled session status, and opaque frame forwarding. It must not decrypt slides, notes, or commands.

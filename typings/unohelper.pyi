@@ -1,3 +1,5 @@
+"""Minimal static interface for the LibreOffice ``unohelper`` module."""
+
 class Base: ...
 
 

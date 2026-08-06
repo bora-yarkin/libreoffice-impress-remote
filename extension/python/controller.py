@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Adapter for reading Impress presentation state through UNO.
+
+The controller deliberately exposes plain Python data structures to the
+network layer. That keeps the HTTP server independent from LibreOffice proxy
+objects and makes slide-state behavior testable without a running office.
+"""
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -15,6 +22,7 @@ from localization import translate
 
 @dataclass
 class PresentationState:
+    """Serializable snapshot of the current and next presentation slides."""
     running: bool
     active: bool
     paused: bool
@@ -39,6 +47,7 @@ class PresentationState:
 
 @dataclass
 class _ResolvedPresentation:
+    """Internal bundle of UNO objects and indexes resolved for one state read."""
     document: object
     presentation: object | None
     controller: object | None
@@ -51,7 +60,10 @@ class _ResolvedPresentation:
     next_index: int | None
 
 
+# Impress exposes placeholder fields for empty title/notes values; hide those
+# markers so the phone UI reports useful content instead of template tokens.
 def _is_placeholder_text(text: str) -> bool:
+    """Return whether text is an empty/template placeholder from Impress."""
     normalized = " ".join(text.strip().lower().split())
     if not normalized:
         return True
@@ -74,6 +86,7 @@ def _is_placeholder_text(text: str) -> bool:
 
 
 def extract_notes_for_slide(slide) -> str:
+    """Extract non-placeholder speaker notes from a slide's notes page."""
     if slide is None or not hasattr(slide, "getNotesPage"):
         return ""
     notes_page = slide.getNotesPage()
@@ -88,11 +101,13 @@ def extract_notes_for_slide(slide) -> str:
 
 
 def extract_slide_title(slide) -> str:
+    """Return the first meaningful text shape on a slide as its title."""
     snippets = extract_slide_snippets(slide, limit=1)
     return snippets[0] if snippets else ""
 
 
 def extract_slide_snippets(slide, limit: int = 3) -> list[str]:
+    """Return up to *limit* meaningful text snippets for a slide preview."""
     if slide is None or not hasattr(slide, "getCount"):
         return []
 
@@ -111,6 +126,7 @@ def extract_slide_snippets(slide, limit: int = 3) -> list[str]:
 
 
 def render_slide_preview(slide, index: int) -> str:
+    """Build the short text fallback shown when a slide image is unavailable."""
     snippets = extract_slide_snippets(slide)
     if not snippets:
         return translate("preview.slideFallback", number=index + 1)
@@ -120,6 +136,7 @@ def render_slide_preview(slide, index: int) -> str:
 
 
 def export_slide_png_bytes(ctx, slide) -> bytes:
+    """Ask LibreOffice to export *slide* as PNG bytes for the phone UI."""
     if slide is None:
         raise RuntimeError(translate("error.noSlideExport"))
 
@@ -162,6 +179,7 @@ def export_slide_png_bytes(ctx, slide) -> bytes:
 
 
 class ImpressController:
+    """Read and control an Impress document through a narrow UNO adapter."""
     _SLIDE_PNG_CACHE_LIMIT = 256
 
     def __init__(self, ctx, monotonic=None):
@@ -172,6 +190,7 @@ class ImpressController:
         self._slide_png_cache: OrderedDict[str, bytes] = OrderedDict()
 
     def state(self) -> PresentationState:
+        """Return a complete presentation snapshot with safe fallback values."""
         document = self._document()
         if document is None:
             self._reset_runtime_tracking()
@@ -263,6 +282,7 @@ class ImpressController:
         )
 
     def command(self, name: str, index: int | None = None) -> None:
+        """Execute a supported presentation command such as next or pause."""
         document = self._document()
         if not self._is_impress_document(document):
             return
@@ -322,12 +342,14 @@ class ImpressController:
             self._set_editing_slide(document, index)
 
     def current_slide_png_bytes(self) -> bytes:
+        """Return PNG bytes for the currently selected slide."""
         document = self._require_impress_document()
         state = self.state()
         slide = self._slide_for_index(document, state.current_slide)
         return self._cached_slide_png_bytes(slide, state.current_render_token)
 
     def next_slide_png_bytes(self) -> bytes:
+        """Return PNG bytes for the next slide, when one exists."""
         document = self._require_impress_document()
         state = self.state()
         if state.next_slide is None:
@@ -336,6 +358,7 @@ class ImpressController:
         return self._cached_slide_png_bytes(slide, state.next_render_token)
 
     def _cached_slide_png_bytes(self, slide, render_token: str) -> bytes:
+        """Return a cached slide image or export and cache a fresh one."""
         if render_token:
             cached = self._slide_png_cache.get(render_token)
             if cached is not None:

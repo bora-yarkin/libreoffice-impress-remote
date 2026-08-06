@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Install, remove, or run the relay as a Windows service."""
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +29,7 @@ def create_windows_service_class(
     display_name: str,
     description: str,
 ):
+    """Create a pywin32 service class bound to one persisted config path."""
     import servicemanager
     import win32event
     import win32service
@@ -88,6 +91,7 @@ def create_windows_service_class(
 
 
 def main() -> None:
+    """Install, remove, or run the Windows service according to CLI arguments."""
     import win32serviceutil
 
     config_path = ROOT / "data" / "service.json"

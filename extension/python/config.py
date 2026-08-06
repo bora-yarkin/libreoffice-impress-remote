@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Persistent extension settings and route URL construction.
+
+This module is the boundary between LibreOffice's configuration registry,
+the small JSON settings file used by development tools, and the URL formats
+consumed by the phone UI. Keep normalization here so callers do not each
+implement slightly different validation rules.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,6 +28,7 @@ CONFIG_NODE_PATH = "org.borayarkin.libreoffice.impressremote.Settings"
 DEFAULT_LOCAL_HOST = "0.0.0.0"
 DEFAULT_LOCAL_PORT = 9734
 DEFAULT_PREFERRED_ROUTE = "local"
+# Persist route keys, not translated labels; labels are resolved at display time.
 ROUTE_LABELS = {
     "local": "route.local",
     "ipv6": "route.ipv6",
@@ -42,6 +51,7 @@ OFFICE_CONFIG_PROPERTIES = {
 
 
 def default_config_dir() -> Path:
+    """Return the per-user directory used by the JSON configuration fallback."""
     home = Path.home()
     if sys.platform == "darwin":
         return home / "Library" / "Application Support" / APP_NAME
@@ -53,16 +63,19 @@ def default_config_dir() -> Path:
 
 
 def config_path(base_dir: Path | None = None) -> Path:
+    """Return the settings file below *base_dir* or the default config directory."""
     return (base_dir or default_config_dir()) / "config.json"
 
 
 def _service_manager(ctx):
+    """Return a service manager from either supported UNO context shape."""
     if hasattr(ctx, "ServiceManager"):
         return ctx.ServiceManager
     return ctx.getServiceManager()
 
 
 def _property_value(name: str, value: object):
+    """Create a UNO ``PropertyValue`` for configuration registry access."""
     try:
         import uno  # pyright: ignore[reportMissingImports]
 
@@ -75,6 +88,7 @@ def _property_value(name: str, value: object):
 
 
 def _open_office_config(ctx, update: bool):
+    """Open the extension configuration node for reading or updating."""
     provider = _service_manager(ctx).createInstanceWithContext(
         "com.sun.star.configuration.ConfigurationProvider",
         ctx,
@@ -91,6 +105,7 @@ def _open_office_config(ctx, update: bool):
 
 
 def _read_office_property(access, name: str, default: object) -> object:
+    """Read one registry property, returning *default* when it is unavailable."""
     try:
         getter = getattr(access, "getPropertyValue", None)
         if getter is not None:
@@ -103,6 +118,7 @@ def _read_office_property(access, name: str, default: object) -> object:
 
 
 def _write_office_property(access, name: str, value: object) -> None:
+    """Write one normalized setting into the LibreOffice registry."""
     setter = getattr(access, "setPropertyValue", None)
     if setter is not None:
         setter(name, value)
@@ -111,6 +127,7 @@ def _write_office_property(access, name: str, value: object) -> None:
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
+    """Convert booleans serialized as strings, numbers, or JSON values."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -121,6 +138,7 @@ def _coerce_bool(value: Any, default: bool) -> bool:
 
 
 def _coerce_local_port(value: Any, default: int = DEFAULT_LOCAL_PORT) -> int:
+    """Validate a TCP port and return the default for invalid values."""
     try:
         port = int(value)
     except (TypeError, ValueError):
@@ -129,6 +147,7 @@ def _coerce_local_port(value: Any, default: int = DEFAULT_LOCAL_PORT) -> int:
 
 
 def normalize_preferred_route(value: Any, default: str = DEFAULT_PREFERRED_ROUTE) -> str:
+    """Normalize a route name to one of the supported connection modes."""
     if isinstance(value, str):
         normalized = value.strip().lower()
         aliases = {
@@ -149,15 +168,18 @@ def normalize_preferred_route(value: Any, default: str = DEFAULT_PREFERRED_ROUTE
 
 
 def route_label(route: str) -> str:
+    """Return the translated display label for a route key."""
     return translate(ROUTE_LABEL_KEYS.get(route, ROUTE_LABEL_KEYS[DEFAULT_PREFERRED_ROUTE]))
 
 
 def _looks_local_host(host: str) -> bool:
+    """Identify loopback and wildcard hosts that should use HTTP URLs."""
     lowered = host.lower()
     return lowered.startswith(("localhost", "127.", "[::1]", "::1", "192.168.", "10.", "172."))
 
 
 def normalize_relay_url(value: str) -> str:
+    """Normalize a relay base URL while preserving an optional path prefix."""
     text = value.strip()
     if not text:
         return ""
@@ -183,6 +205,7 @@ def relay_websocket_url(
     role: str = "plugin",
     admission_token: str = "",
 ) -> str:
+    """Build the relay websocket URL for a plugin or phone session."""
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"http": "ws", "https": "wss"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -203,6 +226,7 @@ def relay_join_url(
     pairing_secret: str = "",
     admission_token: str = "",
 ) -> str:
+    """Build the browser-facing relay pairing URL with fragment metadata."""
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -224,6 +248,7 @@ def relay_session_status_url(
     session_id: str,
     admission_token: str = "",
 ) -> str:
+    """Build the authenticated endpoint used to inspect relay session state."""
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -241,6 +266,7 @@ def relay_session_status_url(
 
 
 def relay_health_url(relay_url: str) -> str:
+    """Build the relay health endpoint from a configured relay URL."""
     parsed = urlparse(normalize_relay_url(relay_url))
     scheme = {"ws": "http", "wss": "https"}.get(parsed.scheme, parsed.scheme)
     path = parsed.path.rstrip("/")
@@ -255,6 +281,7 @@ def relay_health_url(relay_url: str) -> str:
 
 @dataclass(frozen=True)
 class RemoteConfig:
+    """Validated settings shared by the extension, local server, and dialogs."""
     local_host: str = DEFAULT_LOCAL_HOST
     local_port: int = DEFAULT_LOCAL_PORT
     relay_url: str = ""
@@ -284,6 +311,7 @@ class RemoteConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> RemoteConfig:
+        """Construct normalized settings from a JSON-like mapping."""
         relay_url = payload.get("relay_url", payload.get("relayUrl", ""))
         normalized_relay_url = normalize_relay_url(str(relay_url)) if relay_url else ""
         return cls(
@@ -327,6 +355,7 @@ class RemoteConfig:
 
     @classmethod
     def load(cls, base_dir: Path | None = None, ctx=None) -> RemoteConfig:
+        """Load settings from LibreOffice, falling back to the JSON file."""
         if ctx is not None:
             config = cls._load_office(ctx)
             if config is not None:
@@ -342,6 +371,7 @@ class RemoteConfig:
 
     @classmethod
     def _load_file(cls, base_dir: Path | None = None) -> RemoteConfig:
+        """Load settings from disk, returning defaults for missing or invalid files."""
         path = config_path(base_dir)
         if not path.exists():
             return cls()
@@ -353,6 +383,7 @@ class RemoteConfig:
 
     @classmethod
     def _load_office(cls, ctx) -> RemoteConfig | None:
+        """Load settings from the LibreOffice configuration registry."""
         try:
             access = _open_office_config(ctx, update=False)
         except Exception:
@@ -364,6 +395,7 @@ class RemoteConfig:
         return cls.from_dict(payload)
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize settings using the stable camelCase JSON field names."""
         return {
             "localHost": self.local_host,
             "localPort": self.local_port,
@@ -378,6 +410,7 @@ class RemoteConfig:
         }
 
     def save(self, base_dir: Path | None = None, ctx=None) -> Path | None:
+        """Persist settings to LibreOffice or, when unavailable, the JSON fallback."""
         if ctx is not None:
             try:
                 access = _open_office_config(ctx, update=True)
@@ -395,6 +428,7 @@ class RemoteConfig:
         return path
 
     def merge(self, payload: dict[str, Any]) -> RemoteConfig:
+        """Return a new config with selected values replaced and revalidated."""
         current = self.to_dict()
         current.update(payload)
         return RemoteConfig.from_dict(current)

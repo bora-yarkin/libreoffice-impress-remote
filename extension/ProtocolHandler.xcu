@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Routes the extension's vnd.org.borayarkin.impressremote:* URLs to component.py. -->
 <oor:component-data xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" oor:name="ProtocolHandler" oor:package="org.openoffice.Office">
   <node oor:name="HandlerSet">
     <node oor:name="org.borayarkin.libreoffice.impressremote.ProtocolHandler" oor:op="replace">

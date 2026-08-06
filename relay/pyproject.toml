@@ -1,5 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
+# Standalone relay metadata; release.py copies the runtime and requirements
+# into the user-installable relay bundle.
 
 [project]
 name = "impress-remote-relay"

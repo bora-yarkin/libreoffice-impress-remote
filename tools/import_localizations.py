@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Validate and import translated JSON catalogs from the English source."""
+
 from __future__ import annotations
 
 import argparse
@@ -17,10 +19,12 @@ LOCALE_PATTERN = re.compile(r"^[a-z]{2,3}(?:[-_][A-Za-z]{2})?$")
 
 
 class LocalizationImportError(ValueError):
+    """Raised when a catalog violates the repository's translation contract."""
     pass
 
 
 def normalize_locale_tag(value: str) -> str:
+    """Normalize a locale tag to the catalog filename convention."""
     candidate = value.strip().replace("_", "-")
     if not LOCALE_PATTERN.fullmatch(candidate):
         raise LocalizationImportError(f"Invalid locale tag: {value}")
@@ -31,6 +35,7 @@ def normalize_locale_tag(value: str) -> str:
 
 
 def load_json_object(path: Path) -> dict[str, Any]:
+    """Load a JSON object and convert parse/type errors to import errors."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise LocalizationImportError(f"{path} must contain a JSON object.")
@@ -38,6 +43,7 @@ def load_json_object(path: Path) -> dict[str, Any]:
 
 
 def load_translation_file(path: Path) -> tuple[str, dict[str, str]]:
+    """Load a translation file in wrapped or flat catalog format."""
     payload = load_json_object(path)
     if "locale" in payload and "messages" in payload:
         locale = normalize_locale_tag(str(payload["locale"]))
@@ -52,6 +58,7 @@ def load_translation_file(path: Path) -> tuple[str, dict[str, str]]:
 
 
 def placeholders(value: str) -> set[str]:
+    """Return named format placeholders used by one message."""
     names: set[str] = set()
     for _literal, field_name, _format_spec, _conversion in Formatter().parse(value):
         if field_name:
@@ -65,6 +72,7 @@ def validate_translation(
     messages: dict[str, str],
     allow_incomplete: bool = False,
 ) -> None:
+    """Check translated keys and placeholders against the English source."""
     source_keys = set(source)
     message_keys = set(messages)
     unknown = sorted(message_keys - source_keys)
@@ -89,6 +97,7 @@ def import_translation(
     output_dir: Path = DEFAULT_OUTPUT,
     allow_incomplete: bool = False,
 ) -> Path:
+    """Validate and write one translated catalog beside the source catalogs."""
     locale, messages = load_translation_file(path)
     validate_translation(
         source=source_catalog,
@@ -105,6 +114,7 @@ def import_translation(
 
 
 def main() -> None:
+    """Parse CLI arguments and import a translation catalog."""
     parser = argparse.ArgumentParser(
         description="Import validated LibreOffice Impress Remote localization JSON files.",
     )

@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2011 Lincoln Loop
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Vendored, standard-library QR matrix generator used by the pairing dialog.
+
+The implementation is intentionally kept local to the extension so QR
+generation works in LibreOffice's embedded Python without installing a
+package. ``qr.LICENSE`` contains the original BSD-3-Clause license.
+"""
+
 from __future__ import annotations
 
 from localization import translate
@@ -99,6 +106,7 @@ _ERROR_CORRECTION_BLOCKS = (
 
 
 def make_qr_matrix(payload: str, border: int = 4) -> list[list[bool]]:
+    """Encode *payload* as the smallest supported QR matrix with a quiet zone."""
     if border < 0:
         raise ValueError("QR border must not be negative.")
 
@@ -121,6 +129,7 @@ def make_qr_matrix(payload: str, border: int = 4) -> list[list[bool]]:
 
 
 def _make_data_codewords(version: int, data: bytes) -> list[int]:
+    """Pack byte-mode payload data and terminator/padding codewords."""
     blocks = _error_correction_blocks(version)
     bit_limit = sum(data_count * 8 for _total_count, data_count in blocks)
     length_bits = 8 if version < 10 else 16
@@ -148,6 +157,7 @@ def _make_data_codewords(version: int, data: bytes) -> list[int]:
 
 
 def _error_correction_blocks(version: int) -> list[tuple[int, int]]:
+    """Return data/codeword block sizes for a QR version."""
     raw_codewords = _raw_data_modules(version) // 8
     block_count = _ERROR_CORRECTION_BLOCKS[version - 1]
     error_count = _ERROR_CORRECTION_CODEWORDS[version - 1]
@@ -161,6 +171,7 @@ def _error_correction_blocks(version: int) -> list[tuple[int, int]]:
 
 
 def _interleave_error_correction(data: list[int], blocks: list[tuple[int, int]]) -> list[int]:
+    """Split data into RS blocks and interleave data and correction bytes."""
     data_blocks: list[list[int]] = []
     error_blocks: list[list[int]] = []
     offset = 0
@@ -179,6 +190,7 @@ def _interleave_error_correction(data: list[int], blocks: list[tuple[int, int]])
 
 
 def _reed_solomon_remainder(data: list[int], degree: int) -> list[int]:
+    """Compute Reed-Solomon correction codewords over GF(256)."""
     divisor = [1]
     for exponent in range(degree):
         next_divisor = [0] * (len(divisor) + 1)
@@ -198,6 +210,7 @@ def _reed_solomon_remainder(data: list[int], degree: int) -> list[int]:
 
 
 def _draw_matrix(version: int, codewords: list[int]) -> list[list[bool]]:
+    """Build a QR module matrix and choose the lowest-penalty mask."""
     best_mask = 0
     best_penalty: int | None = None
     for mask in range(8):
@@ -220,6 +233,7 @@ def _draw_matrix(version: int, codewords: list[int]) -> list[list[bool]]:
 
 
 def _draw_function_patterns(version: int) -> list[list[bool | None]]:
+    """Place finder, timing, alignment, and reserved format patterns."""
     size = version * 4 + 17
     modules: list[list[bool | None]] = [[None] * size for _ in range(size)]
     _draw_finder_pattern(modules, 0, 0)
@@ -231,6 +245,7 @@ def _draw_function_patterns(version: int) -> list[list[bool | None]]:
 
 
 def _draw_finder_pattern(modules: list[list[bool | None]], row: int, col: int) -> None:
+    """Draw one QR finder pattern and its separator."""
     size = len(modules)
     for row_offset in range(-1, 8):
         target_row = row + row_offset
@@ -248,6 +263,7 @@ def _draw_finder_pattern(modules: list[list[bool | None]], row: int, col: int) -
 
 
 def _draw_alignment_patterns(modules: list[list[bool | None]], version: int) -> None:
+    """Draw alignment patterns not covered by finder patterns."""
     positions = _alignment_pattern_positions(version)
     for row in positions:
         for col in positions:
@@ -263,6 +279,7 @@ def _draw_alignment_patterns(modules: list[list[bool | None]], version: int) -> 
 
 
 def _alignment_pattern_positions(version: int) -> list[int]:
+    """Return QR alignment coordinates for a version."""
     if version == 1:
         return []
     count = version // 7 + 2
@@ -277,6 +294,7 @@ def _alignment_pattern_positions(version: int) -> list[int]:
 
 
 def _draw_timing_patterns(modules: list[list[bool | None]]) -> None:
+    """Draw the alternating horizontal and vertical timing rows."""
     size = len(modules)
     for index in range(8, size - 8):
         if modules[index][6] is None:
@@ -286,6 +304,7 @@ def _draw_timing_patterns(modules: list[list[bool | None]]) -> None:
 
 
 def _draw_format_bits(modules: list[list[bool | None]], mask: int, *, test: bool) -> None:
+    """Place error-correction and mask format bits."""
     bits = _format_bits((_ERROR_CORRECTION_M << 3) | mask)
     size = len(modules)
     for index in range(15):
@@ -307,6 +326,7 @@ def _draw_format_bits(modules: list[list[bool | None]], mask: int, *, test: bool
 
 
 def _draw_version_bits(modules: list[list[bool | None]], version: int, *, test: bool) -> None:
+    """Place version information for QR versions that require it."""
     bits = _version_bits(version)
     size = len(modules)
     for index in range(18):
@@ -316,6 +336,7 @@ def _draw_version_bits(modules: list[list[bool | None]], version: int, *, test: 
 
 
 def _draw_codewords(modules: list[list[bool | None]], codewords: list[int], mask: int) -> None:
+    """Fill remaining modules with data bits using the selected mask."""
     size = len(modules)
     row = size - 1
     direction = -1
@@ -346,6 +367,7 @@ def _draw_codewords(modules: list[list[bool | None]], codewords: list[int], mask
 
 
 def _format_bits(data: int) -> int:
+    """Calculate BCH-protected QR format bits."""
     remainder = data << 10
     while _bit_length(remainder) >= _bit_length(_FORMAT_GENERATOR):
         remainder ^= _FORMAT_GENERATOR << (_bit_length(remainder) - _bit_length(_FORMAT_GENERATOR))
@@ -353,6 +375,7 @@ def _format_bits(data: int) -> int:
 
 
 def _version_bits(version: int) -> int:
+    """Calculate BCH-protected QR version information."""
     remainder = version << 12
     while _bit_length(remainder) >= _bit_length(_VERSION_GENERATOR):
         remainder ^= _VERSION_GENERATOR << (
@@ -362,10 +385,12 @@ def _version_bits(version: int) -> int:
 
 
 def _bit_length(value: int) -> int:
+    """Return the number of significant bits in a nonnegative integer."""
     return value.bit_length()
 
 
 def _mask_applies(mask: int, row: int, col: int) -> bool:
+    """Return whether one QR mask toggles the specified module."""
     if mask == 0:
         return (row + col) % 2 == 0
     if mask == 1:
@@ -384,6 +409,7 @@ def _mask_applies(mask: int, row: int, col: int) -> bool:
 
 
 def _penalty_score(modules: list[list[bool | None]]) -> int:
+    """Score visual runs, blocks, finder-like patterns, and dark balance."""
     size = len(modules)
     score = 0
     run_counts = [0] * (size + 1)
@@ -410,6 +436,7 @@ def _penalty_score(modules: list[list[bool | None]]) -> int:
 
 
 def _count_runs(line: list[bool | None], counts: list[int]) -> None:
+    """Count QR penalty points caused by runs of five or more modules."""
     previous = line[0]
     length = 0
     for value in line:
@@ -425,6 +452,7 @@ def _count_runs(line: list[bool | None], counts: list[int]) -> None:
 
 
 def _finder_penalty(line: list[bool | None]) -> int:
+    """Score finder-like one-dimensional patterns in a QR row or column."""
     score = 0
     for index in range(len(line) - 10):
         pattern = line[index : index + 11]
@@ -437,6 +465,7 @@ def _finder_penalty(line: list[bool | None]) -> int:
 
 
 def _raw_data_modules(version: int) -> int:
+    """Return the number of modules available for encoded data."""
     size = version * 4 + 17
     result = size * size
     result -= 8 * 8 * 3
@@ -452,6 +481,7 @@ def _raw_data_modules(version: int) -> int:
 
 
 def _gf_multiply(left: int, right: int) -> int:
+    """Multiply two QR finite-field bytes."""
     result = 0
     while right:
         if right & 1:
@@ -464,6 +494,7 @@ def _gf_multiply(left: int, right: int) -> int:
 
 
 def _gf_pow(exponent: int) -> int:
+    """Raise the QR generator element to an integer exponent."""
     value = 1
     for _ in range(exponent):
         value = _gf_multiply(value, 2)
@@ -471,6 +502,7 @@ def _gf_pow(exponent: int) -> int:
 
 
 class _BitBuffer:
+    """Append arbitrary-width values while constructing QR payload bits."""
     def __init__(self) -> None:
         self.bytes: list[int] = []
         self.length = 0

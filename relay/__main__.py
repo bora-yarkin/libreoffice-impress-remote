@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Command-line entry point for the standalone relay service."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,6 +24,7 @@ from relay.runtime import (
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse relay host, port, logging, and config-file options."""
     parser = argparse.ArgumentParser(prog="impress-remote-relay")
     parser.add_argument("--config")
     parser.add_argument("--host-v4")
@@ -33,6 +36,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def runtime_config_from_args(args: argparse.Namespace) -> RelayRuntimeConfig:
+    """Merge command-line overrides with persisted relay configuration."""
     config = RelayRuntimeConfig(
         host_v4=DEFAULT_HOST_V4,
         host_v6=DEFAULT_HOST_V6,
@@ -52,6 +56,7 @@ def runtime_config_from_args(args: argparse.Namespace) -> RelayRuntimeConfig:
 
 
 async def run(argv: list[str] | None = None) -> None:
+    """Start listeners and keep the relay alive until interrupted."""
     args = parse_args(argv)
     logging.basicConfig(
         level=getattr(logging, str(args.log_level).upper(), logging.INFO),
@@ -79,6 +84,7 @@ async def run(argv: list[str] | None = None) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the async entry point while handling Ctrl-C cleanly."""
     try:
         asyncio.run(run(argv))
     except KeyboardInterrupt:

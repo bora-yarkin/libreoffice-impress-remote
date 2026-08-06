@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Declares the Python component and configuration files contained in the OXT. -->
 <manifest:manifest xmlns:manifest="http://openoffice.org/2001/manifest">
   <manifest:file-entry manifest:media-type="application/vnd.sun.star.uno-component;type=Python"
     manifest:full-path="python/component.py" />

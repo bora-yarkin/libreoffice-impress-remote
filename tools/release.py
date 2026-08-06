@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Build the OXT and exported Python relay bundle.
+
+The release builder is the source of truth for package layout, generated
+asset manifests, SRI hashes, and feature flags. Keep source-only files out of
+the artifacts unless ``build_oxt`` explicitly packages them.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -42,6 +49,7 @@ INCLUDE = [
 ]
 USER_GUIDE = ROOT / "docs" / "user-guide.md"
 EXCLUDED_NAMES = {".DS_Store", "__MACOSX"}
+# These source markers become integrity attributes in the packaged HTML.
 SRI_ASSETS = {
     'href="/app.css"': "app.css",
     'src="/app.js"': "app.js",
@@ -49,6 +57,7 @@ SRI_ASSETS = {
 
 
 def read_project_version() -> str:
+    """Read and validate the release version from the repository file."""
     version = VERSION_FILE.read_text(encoding="utf-8").strip()
     if not version:
         raise RuntimeError("VERSION is empty")
@@ -56,10 +65,12 @@ def read_project_version() -> str:
 
 
 def project_version() -> str:
+    """Return the current project version used in artifact names and metadata."""
     return read_project_version()
 
 
 def should_include(path: Path) -> bool:
+    """Return whether a source path is safe to copy into a release artifact."""
     return (
         "__pycache__" not in path.parts
         and not any(part in EXCLUDED_NAMES for part in path.parts)
@@ -68,6 +79,7 @@ def should_include(path: Path) -> bool:
 
 
 def iter_webui_files() -> tuple[tuple[Path, Path], ...]:
+    """Yield shared web assets and locale files with package-relative names."""
     entries: list[tuple[Path, Path]] = []
     for source in sorted(SHARED_WEB_ROOT.rglob("*")):
         if source.is_file() and "__pycache__" not in source.parts:
@@ -78,10 +90,12 @@ def iter_webui_files() -> tuple[tuple[Path, Path], ...]:
 
 
 def iter_localization_files() -> tuple[Path, ...]:
+    """Return sorted source localization catalogs."""
     return tuple(sorted(LOCALIZATION_ROOT.glob("*.json")))
 
 
 def build_localization_manifest() -> dict[str, object]:
+    """Build the locale discovery manifest embedded in both artifacts."""
     return {
         "version": 1,
         "defaultLocale": DEFAULT_LOCALE,
@@ -90,15 +104,18 @@ def build_localization_manifest() -> dict[str, object]:
 
 
 def build_localization_manifest_text() -> str:
+    """Serialize the localization manifest with stable formatting."""
     return json.dumps(build_localization_manifest(), indent=2, sort_keys=True) + "\n"
 
 
 def _asset_sri(source: Path) -> str:
+    """Return a base64 SHA-256 SRI value for one asset."""
     digest = hashlib.sha256(source.read_bytes()).digest()
     return "sha256-" + base64.b64encode(digest).decode("ascii")
 
 
 def trusted_index_html() -> str:
+    """Return index HTML with integrity attributes for shared CSS and JS."""
     html = (SHARED_WEB_ROOT / "index.html").read_text(encoding="utf-8")
     for marker, relative_name in SRI_ASSETS.items():
         source = SHARED_WEB_ROOT / relative_name
@@ -107,6 +124,7 @@ def trusted_index_html() -> str:
 
 
 def build_webui_manifest() -> dict[str, object]:
+    """Build hashes, SRI values, and sizes for every packaged web asset."""
     file_entries: dict[str, dict[str, object]] = {}
     bundle_hash = hashlib.sha256()
     for source, relative_path in iter_webui_files():
@@ -145,10 +163,12 @@ def build_webui_manifest() -> dict[str, object]:
 
 
 def build_webui_manifest_text() -> str:
+    """Serialize the web asset manifest with stable formatting."""
     return json.dumps(build_webui_manifest(), indent=2, sort_keys=True) + "\n"
 
 
 def copy_webui(destination: Path) -> tuple[Path, ...]:
+    """Copy shared web assets and generated manifests into a directory."""
     copied: list[Path] = []
     destination.mkdir(parents=True, exist_ok=True)
     for source, relative_path in iter_webui_files():
@@ -170,6 +190,7 @@ def copy_webui(destination: Path) -> tuple[Path, ...]:
 
 
 def add_webui_to_zip(package: ZipFile, destination_root: str) -> None:
+    """Add shared web assets and generated manifests to an archive."""
     for source, relative_path in iter_webui_files():
         if relative_path == Path("index.html"):
             package.writestr(str(Path(destination_root) / relative_path), trusted_index_html())
@@ -186,6 +207,7 @@ def add_webui_to_zip(package: ZipFile, destination_root: str) -> None:
 
 
 def add_path(package: ZipFile, path: Path, base: Path) -> None:
+    """Copy an included extension path into an archive while filtering junk."""
     if path.is_dir():
         for child in sorted(path.rglob("*")):
             if child.is_file() and should_include(child):
@@ -196,6 +218,7 @@ def add_path(package: ZipFile, path: Path, base: Path) -> None:
 
 
 def clean_oxt_dist(output_path: Path) -> None:
+    """Remove stale files from the artifact directory without deleting the target."""
     if not DIST.exists() or output_path.parent.resolve() != DIST.resolve():
         return
     for path in DIST.iterdir():
@@ -208,6 +231,7 @@ def clean_oxt_dist(output_path: Path) -> None:
 
 
 def add_description_xml(package: ZipFile) -> None:
+    """Write description metadata with the current version substituted."""
     versioned_description = re.sub(
         r'<version value="[^"]+"/>',
         f'<version value="{project_version()}"/>',
@@ -218,6 +242,7 @@ def add_description_xml(package: ZipFile) -> None:
 
 
 def copy_python_package(source: Path, destination: Path) -> None:
+    """Copy deployable Python modules while excluding caches and metadata."""
     for path in sorted(source.glob("*.py")):
         target = destination / path.relative_to(source)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -225,6 +250,7 @@ def copy_python_package(source: Path, destination: Path) -> None:
 
 
 def copy_deploy_files(source: Path, destination: Path, *, exclude: set[str] | None = None) -> None:
+    """Copy relay scripts and requirements while omitting excluded entry points."""
     exclude = exclude or set()
     for path in sorted(source.rglob("*")):
         if (
@@ -241,6 +267,7 @@ def copy_deploy_files(source: Path, destination: Path, *, exclude: set[str] | No
 
 
 def build_bundle(dist_dir: Path = DIST) -> tuple[Path, Path]:
+    """Build the standalone relay directory and zip archive."""
     version = project_version()
     dist_dir.mkdir(parents=True, exist_ok=True)
     bundle_dir = dist_dir / f"impress-remote-relay-python-{version}"
@@ -275,6 +302,7 @@ def build_bundle(dist_dir: Path = DIST) -> tuple[Path, Path]:
 
 
 def build_oxt(output_path: Path = OUT, *, clean_dist: bool = True) -> Path:
+    """Build the LibreOffice OXT containing extension and relay resources."""
     output_path.parent.mkdir(exist_ok=True)
     if clean_dist:
         clean_oxt_dist(output_path)
@@ -302,6 +330,7 @@ def build_oxt(output_path: Path = OUT, *, clean_dist: bool = True) -> Path:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    """Build the requested artifact from command-line arguments."""
     parser = argparse.ArgumentParser(description="Build release artifacts.")
     parser.add_argument(
         "artifact",

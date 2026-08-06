@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Versioned encrypted message formats for relay and direct transports.
+
+The codec handles hello negotiation, key rotation, replay protection, and
+typed state/command/error envelopes. Keep this module independent from HTTP
+and UI code so the extension and relay tests can exercise the wire protocol
+in isolation.
+"""
+
 from __future__ import annotations
 
 from collections import deque
@@ -34,12 +42,14 @@ _RELAY_PROTOCOL_LABEL = b"impress-remote-relay/v1"
 
 @dataclass(frozen=True)
 class RelayCommand:
+    """Decoded phone command and optional zero-based slide index."""
     command: str
     index: int | None = None
 
 
 @dataclass(frozen=True)
 class RelayHello:
+    """Public key and session metadata exchanged before encrypted frames."""
     version: int
     session_id: str
     key_id: str
@@ -58,6 +68,7 @@ class RelayHello:
 
 @dataclass(frozen=True)
 class RelayError:
+    """Structured protocol error safe to send across the relay."""
     code: str
     message: str
     session_id: str = ""
@@ -66,12 +77,14 @@ class RelayError:
 
 @dataclass(frozen=True)
 class RelayDecryptedFrame:
+    """Authenticated frame payload returned by the secure codec."""
     kind: str
     payload: dict[str, object]
     key_id: str
 
 
 class RelayProtocolFailure(ValueError):
+    """Raised when a frame violates the versioned relay protocol contract."""
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
@@ -80,6 +93,7 @@ class RelayProtocolFailure(ValueError):
 
 @dataclass
 class _ReplayCache:
+    """Bounded nonce set used to reject duplicate encrypted frames."""
     max_entries: int
     _values: set[str] = field(default_factory=set)
     _order: deque[str] = field(default_factory=deque)
@@ -99,6 +113,7 @@ class _ReplayCache:
 
 @dataclass
 class _RelayKeySet:
+    """Directional keys and replay caches for one negotiated key identifier."""
     key_id: str
     plugin_nonce: str
     state_key: bytes
@@ -107,13 +122,17 @@ class _RelayKeySet:
     phone_replay: _ReplayCache
 
 
+# This temporary state exists only between hello messages and key derivation.
+# No encrypted frame is accepted until it has been replaced by a key set.
 @dataclass(frozen=True)
 class _PendingPluginHello:
+    """Plugin hello waiting for the phone response that completes derivation."""
     hello: RelayHello
     private_key: int
 
 
 class SecureRelayCodec:
+    """Perform hello negotiation, encryption, decryption, and key rotation."""
     def __init__(
         self,
         *,
@@ -404,10 +423,12 @@ class SecureRelayCodec:
 
 
 def encode_state_message(state: dict[str, object]) -> str:
+    """Encode a presentation state payload as a JSON message."""
     return json.dumps({"type": "state", "state": state}, separators=(",", ":"))
 
 
 def encode_command_message(command: str, index: int | None = None) -> str:
+    """Encode a phone command and optional slide index as JSON."""
     payload: dict[str, Any] = {"type": "command", "command": command}
     if index is not None:
         payload["index"] = index
@@ -415,6 +436,7 @@ def encode_command_message(command: str, index: int | None = None) -> str:
 
 
 def decode_command_message(raw: str) -> RelayCommand | None:
+    """Decode a legacy command envelope, returning ``None`` for other messages."""
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
@@ -423,6 +445,7 @@ def decode_command_message(raw: str) -> RelayCommand | None:
 
 
 def decode_command_payload(payload: object) -> RelayCommand | None:
+    """Decode a command payload after validating its field types."""
     if not isinstance(payload, dict):
         return None
     message_type = payload.get("type")
@@ -441,6 +464,7 @@ def decode_command_payload(payload: object) -> RelayCommand | None:
 
 
 def encode_hello_message(hello: RelayHello) -> str:
+    """Serialize a hello dataclass into the protocol's JSON envelope."""
     return json.dumps(
         {
             "type": "hello",
@@ -459,6 +483,7 @@ def encode_hello_message(hello: RelayHello) -> str:
 
 
 def decode_hello_message(raw: str) -> RelayHello | None:
+    """Parse and validate a hello envelope, returning ``None`` for other types."""
     payload = _parse_json(raw)
     if payload.get("type") != "hello":
         return None
@@ -508,6 +533,7 @@ def decode_hello_message(raw: str) -> RelayHello | None:
 
 
 def encode_error_message(code: str, message: str, session_id: str = "") -> str:
+    """Encode a structured protocol error for a peer or relay log."""
     return json.dumps(
         {
             "type": "error",
@@ -521,6 +547,7 @@ def encode_error_message(code: str, message: str, session_id: str = "") -> str:
 
 
 def decode_error_message(raw: str) -> RelayError | None:
+    """Parse an error envelope while tolerating unrelated message types."""
     payload = _parse_json(raw)
     if payload.get("type") != "error":
         return None
@@ -550,6 +577,7 @@ def _derive_key_set(
     phone_public_key: bytes,
     replay_cache_size: int,
 ) -> _RelayKeySet:
+    """Derive directional state/command keys and fresh replay caches."""
     plugin_nonce = base64url_decode(plugin_nonce_text)
     salt = b"\0".join(
         (
@@ -579,6 +607,7 @@ def _derive_key_set(
 
 
 def _send_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
+    """Select the directional key used to encrypt a frame kind."""
     if role == "plugin" and kind in {RELAY_KIND_STATE, RELAY_KIND_ERROR, RELAY_KIND_ASSET}:
         return key_set.state_key
     if role == "phone" and kind == RELAY_KIND_COMMAND:
@@ -590,6 +619,7 @@ def _send_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
 
 
 def _receive_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
+    """Select the directional key used to decrypt a frame kind."""
     if role == "plugin" and kind == RELAY_KIND_COMMAND:
         return key_set.command_key
     if role == "phone" and kind in {RELAY_KIND_STATE, RELAY_KIND_ERROR, RELAY_KIND_ASSET}:
@@ -601,6 +631,7 @@ def _receive_key_for_kind(role: str, key_set: _RelayKeySet, kind: str) -> bytes:
 
 
 def _frame_aad(session_id: str, key_id: str, kind: str, nonce_text: str) -> bytes:
+    """Build authenticated metadata that binds a frame to its session and key."""
     return json.dumps(
         {
             "kind": kind,
@@ -614,6 +645,7 @@ def _frame_aad(session_id: str, key_id: str, kind: str, nonce_text: str) -> byte
 
 
 def _parse_json(raw: str) -> dict[str, object]:
+    """Parse a JSON object and convert malformed input into protocol failures."""
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -630,6 +662,7 @@ def _parse_json(raw: str) -> dict[str, object]:
 
 
 def _parse_json_bytes(raw: bytes) -> object:
+    """Decode UTF-8 JSON bytes while preserving protocol-specific errors."""
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:

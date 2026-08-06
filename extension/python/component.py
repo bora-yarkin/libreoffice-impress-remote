@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""LibreOffice UNO entry point for the Impress Remote extension.
+
+LibreOffice loads this module directly from the OXT and calls ``create`` and
+``writeRegistryInfo`` during component registration. The protocol handler
+also owns the extension's command dispatch and the lifetime of the remote
+server, so changes here can affect both startup and shutdown behavior.
+"""
+
 from __future__ import annotations
 
 import os
@@ -16,6 +24,7 @@ if TYPE_CHECKING:
 
 
 class _FallbackXTerminateListenerBase:
+    """Fallback termination interface used when static UNO types are absent."""
     def disposing(self, _event) -> None:
         return None
 
@@ -27,6 +36,7 @@ class _FallbackXTerminateListenerBase:
 
 
 class _FallbackXDispatchProviderBase:
+    """Fallback dispatch-provider interface for analysis and lightweight tests."""
     def queryDispatch(self, url, target_frame_name, search_flags):
         return None
 
@@ -35,6 +45,7 @@ class _FallbackXDispatchProviderBase:
 
 
 class _FallbackXDispatchBase:
+    """Fallback dispatch interface for analysis and lightweight tests."""
     def dispatch(self, url, args) -> None:
         return None
 
@@ -46,6 +57,7 @@ class _FallbackXDispatchBase:
 
 
 class _FallbackXServiceInfoBase:
+    """Fallback service metadata interface for analysis and lightweight tests."""
     def getImplementationName(self):
         return ""
 
@@ -56,31 +68,10 @@ class _FallbackXServiceInfoBase:
         return ()
 
 
-class _FallbackXStatusListenerBase:
-    def disposing(self, _event) -> None:
-        return None
-
-    def statusChanged(self, _state) -> None:
-        return None
-
-
-class _FallbackXInitializationBase:
-    def initialize(self, _arguments) -> None:
-        return None
-
-
-class _FallbackXUpdatableBase:
-    def update(self) -> None:
-        return None
-
-
 XTerminateListenerBase: Any = _FallbackXTerminateListenerBase
 XDispatchProviderBase: Any = _FallbackXDispatchProviderBase
 XDispatchBase: Any = _FallbackXDispatchBase
 XServiceInfoBase: Any = _FallbackXServiceInfoBase
-XStatusListenerBase: Any = _FallbackXStatusListenerBase
-XInitializationBase: Any = _FallbackXInitializationBase
-XUpdatableBase: Any = _FallbackXUpdatableBase
 
 
 BOOTSTRAP_LOG_PATH = os.path.join(
@@ -90,6 +81,7 @@ BOOTSTRAP_LOG_PATH = os.path.join(
 
 
 def _emit_console_message(message: str) -> None:
+    """Write a bootstrap/status message using whichever LibreOffice stream exists."""
     payload = f"{message}\n".encode()
     streams = [getattr(sys, "stdout", None), getattr(sys, "stderr", None)]
     for stream in streams:
@@ -116,6 +108,7 @@ def _emit_console_message(message: str) -> None:
 
 
 def _write_bootstrap_log(summary):
+    """Persist an import-time failure without allowing logging to mask it."""
     try:
         with open(BOOTSTRAP_LOG_PATH, "w", encoding="utf-8") as log_file:
             log_file.write(summary)
@@ -126,18 +119,15 @@ def _write_bootstrap_log(summary):
 try:
     import unohelper
 
+    # UNO is supplied by LibreOffice at runtime. Initialize fallback bases
+    # first so optional interfaces remain compatible across LibreOffice
+    # versions and the component can be exercised with lightweight test stubs.
     if not TYPE_CHECKING:
         from com.sun.star.frame import XDispatch
         from com.sun.star.frame import XDispatchProvider
 
         XDispatchBase = XDispatch
         XDispatchProviderBase = XDispatchProvider
-        try:
-            from com.sun.star.frame import XStatusListener
-
-            XStatusListenerBase = XStatusListener
-        except Exception:
-            pass
         try:
             from com.sun.star.frame import XTerminateListener
 
@@ -147,18 +137,6 @@ try:
     from com.sun.star.lang import XServiceInfo
 
     XServiceInfoBase = XServiceInfo
-    try:
-        from com.sun.star.lang import XInitialization
-
-        XInitializationBase = XInitialization
-    except Exception:
-        pass
-    try:
-        from com.sun.star.util import XUpdatable
-
-        XUpdatableBase = XUpdatable
-    except Exception:
-        pass
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
@@ -170,12 +148,14 @@ PROTOCOL = "vnd.org.borayarkin.impressremote:"
 
 
 def _ensure_python_root():
+    """Make sibling extension modules importable when LibreOffice loads this file."""
     python_root = os.path.dirname(os.path.abspath(__file__))
     if python_root not in sys.path:
         sys.path.insert(0, python_root)
 
 
 def _translate(key: str, **values: Any) -> str:
+    """Resolve a localized component message after establishing the module path."""
     _ensure_python_root()
     try:
         from localization import translate
@@ -191,12 +171,14 @@ def _translate(key: str, **values: Any) -> str:
 
 
 def _service_manager(ctx):
+    """Return a service manager from either supported UNO context shape."""
     if hasattr(ctx, "ServiceManager"):
         return ctx.ServiceManager
     return ctx.getServiceManager()
 
 
 def _format_elapsed(seconds: int) -> str:
+    """Format elapsed presentation time as a compact ``MM:SS`` string."""
     total_seconds = max(int(seconds), 0)
     minutes, remaining_seconds = divmod(total_seconds, 60)
     hours, remaining_minutes = divmod(minutes, 60)
@@ -206,6 +188,7 @@ def _format_elapsed(seconds: int) -> str:
 
 
 def _coerce_int(value: object, default: int = 0) -> int:
+    """Convert a UNO/config value to an integer without raising on bad input."""
     if isinstance(value, bool):
         return int(value)
     if isinstance(value, int):
@@ -221,6 +204,7 @@ def _coerce_int(value: object, default: int = 0) -> int:
 
 
 def _compose_status_line(remote_running: bool, presentation: dict[str, object]) -> str:
+    """Build the short status string displayed by LibreOffice command controls."""
     if not remote_running:
         return _translate("component.status.remoteStopped")
 
@@ -245,6 +229,7 @@ def _compose_status_line(remote_running: bool, presentation: dict[str, object]) 
 
 
 def _feature_url(path: str) -> object:
+    """Create the UNO feature URL object used for status notifications."""
     complete = f"{PROTOCOL}{path}"
     try:
         import uno  # pyright: ignore[reportMissingImports]
@@ -269,6 +254,7 @@ def _feature_url(path: str) -> object:
 
 
 def _property_values_to_dict(values: object) -> dict[str, object]:
+    """Convert a UNO property-value sequence into a normal Python dictionary."""
     parsed: dict[str, object] = {}
     try:
         iterator = iter(values)  # type: ignore[arg-type]
@@ -282,6 +268,7 @@ def _property_values_to_dict(values: object) -> dict[str, object]:
 
 
 def _matches_protocol(url: object) -> bool:
+    """Return whether a UNO URL belongs to this extension's protocol namespace."""
     protocol = getattr(url, "Protocol", "")
     if protocol == PROTOCOL:
         return True
@@ -290,6 +277,7 @@ def _matches_protocol(url: object) -> bool:
 
 
 def _command_path(url: object) -> str:
+    """Extract the command name from a UNO URL's Path or Complete field."""
     path = getattr(url, "Path", "")
     if isinstance(path, str) and path:
         return path
@@ -303,8 +291,8 @@ def _command_path(url: object) -> str:
 
 
 try:
-
     class ProtocolTerminateListener(unohelper.Base, XTerminateListenerBase):
+        """Forward LibreOffice termination events to the protocol handler."""
         def __init__(self, handler):
             self.handler = handler
 
@@ -323,6 +311,7 @@ try:
         XDispatchProviderBase,
         XDispatchBase,
     ):
+        """Implement UNO registration, command dispatch, and remote lifecycle."""
         def __init__(self, ctx):
             self.ctx = ctx
             self.server: RemoteServer | None = None
@@ -641,14 +630,13 @@ try:
             except Exception:
                 return None
             return None
-
-
 except Exception:
     _write_bootstrap_log(traceback.format_exc())
     raise
 
 
 def create(ctx):
+    """Construct the registered UNO protocol handler for a LibreOffice context."""
     return ImpressRemoteProtocolHandler(ctx)
 
 
@@ -661,4 +649,5 @@ g_ImplementationHelper.addImplementation(
 
 
 def writeRegistryInfo(service_manager, registry_key):
+    """Register the protocol handler implementation with LibreOffice."""
     return g_ImplementationHelper.writeRegistryInfo(registry_key, service_manager)

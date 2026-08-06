@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Check that a deployed relay exposes the HTTP and asset contract."""
+
 from __future__ import annotations
 
 import argparse
@@ -13,17 +15,20 @@ from urllib.request import urlopen
 
 
 class RelayCompatibilityError(RuntimeError):
+    """Raised when a deployed relay fails a required compatibility check."""
     pass
 
 
 @dataclass(frozen=True)
 class CheckResult:
+    """Name and outcome of one relay compatibility probe."""
     name: str
     ok: bool
     detail: str
 
 
 def read_json(url: str) -> tuple[int, dict[str, Any]]:
+    """Fetch JSON from *url* and return its status and object payload."""
     try:
         with urlopen(url, timeout=5) as response:
             status = response.status
@@ -39,11 +44,13 @@ def read_json(url: str) -> tuple[int, dict[str, Any]]:
 
 
 def require(condition: bool, message: str) -> None:
+    """Raise a compatibility error when a required assertion is false."""
     if not condition:
         raise RelayCompatibilityError(message)
 
 
 def check_health(base_url: str) -> CheckResult:
+    """Verify the relay health endpoint and its basic response shape."""
     status, payload = read_json(urljoin(base_url, "/health"))
     require(status == 200, f"expected 200, got {status}")
     require(isinstance(payload.get("ok"), bool), "health payload must include boolean ok")
@@ -51,6 +58,7 @@ def check_health(base_url: str) -> CheckResult:
 
 
 def check_asset_manifest(base_url: str) -> CheckResult:
+    """Verify required web assets are present in the relay manifest."""
     status, payload = read_json(urljoin(base_url, "/asset-manifest.json"))
     require(status == 200, f"expected 200, got {status}")
     files = payload.get("files")
@@ -63,6 +71,7 @@ def check_asset_manifest(base_url: str) -> CheckResult:
 
 
 def check_localization_manifest(base_url: str) -> CheckResult:
+    """Verify the localization manifest is available and lists English."""
     status, payload = read_json(urljoin(base_url, "/localizations/manifest.json"))
     require(status == 200, f"expected 200, got {status}")
     require(payload.get("defaultLocale") == "en", "defaultLocale must be en")
@@ -72,6 +81,7 @@ def check_localization_manifest(base_url: str) -> CheckResult:
 
 
 def check_session_status_auth(base_url: str, session: str, admission_token: str) -> CheckResult:
+    """Verify session status rejects bad auth and accepts the supplied token."""
     query = urlencode({"session": session, "a": admission_token})
     status, _payload = read_json(urljoin(base_url, f"/api/session?{query}"))
     require(status in {200, 403, 404}, f"expected 200/403/404, got {status}")
@@ -83,6 +93,7 @@ def check_session_status_auth(base_url: str, session: str, admission_token: str)
 
 
 def run_checks(base_url: str, *, session: str, admission_token: str) -> tuple[CheckResult, ...]:
+    """Run all HTTP compatibility probes against one normalized base URL."""
     normalized = base_url.rstrip("/") + "/"
     checks = (
         lambda: check_health(normalized),
@@ -97,6 +108,7 @@ def run_checks(base_url: str, *, session: str, admission_token: str) -> tuple[Ch
 
 
 def main() -> None:
+    """Parse CLI arguments, run checks, and print operator-friendly results."""
     parser = argparse.ArgumentParser(
         description="Validate a relay server against the public Impress Remote relay contract.",
     )

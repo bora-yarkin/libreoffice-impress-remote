@@ -1,5 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
+# Install the exported relay runtime once or register it as a Windows service.
+# The release builder places this script beside relay-runtime/.
 
 $ErrorActionPreference = "Stop"
 

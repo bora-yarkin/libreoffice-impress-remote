@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Run the exported relay bundle with a generated or persisted configuration."""
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +20,7 @@ from relay.runtime import ensure_runtime_config, load_runtime_config  # noqa: E4
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse service configuration and port-selection options."""
     parser = argparse.ArgumentParser(prog="run-relay.py")
     parser.add_argument("--config", default=str(ROOT / "data" / "service.json"))
     parser.add_argument("--host-v4")
@@ -30,6 +33,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Ensure runtime configuration exists, then invoke the relay CLI."""
     args = parse_args()
     config_path = Path(args.config).resolve()
     config = ensure_runtime_config(

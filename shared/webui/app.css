@@ -1,3 +1,11 @@
+/*
+ * Shared phone-remote presentation styles.
+ *
+ * This stylesheet is copied unchanged into both release artifacts. Prefer
+ * component-level rules here over deployment-specific selectors so the OXT
+ * and relay render the same UI.
+ */
+
 html{
   height:100%;
   scroll-behavior:smooth;

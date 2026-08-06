@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Tests for extracting stable presentation data from UNO-like objects."""
+
 import unittest
 
 from controller import ImpressController

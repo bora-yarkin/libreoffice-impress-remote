@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""Persisted host, port, and session-lifetime settings for the relay CLI."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -17,6 +19,7 @@ DEFAULT_SESSION_TTL = 3600
 
 @dataclass(frozen=True)
 class RelayRuntimeConfig:
+    """Validated host, port, and session lifetime settings for the relay."""
     host_v4: str = DEFAULT_HOST_V4
     host_v6: str = DEFAULT_HOST_V6
     port: int = 8080
@@ -24,6 +27,7 @@ class RelayRuntimeConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> RelayRuntimeConfig:
+        """Validate a JSON object and construct runtime settings."""
         host_v4 = payload.get("host_v4", DEFAULT_HOST_V4)
         host_v6 = payload.get("host_v6", DEFAULT_HOST_V6)
         port = payload.get("port", 8080)
@@ -44,16 +48,20 @@ class RelayRuntimeConfig:
         )
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize settings for the persisted service configuration."""
         return asdict(self)
 
 
 def choose_random_port() -> int:
+    """Ask the OS for a currently unused local TCP port."""
+    # Ask the OS for a currently free port, then persist it before startup.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
 
 
 def load_runtime_config(path: Path) -> RelayRuntimeConfig:
+    """Load and validate a relay configuration file."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(translate("relay.error.runtimeConfigObject"))
@@ -61,6 +69,7 @@ def load_runtime_config(path: Path) -> RelayRuntimeConfig:
 
 
 def save_runtime_config(path: Path, config: RelayRuntimeConfig) -> RelayRuntimeConfig:
+    """Write a relay configuration file and return the saved config."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(config.to_dict(), indent=2, sort_keys=True) + "\n",
@@ -77,6 +86,7 @@ def ensure_runtime_config(
     port: int | None = None,
     session_ttl: int | None = None,
 ) -> RelayRuntimeConfig:
+    """Load an existing config or create one with supplied defaults."""
     if path.exists():
         return load_runtime_config(path)
     return save_runtime_config(

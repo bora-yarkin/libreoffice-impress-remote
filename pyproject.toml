@@ -1,5 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
+# Root development project and uv workspace; relay runtime dependencies live
+# in relay/pyproject.toml because the OXT does not install Python packages.
 
 [build-system]
 requires = ["setuptools>=83.0.0"]

@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Bora Yarkın
 # SPDX-License-Identifier: GPL-3.0-only
 
+"""LibreOffice-native dialogs and resource export helpers.
+
+This module keeps user-facing setup, pairing, diagnostics, and help dialogs
+out of the protocol handler. UNO controls are created lazily so the module can
+also be imported by tests that provide lightweight UNO stubs.
+"""
+
 from __future__ import annotations
 
 from binascii import crc32
@@ -37,6 +44,7 @@ if TYPE_CHECKING:
 
 
 class _XActionListenerBase:
+    """Fallback method base for UNO action listeners."""
     def disposing(self, _event) -> None:
         return None
 
@@ -45,6 +53,7 @@ class _XActionListenerBase:
 
 
 class _XItemListenerBase:
+    """Fallback method base for UNO item listeners."""
     def disposing(self, _event) -> None:
         return None
 
@@ -53,6 +62,7 @@ class _XItemListenerBase:
 
 
 class _UnoBase:
+    """Fallback for ``unohelper.Base`` when dialogs are imported in tests."""
     pass
 
 
@@ -66,6 +76,7 @@ if not TYPE_CHECKING:
 
 
 def _uno_type(type_name: str) -> object:
+    """Resolve a UNO type name or retain it for test stubs."""
     try:
         import uno  # pyright: ignore[reportMissingImports]
 
@@ -75,6 +86,7 @@ def _uno_type(type_name: str) -> object:
 
 
 class _UnoTypeProviderMixin:
+    """Provide UNO type metadata expected by native controls."""
     UNO_TYPES: tuple[str, ...] = ()
 
     def getTypes(self) -> tuple[object, ...]:
@@ -85,14 +97,17 @@ class _UnoTypeProviderMixin:
 
 
 class _ActionListenerUnoMixin(_UnoTypeProviderMixin):
+    """Advertise the UNO action-listener type for native controls."""
     UNO_TYPES = ("com.sun.star.awt.XActionListener",)
 
 
 class _ItemListenerUnoMixin(_UnoTypeProviderMixin):
+    """Advertise the UNO item-listener type for native controls."""
     UNO_TYPES = ("com.sun.star.awt.XItemListener",)
 
 
 class _TransferableUnoMixin(_UnoTypeProviderMixin):
+    """Advertise the UNO transferable type for clipboard integration."""
     UNO_TYPES = ("com.sun.star.datatransfer.XTransferable",)
 
 
@@ -102,12 +117,14 @@ PNG_WHITE = 255
 
 
 def _service_manager(ctx):
+    """Return a service manager from either supported UNO context shape."""
     if hasattr(ctx, "ServiceManager"):
         return ctx.ServiceManager
     return ctx.getServiceManager()
 
 
 def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    """Encode one PNG chunk with its length and CRC."""
     return (
         pack(">I", len(data))
         + chunk_type
@@ -120,6 +137,7 @@ def _matrix_to_png_bytes(
     matrix: Sequence[Sequence[bool | None]],
     box_size: int = 8,
 ) -> bytes:
+    """Convert a boolean QR matrix into a small grayscale PNG."""
     if not matrix or not matrix[0]:
         raise RuntimeError(translate("error.qrEmpty"))
 
@@ -147,6 +165,9 @@ def _matrix_to_png_bytes(
 
 
 def export_qr_png_path(_ctx, payload: str) -> Path:
+    """Write a QR pairing payload to a temporary PNG path."""
+    # Write the boolean matrix directly as PNG so the embedded Python needs no
+    # additional image dependency.
     if not payload:
         raise RuntimeError(translate("error.noPairingUrl"))
 
@@ -170,6 +191,7 @@ def export_qr_png_path(_ctx, payload: str) -> Path:
 
 
 def open_external_url(ctx, url: str) -> bool:
+    """Open a URL through LibreOffice or the platform browser."""
     if not url:
         return False
     try:
@@ -184,6 +206,7 @@ def open_external_url(ctx, url: str) -> bool:
 
 
 class _PlainTextTransferable(_TransferableUnoMixin, _UnoBase):
+    """Expose copied text as a UNO clipboard transferable."""
     def __init__(self, text: str):
         self.text = text
         self._flavor = self._create_plain_text_flavor()
@@ -212,6 +235,7 @@ class _PlainTextTransferable(_TransferableUnoMixin, _UnoBase):
 
 
 def copy_text_to_clipboard(ctx, text: str) -> bool:
+    """Copy text through UNO, with a Windows fallback for native dialogs."""
     if not text:
         return False
     if sys.platform == "win32":
@@ -267,6 +291,7 @@ def copy_text_to_clipboard(ctx, text: str) -> bool:
 
 
 def _copy_windows_text_to_clipboard(text: str) -> bool:
+    """Use PowerShell as a clipboard fallback on Windows."""
     try:
         import ctypes
         from ctypes import wintypes
@@ -328,6 +353,7 @@ def _copy_windows_text_to_clipboard(text: str) -> bool:
 
 
 class CopyTextListener(_ActionListenerUnoMixin, _UnoBase, _XActionListenerBase):
+    """Handle the Copy URL/diagnostic button in native dialogs."""
     def __init__(self, ctx, text: str):
         self.ctx = ctx
         self.text = text
@@ -341,6 +367,7 @@ class CopyTextListener(_ActionListenerUnoMixin, _UnoBase, _XActionListenerBase):
 
 
 class ResourceExport:
+    """Describe a resource exported from the installed extension bundle."""
     def __init__(self, *, kind: str, destination: Path, entries: int) -> None:
         self.kind = kind
         self.destination = destination
@@ -353,6 +380,7 @@ RESOURCE_ARCHIVES = {
 
 
 def _file_url_to_path(value: str) -> Path:
+    """Convert a LibreOffice file URL or local path to a ``Path``."""
     if value.startswith("file://"):
         parsed = urlparse(value)
         return Path(url2pathname(unquote(parsed.path))).resolve()
@@ -360,6 +388,7 @@ def _file_url_to_path(value: str) -> Path:
 
 
 def _archive_extract_root(archive_path: Path, archive: ZipFile) -> Path:
+    """Choose a safe extraction root for a relay archive."""
     file_names = [member.filename for member in archive.infolist() if not member.is_dir()]
     top_level_names = {
         Path(name).parts[0]
@@ -374,6 +403,7 @@ def _archive_extract_root(archive_path: Path, archive: ZipFile) -> Path:
 
 
 def default_export_directory() -> Path:
+    """Return the user's conventional download/export directory."""
     downloads = Path.home() / "Downloads"
     if downloads.is_dir():
         return downloads
@@ -381,6 +411,7 @@ def default_export_directory() -> Path:
 
 
 def packaged_resource_path(kind: str, module_file: str = __file__) -> Path:
+    """Locate a packaged resource directory or raise a clear error."""
     archive_name = RESOURCE_ARCHIVES.get(kind)
     if archive_name is None:
         raise ValueError(translate("resource.error.unknownKind", kind=kind))
@@ -398,6 +429,7 @@ def packaged_resource_path(kind: str, module_file: str = __file__) -> Path:
 
 
 def packaged_user_guide_path(module_file: str = __file__) -> Path:
+    """Locate the bundled user guide or its source-tree equivalent."""
     module_path = _file_url_to_path(module_file)
     packaged_path = module_path.parents[1] / "resources" / "user-guide.md"
     if packaged_path.is_file():
@@ -411,12 +443,14 @@ def packaged_user_guide_path(module_file: str = __file__) -> Path:
 
 
 def read_packaged_user_guide(module_file: str = __file__) -> str:
+    """Read the user guide text used by the native Help dialog."""
     text = packaged_user_guide_path(module_file).read_text(encoding="utf-8")
     lines = [line for line in text.splitlines() if not line.startswith("<!-- SPDX-")]
     return "\n".join(lines).strip() + "\n"
 
 
 def _markdown_inline(value: str) -> str:
+    """Render the small inline Markdown subset used by the bundled guide."""
     rendered = html.escape(value)
     rendered = re.sub(r"`([^`]+)`", r"<code>\1</code>", rendered)
     rendered = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", rendered)
@@ -424,6 +458,7 @@ def _markdown_inline(value: str) -> str:
 
 
 def _markdown_table(lines: list[str], start: int) -> tuple[str, int]:
+    """Render one Markdown table and return HTML plus the next line index."""
     def cells(row: str) -> list[str]:
         return [cell.strip() for cell in row.strip().strip("|").split("|")]
 
@@ -449,6 +484,7 @@ def _markdown_table(lines: list[str], start: int) -> tuple[str, int]:
 
 
 def render_user_guide_html(markdown: str) -> str:
+    """Render the supported subset of user-guide Markdown as standalone HTML."""
     lines = markdown.splitlines()
     body: list[str] = []
     index = 0
@@ -548,6 +584,7 @@ def render_user_guide_html(markdown: str) -> str:
 
 
 def write_rendered_user_guide_html(module_file: str = __file__) -> Path:
+    """Write the rendered guide to a temporary HTML file and return its path."""
     output = Path(
         tempfile.NamedTemporaryFile(
             prefix="impress-remote-help-",
@@ -563,6 +600,7 @@ def write_rendered_user_guide_html(module_file: str = __file__) -> Path:
 
 
 def open_rendered_user_guide(ctx, module_file: str = __file__) -> bool:
+    """Render and open the bundled user guide in the user's browser."""
     guide_path = write_rendered_user_guide_html(module_file)
     if open_external_url(ctx, guide_path.resolve().as_uri()):
         return True
@@ -578,6 +616,7 @@ def export_packaged_resource(
     destination: Path | None = None,
     module_file: str = __file__,
 ) -> ResourceExport:
+    """Export one packaged resource into a chosen destination directory."""
     archive_path = packaged_resource_path(kind, module_file)
     target_dir = (destination or default_export_directory()).expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -603,6 +642,7 @@ def export_packaged_resource(
 
 
 def choose_export_directory(ctx, title: str) -> Path:
+    """Show the native directory picker and return the selected path."""
     try:
         picker = _service_manager(ctx).createInstanceWithContext(
             "com.sun.star.ui.dialogs.FolderPicker",
@@ -622,6 +662,7 @@ def choose_export_directory(ctx, title: str) -> Path:
 
 
 def show_error_message(ctx, message: str, title: str | None = None, details: str = "") -> None:
+    """Display a native error dialog with optional diagnostic details."""
     if not message:
         return
     title = title or translate("app.title")
@@ -717,6 +758,7 @@ def show_error_message(ctx, message: str, title: str | None = None, details: str
 
 
 class DialogButtonListener(_ActionListenerUnoMixin, _UnoBase, _XActionListenerBase):
+    """Dispatch native dialog button clicks to the owning dialog."""
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -729,6 +771,7 @@ class DialogButtonListener(_ActionListenerUnoMixin, _UnoBase, _XActionListenerBa
 
 
 class DialogItemListener(_ItemListenerUnoMixin, _UnoBase, _XItemListenerBase):
+    """Dispatch native list selection changes to the owning dialog."""
     def __init__(self, dialog):
         self.dialog = dialog
 
@@ -741,6 +784,7 @@ class DialogItemListener(_ItemListenerUnoMixin, _UnoBase, _XItemListenerBase):
 
 
 class RemoteDialogBase:
+    """Shared UNO dialog construction and listener lifecycle."""
     def __init__(self, ctx, handler: ImpressRemoteProtocolHandler):
         self.ctx = ctx
         self.handler = handler
@@ -917,6 +961,7 @@ class RemoteDialogBase:
 
 
 class RemotePairingDialog(RemoteDialogBase):
+    """Display QR pairing, connection status, and copyable session details."""
     def __init__(self, ctx, handler: ImpressRemoteProtocolHandler):
         super().__init__(ctx, handler)
         self.qr_error = ""
@@ -1177,6 +1222,7 @@ class RemotePairingDialog(RemoteDialogBase):
 
 
 class RemoteHelpDialog(RemoteDialogBase):
+    """Display the bundled user guide in a native dialog or browser."""
     def show(self) -> None:
         if open_rendered_user_guide(self.ctx):
             return
@@ -1219,6 +1265,7 @@ class RemoteHelpDialog(RemoteDialogBase):
 
 
 class RemoteAdvancedOptionsDialog(RemoteDialogBase):
+    """Edit route, port, relay, and tunnel settings for the next session."""
     def __init__(self, ctx, handler: ImpressRemoteProtocolHandler):
         super().__init__(ctx, handler)
         self.listeners: dict[str, DialogButtonListener] = {}
@@ -1482,12 +1529,10 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
 
 
 def show_remote_pairing_dialog(ctx, handler: ImpressRemoteProtocolHandler) -> None:
+    """Create and show the pairing dialog."""
     RemotePairingDialog(ctx, handler).show()
 
 
 def show_remote_advanced_dialog(ctx, handler: ImpressRemoteProtocolHandler) -> None:
+    """Create and show the advanced settings dialog."""
     RemoteAdvancedOptionsDialog(ctx, handler).show()
-
-
-def show_remote_settings_dialog(ctx, handler: ImpressRemoteProtocolHandler) -> None:
-    show_remote_advanced_dialog(ctx, handler)

@@ -1,3 +1,9 @@
+// Browser-side controller for the shared phone remote UI.
+//
+// The same file is served by the OXT's local server and by the standalone
+// relay. Keep transport-specific behavior behind the connection helpers so
+// the controls and localization work identically in both deployments.
+
 const RELAY_PROTOCOL_VERSION = 1
 const RELAY_KIND_STATE = 'state'
 const RELAY_KIND_COMMAND = 'command'

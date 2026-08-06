@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Extension Manager icon: presentation screen paired with a phone remote. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">Presentation screen and phone remote</title>
   <desc id="desc">An orange presentation screen connected wirelessly to a dark phone remote</desc>

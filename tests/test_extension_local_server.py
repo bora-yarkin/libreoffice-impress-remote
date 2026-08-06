@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # ruff: noqa: E402,F811
 
+"""Integration-style tests for the local listener and secure session paths."""
+
 from __future__ import annotations
 
 import json
