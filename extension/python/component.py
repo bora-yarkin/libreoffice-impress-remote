@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping
 from types import SimpleNamespace
 import sys
+import threading
 import traceback
 from typing import TYPE_CHECKING, Any, cast
 
@@ -308,13 +309,13 @@ try:
             self.handler = handler
 
         def disposing(self, _event):
-            self.handler.shutdown()
+            self.handler.shutdown_for_termination()
 
         def queryTermination(self, _event):
             return None
 
         def notifyTermination(self, _event):
-            self.handler.shutdown()
+            self.handler.shutdown_for_termination()
 
     class ImpressRemoteProtocolHandler(
         unohelper.Base,
@@ -327,6 +328,8 @@ try:
             self.server: RemoteServer | None = None
             self._last_error = ""
             self._terminate_listener = None
+            self._termination_shutdown_started = False
+            self._termination_shutdown_lock = threading.Lock()
             self._status_listeners: list[tuple[object, str]] = []
             self._register_terminate_listener()
 
@@ -418,6 +421,17 @@ try:
 
         def shutdown(self):
             self.stop()
+
+        def shutdown_for_termination(self):
+            with self._termination_shutdown_lock:
+                if self._termination_shutdown_started:
+                    return
+                self._termination_shutdown_started = True
+            threading.Thread(
+                target=self.shutdown,
+                daemon=True,
+                name="impress-remote-shutdown",
+            ).start()
 
         def toggle_remote(self):
             if self.server is not None and self.server.is_running():

@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import subprocess
 import sys
+import threading
 import types
 import unittest
 from unittest.mock import patch
@@ -478,6 +479,19 @@ class ComponentRuntimeTests(unittest.TestCase):
         assert server is not None
         self.assertFalse(server.is_running())
         self.assertEqual(paired, [])
+
+    def test_termination_shutdown_stops_remote_without_blocking_termination(self) -> None:
+        handler = self.component.ImpressRemoteProtocolHandler(ctx=object())
+        stopped = threading.Event()
+
+        def stop() -> None:
+            stopped.set()
+
+        handler.shutdown = stop
+        handler.shutdown_for_termination()
+        handler.shutdown_for_termination()
+
+        self.assertTrue(stopped.wait(timeout=1))
 
     def test_start_emits_utf8_safe_console_messages(self) -> None:
         handler = self.component.ImpressRemoteProtocolHandler(ctx=object())

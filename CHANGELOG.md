@@ -13,6 +13,7 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ### Fixed
 
+- Fixed LibreOffice shutdown being blocked while the remote was running on Linux desktops such as openSUSE Tumbleweed with KDE Plasma. The termination listener now starts remote cleanup asynchronously and returns immediately, allowing Impress to close while the listener, relay, and tunnel clients are stopped.
 - Fixed a LibreOffice stability risk on Linux, including openSUSE: HTTP and relay worker threads now dispatch Impress and UNO work through LibreOffice's native callback queue instead of touching UNO directly. Failed dispatches return a visible error instead of continuing in an unsafe worker thread.
 - Fixed QR pairing requests that could remain on "Connecting to LibreOffice" when a Python request object was passed through UNO. The callback bridge now sends only a UNO-safe string token and keeps pending work in the extension process.
 - Added a bounded pending-callback limit so repeated browser retries or an unavailable LibreOffice callback queue cannot accumulate unbounded work and degrade LibreOffice responsiveness.
