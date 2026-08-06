@@ -10,7 +10,7 @@
         <value>0.0.0.0</value>
     </prop>
     <prop oor:name="LocalPort" oor:type="xs:int">
-        <value>17865</value>
+        <value>9734</value>
     </prop>
     <prop oor:name="RelayUrl" oor:type="xs:string">
         <value></value>

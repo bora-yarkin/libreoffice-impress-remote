@@ -1013,53 +1013,45 @@ class RemoteServer:
         return started_servers
 
     def _bind_ipv4_server(self, handler_cls) -> ThreadingHTTPServer:
-        for candidate_port in range(self.config.local_port, self.config.local_port + 10):
-            try:
-                server = NativeThreadingHTTPServer(
-                    (self.config.local_host, candidate_port),
-                    handler_cls,
-                )
-            except OSError:
-                continue
-            if candidate_port != self.config.local_port:
-                self.listener_warnings.append(
-                    translate(
-                        "localServer.listener.portBusy",
-                        requested=self.config.local_port,
-                        actual=candidate_port,
-                    )
-                )
-            return server
-        raise RuntimeError(
-            translate(
-                "localServer.listener.startFailed",
-                start=self.config.local_port,
-                end=self.config.local_port + 9,
+        try:
+            return NativeThreadingHTTPServer(
+                (self.config.local_host, self.config.local_port),
+                handler_cls,
             )
-        )
+        except OSError:
+            try:
+                server = NativeThreadingHTTPServer((self.config.local_host, 0), handler_cls)
+            except OSError as exc:
+                raise RuntimeError(
+                    translate("localServer.listener.startFailed", error=exc)
+                ) from None
+            self.listener_warnings.append(
+                translate(
+                    "localServer.listener.portBusy",
+                    requested=self.config.local_port,
+                    actual=server.server_address[1],
+                )
+            )
+            return server
 
     def _bind_ipv6_server(self, handler_cls) -> ThreadingHTTPServer:
-        for candidate_port in range(self.config.local_port, self.config.local_port + 10):
+        try:
+            return IPv6ThreadingHTTPServer(("::", self.config.local_port), handler_cls)
+        except OSError:
             try:
-                server = IPv6ThreadingHTTPServer(("::", candidate_port), handler_cls)
-            except OSError:
-                continue
-            if candidate_port != self.config.local_port:
-                self.listener_warnings.append(
-                    translate(
-                        "localServer.listener.portBusy",
-                        requested=self.config.local_port,
-                        actual=candidate_port,
-                    )
+                server = IPv6ThreadingHTTPServer(("::", 0), handler_cls)
+            except OSError as exc:
+                raise RuntimeError(
+                    translate("localServer.listener.startFailed", error=exc)
+                ) from None
+            self.listener_warnings.append(
+                translate(
+                    "localServer.listener.portBusy",
+                    requested=self.config.local_port,
+                    actual=server.server_address[1],
                 )
-            return server
-        raise RuntimeError(
-            translate(
-                "localServer.listener.startFailed",
-                start=self.config.local_port,
-                end=self.config.local_port + 9,
             )
-        )
+            return server
 
     def _sync_relay_client(self) -> None:
         if not self._runtime_requested:

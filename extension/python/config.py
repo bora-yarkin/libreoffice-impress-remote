@@ -18,7 +18,7 @@ from localtunnel_client import DEFAULT_TUNNEL_HOST, normalize_tunnel_host
 APP_NAME = "libreoffice-impress-remote"
 CONFIG_NODE_PATH = "org.borayarkin.libreoffice.impressremote.Settings"
 DEFAULT_LOCAL_HOST = "0.0.0.0"
-DEFAULT_LOCAL_PORT = 17865
+DEFAULT_LOCAL_PORT = 9734
 DEFAULT_PREFERRED_ROUTE = "local"
 ROUTE_LABELS = {
     "local": "route.local",

@@ -70,6 +70,7 @@ Open `Slide Show -> Remote Settings` only when you need to change the connection
 Remote Settings contains:
 
 - `Mode`: chooses what `Start Remote` will use next.
+- `Local Port`: the preferred listening port. It defaults to `9734`; if it is already in use, the extension automatically chooses a random free port for that session.
 - `Relay Server`: appears only when Relay Server mode is selected.
 - `Get Relay Server`: exports the matching Python relay bundle included in the installed extension.
 - `Help`: opens this bundled user guide inside LibreOffice.
@@ -80,12 +81,12 @@ Changing settings while the remote is running stops the remote. Start it again t
 
 ## Connection Modes
 
-| Mode | Status | Use When | Notes |
-| --- | --- | --- | --- |
-| Local network | Recommended | Phone and computer are on the same Wi-Fi or hotspot. | This is the tested main path. Try this first. |
-| Direct IPv6 | Experimental | Both devices have working public IPv6 and the desktop firewall allows the remote port. | Many home routers, hotspots, and firewalls block this even when IPv6 exists. |
-| Relay Server | Experimental | You run the included Python relay on a VPS or server. | The relay forwards encrypted remote traffic. Enter the relay URL before starting. |
-| LocalTunnel | Experimental | Local network access is blocked and you want a temporary public URL. | Treat the generated URL as secret. Availability depends on the tunnel service. |
+| Mode          | Status       | Use When                                                                               | Notes                                                                             |
+| ------------- | ------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Local network | Recommended  | Phone and computer are on the same Wi-Fi or hotspot.                                   | This is the tested main path. Try this first.                                     |
+| Direct IPv6   | Experimental | Both devices have working public IPv6 and the desktop firewall allows the remote port. | Many home routers, hotspots, and firewalls block this even when IPv6 exists.      |
+| Relay Server  | Experimental | You run the included Python relay on a VPS or server.                                  | The relay forwards encrypted remote traffic. Enter the relay URL before starting. |
+| LocalTunnel   | Experimental | Local network access is blocked and you want a temporary public URL.                   | Treat the generated URL as secret. Availability depends on the tunnel service.    |
 
 If you are presenting in a normal room, office, classroom, or hotspot setup, use Local network mode.
 
@@ -200,6 +201,7 @@ The relay should be served over HTTPS. The relay sees encrypted frames and conne
 If the phone cannot open the link:
 
 - Make sure the phone and computer are on the same Wi-Fi or hotspot for Local network mode.
+- Allow inbound connections to LibreOffice on the active remote port in the desktop firewall. The extension uses `9734` by default, a port configured in Remote Settings, or a random fallback port shown in the QR URL when the preferred port is occupied.
 - Try the phone hotspot workflow.
 - Check whether a desktop firewall is blocking LibreOffice.
 - Use `Copy URL` from the QR popup and paste it into the phone browser.

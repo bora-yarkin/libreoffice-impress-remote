@@ -15,6 +15,7 @@ from config import RemoteConfig
 from local_server import (
     LibreOfficeCallbackQueue,
     RemoteServer,
+    RemoteRequestHandler,
     SecureDirectSession,
     _url_with_fragment_params,
 )
@@ -141,6 +142,21 @@ class LocalServerTests(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             queue.call(lambda: None)
+
+    def test_ipv4_listener_uses_random_port_when_requested_port_is_occupied(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied_socket:
+            occupied_socket.bind(("127.0.0.1", 0))
+            requested_port = occupied_socket.getsockname()[1]
+            server = RemoteServer.__new__(RemoteServer)
+            server.config = RemoteConfig(local_host="127.0.0.1", local_port=requested_port)
+            server.listener_warnings = []
+
+            listener = server._bind_ipv4_server(RemoteRequestHandler)
+            try:
+                self.assertNotEqual(listener.server_address[1], requested_port)
+                self.assertEqual(len(server.listener_warnings), 1)
+            finally:
+                listener.server_close()
 
     def test_url_with_fragment_params_preserves_existing_fragment_values(self) -> None:
         self.assertEqual(

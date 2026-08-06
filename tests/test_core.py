@@ -173,6 +173,7 @@ class ConfigTests(unittest.TestCase):
         config = RemoteConfig.from_dict({"preferredRoute": "surprise"})
 
         self.assertEqual(config.preferred_route, "local")
+        self.assertEqual(config.local_port, 9734)
 
 
 import pytest

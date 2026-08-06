@@ -1265,6 +1265,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
         config = cast(dict[str, Any], snapshot["config"])
 
+        self._set_text("local_port_value", str(config["localPort"]))
         self._set_text("relay_url_value", str(config["relayUrl"]))
         self._updating_route = True
         try:
@@ -1279,7 +1280,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         self._sync_mode_visibility()
 
     def _create_dialog(self):
-        dialog = self._create_dialog_shell(286, 112, translate("office.settings.title"))
+        dialog = self._create_dialog_shell(286, 136, translate("office.settings.title"))
         dialog_model = dialog.getModel()
         self._add_fixed_text(
             dialog_model,
@@ -1302,20 +1303,30 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         )
         self._add_fixed_text(
             dialog_model,
-            "relay_url_title",
-            translate("office.label.relayServer"),
+            "local_port_title",
+            translate("office.label.localPort"),
             8,
             36,
             64,
             10,
         )
-        self._add_edit(dialog_model, "relay_url_value", "", 82, 34, 196, 12)
+        self._add_edit(dialog_model, "local_port_value", "", 72, 34, 72, 12)
+        self._add_fixed_text(
+            dialog_model,
+            "relay_url_title",
+            translate("office.label.relayServer"),
+            8,
+            58,
+            64,
+            10,
+        )
+        self._add_edit(dialog_model, "relay_url_value", "", 82, 56, 196, 12)
         self._add_fixed_text(
             dialog_model,
             "relay_package_title",
             translate("office.label.relayPackage"),
             8,
-            58,
+            80,
             58,
             10,
         )
@@ -1324,7 +1335,7 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             "export_relay_button",
             translate("office.button.exportRelay"),
             72,
-            56,
+            78,
             74,
             14,
         )
@@ -1333,12 +1344,12 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
             "help_button",
             translate("office.button.help"),
             8,
-            94,
+            118,
             44,
             14,
         )
-        self._add_button(dialog_model, "save_button", translate("common.save"), 186, 94, 44, 14)
-        self._add_button(dialog_model, "close_button", translate("common.close"), 236, 94, 44, 14)
+        self._add_button(dialog_model, "save_button", translate("common.save"), 186, 118, 44, 14)
+        self._add_button(dialog_model, "close_button", translate("common.close"), 236, 118, 44, 14)
         return dialog
 
     def _add_listeners(self) -> None:
@@ -1370,7 +1381,10 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         self.item_listeners = {}
 
     def _save_settings(self) -> None:
-        payload: dict[str, object] = {"preferredRoute": self._selected_route()}
+        payload: dict[str, object] = {
+            "preferredRoute": self._selected_route(),
+            "localPort": self._get_text("local_port_value").strip(),
+        }
         if payload["preferredRoute"] == "relay":
             payload["relayUrl"] = self._get_text("relay_url_value").strip()
         snapshot = cast(dict[str, Any], self.handler.runtime_snapshot())
@@ -1436,6 +1450,8 @@ class RemoteAdvancedOptionsDialog(RemoteDialogBase):
         if normalize_preferred_route(payload.get("preferredRoute")) != normalize_preferred_route(
             config.get("preferredRoute")
         ):
+            return True
+        if "localPort" in payload and str(payload["localPort"]) != str(config.get("localPort")):
             return True
         if (
             "relayUrl" in payload

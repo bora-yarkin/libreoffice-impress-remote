@@ -73,6 +73,8 @@ Runtime components:
 
 The extension owns slideshow control, notes extraction, state generation, local HTTP service, transport configuration, pairing, and relay-client behavior.
 
+The local listener prefers port `9734`. Users can change that preferred port in Remote Settings. If the preferred port is occupied, the extension asks the operating system for a random free port for that remote session and reports the active port in its connection details. Desktop firewalls must allow inbound LibreOffice traffic on the active port; Direct IPv6 also requires the network firewall to allow that port.
+
 The relay owns only session matching, hosted phone UI delivery, admission-controlled session status, and opaque frame forwarding. It must not decrypt slides, notes, or commands.
 
 ## Protocol And Pairing

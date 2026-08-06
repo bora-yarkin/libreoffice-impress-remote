@@ -9,6 +9,30 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-08-06
+
+### Fixed
+
+- Fixed a LibreOffice stability risk on Linux, including openSUSE: HTTP and relay worker threads now dispatch Impress and UNO work through LibreOffice's native callback queue instead of touching UNO directly. Failed dispatches return a visible error instead of continuing in an unsafe worker thread.
+- Fixed QR pairing requests that could remain on "Connecting to LibreOffice" when a Python request object was passed through UNO. The callback bridge now sends only a UNO-safe string token and keeps pending work in the extension process.
+- Added a bounded pending-callback limit so repeated browser retries or an unavailable LibreOffice callback queue cannot accumulate unbounded work and degrade LibreOffice responsiveness.
+- Removed eager full-deck preview generation from remote startup. Slide previews remain generated and cached on demand, avoiding a startup stall for large presentations.
+- Improved phone-side direct-event error handling so server-sent errors leave the remote in a visible offline/error state rather than an indefinite connection loop.
+
+### Changed
+
+- Added a `Local Port` field to `Slide Show -> Remote Settings`. The default preferred listener port is now `9734`.
+- Changed listener binding to use the configured port first, then request one OS-selected random free port only if the preferred port is occupied. The pairing URL and connection details always use the active port.
+- Added firewall guidance for the active listener port. Local network, Direct IPv6, and tunnel-backed listener setups require inbound LibreOffice traffic to be allowed on that port; Direct IPv6 also requires the network firewall to allow it.
+- Simplified QR generation to the pairing encoder used by the extension and removed the unused generic vendored QR API surface.
+- Flattened the extension Python runtime layout, removing the obsolete `impress_remote` package directory while preserving the extension component, relay, tunnel, Direct IPv6, and localization functionality.
+- Made relay dependencies reproducible through the root `uv` workspace and lockfile.
+- Removed obsolete Pyright configuration and stale QR exclusions after the runtime layout cleanup.
+
+### Documentation
+
+- Updated the bundled user guide and technical reference for Local Port configuration, random-port fallback, and desktop/network firewall requirements.
+
 ## [1.0.3] - 2026-07-31
 
 ### Fixed
