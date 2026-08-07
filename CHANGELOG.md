@@ -9,6 +9,16 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-08-08
+
+### Fixed
+
+- Fixed Spanish and German localizations. Huge thanks to @AlfredoCubitos
+
+### Changed
+
+- Removed unnecessary and obsolete code.
+
 ## [1.0.5] - 2026-08-06
 
 ### Fixed
