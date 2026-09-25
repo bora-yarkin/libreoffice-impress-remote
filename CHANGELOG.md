@@ -9,6 +9,12 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-09-26
+
+### Fixed
+
+- Kept phone slide previews and slide numbering aligned with the slides LibreOffice actually presents when a deck contains hidden slides.
+
 ## [1.0.7] - 2026-08-08
 
 ### Fixed

@@ -95,6 +95,12 @@ class FakeSlideShowController:
     def getCurrentPage(self):
         return self.getCurrentSlide()
 
+    def getSlideCount(self) -> int:
+        return len(self.slides)
+
+    def getSlideByIndex(self, index: int):
+        return self.slides[index]
+
     def getNextSlideIndex(self) -> int:
         if self.next_index is not None:
             return self.next_index
@@ -319,6 +325,34 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(state.can_go_next)
         self.assertTrue(state.current_render_token)
         self.assertTrue(state.next_render_token)
+
+    def test_running_state_uses_slideshow_order_when_document_has_hidden_slides(self) -> None:
+        slides = [
+            FakeSlide("Visible A", ["Visible A"]),
+            FakeSlide("Hidden", ["Hidden"]),
+            FakeSlide("Visible B", ["Visible B"]),
+            FakeSlide("Visible C", ["Visible C"]),
+        ]
+        slideshow = FakeSlideShowController(
+            current_index=1,
+            slides=[slides[0], slides[2], slides[3]],
+        )
+        document = FakeDocument(slides, FakePresentation(slideshow), slides[0])
+        controller = ImpressController(FakeContext(document))
+
+        state = controller.state()
+
+        self.assertEqual(state.slide_count, 3)
+        self.assertEqual(state.current_slide, 1)
+        self.assertEqual(state.current_title, "Visible B")
+        self.assertEqual(state.next_slide, 2)
+        self.assertEqual(state.next_title, "Visible C")
+        self.assertEqual(state.remaining_slides, 1)
+        controller._cached_slide_png_bytes = (
+            lambda slide, render_token: slide.getName().encode()
+        )
+        self.assertEqual(controller.current_slide_png_bytes(), b"Visible B")
+        self.assertEqual(controller.next_slide_png_bytes(), b"Visible C")
 
     def test_state_falls_back_to_editing_view_when_slideshow_is_not_running(self) -> None:
         slideshow = FakeSlideShowController(current_index=0, slides=self.slides, running=False)
