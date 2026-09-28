@@ -17,4 +17,4 @@ Open work only. Implemented work belongs in `CHANGELOG.md`.
 - Expand localization beyond English and Turkish after source strings settle.
 - Improve frontend trust for local HTTP and relay-hosted UI delivery with local HTTPS, signed assets, pinned assets, or an equivalent trusted shell approach.
 - Keep project documentation concise, current, and honest about volunteer maintenance limits.
-- Revisit MS Office, browser-extension, or other office-suite adapters only if someone volunteers to build and maintain them.
+- Develop the proposed cross-suite companion app after approval; follow the feasibility gates and staged plan in [Cross-suite Companion](docs/cross-suite-companion-plan.md).
