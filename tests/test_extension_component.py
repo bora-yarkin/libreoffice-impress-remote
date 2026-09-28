@@ -836,7 +836,8 @@ def test_read_packaged_user_guide_uses_bundled_markdown(tmp_path: Path) -> None:
     guide_path.parent.mkdir()
     guide_path.write_text(
         "<!-- SPDX-FileCopyrightText: 2026 Bora Yarkın -->\n"
-        "<!-- SPDX-License-Identifier: GPL-3.0-only -->\n\n"
+        "<!-- SPDX-License-"
+        "Identifier: GPL-3.0-only -->\n\n"
         "# User Guide\n\nInstall the OXT.\n",
         encoding="utf-8",
     )

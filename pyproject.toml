@@ -18,7 +18,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.0", "ruff>=0.15.22"]
-security = ["bandit>=1.8", "pip-audit>=2.9", "reuse>=6.2"]
+security = ["bandit>=1.8", "pip>=26.2.0", "pip-audit>=2.9", "reuse>=6.2"]
 
 [tool.setuptools]
 py-modules = []

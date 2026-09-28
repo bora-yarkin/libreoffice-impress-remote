@@ -97,8 +97,12 @@ class RelayWebSocket:
         )
         raw_socket.sendall(request.encode("ascii"))
         response = self._read_http_response(raw_socket)
+        # RFC 6455 requires SHA-1 here; this digest is not used for security.
         expected_accept = base64.b64encode(
-            hashlib.sha1((websocket_key + GUID).encode("ascii")).digest()
+            hashlib.sha1(
+                (websocket_key + GUID).encode("ascii"),
+                usedforsecurity=False,
+            ).digest()
         ).decode("ascii")
         if "101" not in response.splitlines()[0]:
             raise ConnectionError(
