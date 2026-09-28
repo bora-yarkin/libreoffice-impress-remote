@@ -1,0 +1,18 @@
+{
+  "name": "Impress Remote API Probe",
+  "guid": "asc.{0DE7B760-4679-4B43-A926-71D8FBF8D6EA}",
+  "version": "0.1.0",
+  "baseUrl": "",
+  "description": "Development probe for documented ONLYOFFICE presentation APIs.",
+  "variations": [
+    {
+      "description": "Inspect presentation state and exercise slideshow APIs.",
+      "url": "index.html",
+      "type": "panelRight",
+      "EditorsSupport": ["slide"],
+      "isViewer": false,
+      "initDataType": "none",
+      "buttons": []
+    }
+  ]
+}

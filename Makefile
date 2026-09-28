@@ -42,11 +42,11 @@ test: $(SETUP_STAMP)
 	PYTHONPATH=.:extension/python $(VENV_PYTEST) tests
 
 lint: $(SETUP_STAMP)
-	$(VENV_RUFF) check extension/python relay tests tools
+	$(VENV_RUFF) check companion/src extension/python relay tests tools
 
 security: $(SETUP_STAMP)
 	$(VENV_REUSE) lint
-	$(VENV_BANDIT) -r extension/python relay tools -q -lll
+	$(VENV_BANDIT) -r companion/src extension/python relay tools -q -lll
 	$(VENV_PIP_AUDIT)
 
 relay-dev: $(SETUP_STAMP)

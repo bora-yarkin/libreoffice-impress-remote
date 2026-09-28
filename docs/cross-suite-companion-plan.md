@@ -3,7 +3,7 @@
 
 # Cross-Suite Companion
 
-**Status:** Proposal awaiting approval. This document authorizes no implementation by itself.
+**Status:** The Python companion shell with a local browser setup page is approved and in progress (2026-09-28). Live office-host testing is deferred; connector and phone transport remain gated on security and compatibility decisions.
 
 ## Goal
 
@@ -34,6 +34,9 @@ must each be checked against their supported APIs and versions.
   companion scope. An online suite may still require its own account or service.
 - Treat this as presentation control only. Word-processing and spreadsheet
   features are outside this plan.
+- The selected companion shell is a Python executable that opens a local setup
+  page in the default browser. The setup server is a desktop-only surface; it
+  does not itself expose presentation control to the phone.
 
 ## Current Repository Boundaries
 
@@ -132,10 +135,91 @@ for the proof of concept. In particular, the documentation reviewed so far does
 not establish parity for animation-step navigation or live slideshow previews
 across the candidate hosts.
 
+## Phase 0 Execution Record
+
+The user approved starting Phase 0 on 2026-09-28. The first code slice is the
+development probe in `extensions/onlyoffice/`; it targets documented ONLYOFFICE
+plugin and Office JavaScript APIs. It is not a connector implementation or a
+compatibility claim.
+
+### Host and version matrix
+
+No product versions have been selected or tested yet. The matrix records the
+evidence currently available so undocumented compatibility is not mistaken for
+support.
+
+| Host | Version/build checked | API and installation evidence | Live result |
+| --- | --- | --- | --- |
+| ONLYOFFICE Desktop Editors | None selected | Official plugin docs describe desktop `.plugin` installation and the presentation APIs used by the probe. The SDK script is loaded from the official plugin SDK URL. | Not tested in an installed host. |
+| ONLYOFFICE Docs | None selected; deployment unknown | Official plugin docs describe presentation methods/events. Admin installation, cloud policy, host origins, and plugin distribution limits are not established. | Not tested in a Docs deployment. |
+| Euro-Office DesktopEditors | None selected | The project documents plugin support. Its SDKJS repository describes an Office JavaScript API implementation, but the ONLYOFFICE `Asc.plugin` contract and presentation API parity have not been verified. The source build guide reviewed describes Windows and Linux builds; macOS status is unknown. | Not tested in an installed host. |
+| Euro-Office Docs | None selected; deployment unknown | The official integration repository documents embedding Euro-Office Docs. The reviewed material does not establish the needed plugin installation and presentation API contract. | Not tested in a Docs deployment. |
+
+Evidence: [ONLYOFFICE plugin methods](https://api.onlyoffice.com/docs/plugins/interacting-with-editors/presentation-api/Methods/), [ONLYOFFICE plugin events](https://api.onlyoffice.com/docs/plugins/interacting-with-editors/presentation-api/Events/), [ONLYOFFICE Desktop Editors plugin installation](https://api.onlyoffice.com/docs/plugins/development-workflow/developing/for-desktop-editors/), [Euro-Office DesktopEditors](https://github.com/Euro-Office/DesktopEditors), [Euro-Office SDKJS](https://github.com/Euro-Office/sdkjs), and [Euro-Office Docs integration examples](https://github.com/Euro-Office/document-server-integration).
+
+| Capability | Current evidence | Phase 0 result |
+| --- | --- | --- |
+| Start/end, pause/resume, previous/next, go to slide | Documented ONLYOFFICE presentation plugin methods | Implemented as manual probe controls; live host behavior is not yet verified. |
+| Active slide index and slideshow lifecycle | Documented `onSlideShowBegin`, `onSlideShowEnd`, and `onSlideShowSlideChanged` events | Implemented in the probe; live event behavior is not yet verified. |
+| Slide count and editor slide index | Documented Office JavaScript API | Read by the probe; whether editor index tracks the active show is not assumed. |
+| Presenter notes | Documented `GetNotesPage` and `GetBodyShapeText` APIs | Read and displayed for the reported slide index; live host behavior is not yet verified. |
+| Whole-slide preview | The inspected plugin API documents image data for a selected drawing, not a rendered slide | No supported full-slide method established; unresolved feasibility gap. |
+| Animation/effect steps | The inspected methods document slideshow navigation but do not specify effect-step semantics | Requires live test; unresolved. |
+| Companion communication | No transport or trust design has been selected | Not implemented pending the Phase 1 security and interface decision. |
+| Euro-Office compatibility | Shared lineage is not sufficient evidence of API compatibility | Unverified; inspect and test its exact editions and versions independently. |
+| Shared phone UI and existing network modes | `shared/webui/app.js` expects local/direct HTTP routes, direct event streams and slide assets, or the relay WebSocket contract. The encrypted codec remains under `extension/python/`. | A companion server could serve the UI unchanged only if it implements the needed route contracts. Protocol reuse remains open; Direct IPv6, Relay, and LocalTunnel are not claimed reusable. |
+
+### Shared phone UI contract inventory
+
+This source-level inventory completes the Phase 0 baseline work that does not
+require an installed host. It is inferred from `shared/webui/app.js`,
+`shared/webui/index.html`, `extension/python/local_server.py`,
+`extension/python/controller.py`, and `extension/python/protocol.py`; it is not
+evidence that another host or a new companion already implements the contract.
+
+| Surface | Existing contract | Ownership and companion implication |
+| --- | --- | --- |
+| Phone UI assets | `/`, `/index.html`, `/app.js`, `/app.css`, `/asset-manifest.json`, and `/localizations/<locale>.json` | Shared assets are host independent. The companion must serve the expected files and asset integrity metadata if reusing the UI unchanged. |
+| Presentation state | JSON fields include `running`, `presentationActive`, `presentationPaused`, `documentKind`, `statusMessage`, zero-based `currentSlide`, `slideCount`, titles, `notes`, `nextSlide`, `nextTitle`, `nextPreview`, previous/next availability, `remainingSlides`, `atEndOfDeck`, `elapsedSeconds`, image revision identifiers, and current/next image URLs. | The connector must map host data into the phone UI's state fields. Unsupported values need explicit empty/unavailable behavior; field names and index semantics are compatibility-sensitive. |
+| Phone commands | `previous_slide`, `next_slide`, `goto_first_slide`, `goto_last_slide`, and `goto_slide` with a zero-based `index` | LibreOffice implements previous/next with effect-step navigation before changing slides when UNO exposes it. The existing UI depends on that behavior, but the shared command name alone does not guarantee another suite has matching effect semantics. |
+| Timers and phone interaction | Total time starts from `elapsedSeconds`; the phone starts a per-slide timer when `currentSlide` changes. Timer pause/resume is local to the phone UI. Fullscreen and tap-to-advance are also handled in the browser. | These controls do not require a host command beyond state updates and slide navigation. They should not be mistaken for host pause/resume or host-provided timing. |
+| Local/IPv6 compatibility path | State and slide assets use `/api/local/state` and `/api/local/slide/{current,next}`; commands use `POST /api/local/command`. Requests carry session and pairing-secret headers. The UI polls state every 1.5 seconds when this fallback is active. | Existing behavior is authenticated plaintext under its current route restrictions. Reusing it in a companion requires a separate security decision; the current fallback is not a default design for new connectors. |
+| Encrypted direct path | `GET /api/direct/handshake`, `POST /api/direct/handshake`, `/api/direct/state`, `/api/direct/events` (SSE), `/api/direct/slide/{current,next}`, and `POST /api/direct/command`. State, commands, and slide assets use versioned encrypted frames; the event stream sends `hello` and `state` events. | The protocol codec is implemented under `extension/python/` and imports the extension crypto/localization modules. Reuse must avoid copying crypto or changing the OXT as scoped above. |
+| Relay path | `/api/session` reports admission-controlled session status; `/ws` carries `hello`, encrypted `frame`, and `error` envelopes. The relay forwards frames without decrypting them. | This route requires the relay admission and encrypted session protocol. The relay is not a local host connector or a generic substitute for a companion runtime. |
+| Pairing and host lifecycle | LibreOffice owns the start/stop entry point, route selection, pairing QR/copy URL dialog, and listener setup. | These are extension-owned behaviors, not part of the shared phone UI. A companion needs its own approved desktop interaction and pairing lifecycle. |
+
+The baseline separates three implementation areas: shared browser behavior and
+assets; host-dependent state, previews, and effect-aware navigation; and
+connection-mode pairing, transport, and security. Phase 0 live checks remain
+deferred at the user's request. The matrix and API probe remain incomplete as
+compatibility evidence until actual editions and versions are run.
+
+Source inspection confirms `extension/python/protocol.py` has no UNO imports, but
+it imports `crypto.py` and `localization.py`. `crypto.py` contains the project's
+own AES-GCM and P-256 implementations because LibreOffice's embedded Python may
+not include a crypto package. That code must not be copied or replaced as a
+convenience. Moving it into `shared/` would change the OXT source/package, which
+the current scope forbids. A single-source packaging/import seam and the use of
+the existing protocol in a separate companion remain unresolved; no protocol or
+LibreOffice source was changed in this phase slice.
+
+The probe loads ONLYOFFICE's documented plugin SDK from its official plugin
+SDK URL. The plugin SDK is executable code in the editor plugin context; runtime
+source pinning/distribution and offline behavior remain part of the security and
+packaging review. The probe does not contact a companion process, transmit notes,
+or modify the LibreOffice extension or OXT.
+
+This is an interim record, not the Phase 0 go/no-go report. The Python shell
+shape is selected, but the frozen executable packaging tool, phone transport,
+shared-code extraction seam, Euro-Office behavior, and real-host behavior
+remain undecided or unverified.
+
 ## Ordered Development Plan
 
-Development starts only after the user approves this plan. Approval starts
-Phase 0; it does not pre-approve an expanded product scope or a new dependency.
+The user approved Phase 0 on 2026-09-28 and has asked to defer live-host testing
+while development writing continues. This does not establish unverified host
+compatibility or resolve the connector transport, desktop interaction,
+packaging, dependency, or security decisions listed in Phase 1.
 
 ### Phase 0 — Feasibility and go/no-go
 
@@ -165,19 +249,20 @@ smallest alternative and get approval before crossing that boundary.
    authenticated socket or browser native messaging) based on the actual hosts.
 3. Threat-model pairing, LAN exposure, browser origins, plugin messages,
    authentication tokens, local storage, logging, and shutdown behavior.
-4. Define the minimum desktop interaction for starting/stopping the companion,
-   showing pairing QR/copy URL, selecting or diagnosing a connector, and
-   reporting failures.
-5. Compare a packaged Python service with desktop shells only if the required
-   desktop interaction needs a native window, tray/menu integration, or
-   installer behavior that a background service cannot provide.
-6. Select packaging per OS. A shared codebase still needs platform-specific
-   build artifacts; it does not imply one binary runs unchanged on all three
-   operating systems.
+4. Define the local setup page's lifecycle, shutdown, diagnostics, and secure
+   loopback-only access. Pairing and connector selection remain for a later
+   approved slice.
+5. Select and review a Python packaging tool before building frozen
+   executables. Keep runtime dependencies empty until a confirmed capability
+   requires one.
+6. Package and verify separately for each OS. A shared codebase still needs
+   platform-specific build artifacts; it does not imply one binary runs
+   unchanged on all three operating systems.
 
-**Gate:** Approve the connector contract, desktop interaction model, transport,
-packaging choice, dependency list, and security design before product code
-begins.
+**Gate:** The Python shell and local setup page are approved for implementation.
+Office connector messages, phone-facing network access, pairing, cryptographic
+protocol reuse, additional dependencies, and frozen OS packages remain gated
+until their interfaces and security design are approved.
 
 ### Phase 2 — Companion foundation
 
@@ -232,6 +317,12 @@ suites” support without a published, tested host matrix.
 
 ## Security and Privacy Requirements
 
+- The desktop setup server must bind only to IPv4 loopback on an OS-assigned
+  port. It must reject unexpected `Host` values and must not enable CORS.
+- The setup page's shutdown action must require the exact same-origin and a
+  per-run random token. The token must not appear in the URL or request logs.
+- The initial shell must not expose a phone-facing listener or office-control
+  endpoint.
 - Pairing must authorize the phone before it can issue presentation commands.
 - Validate every connector message and every command at the companion boundary.
 - Do not let arbitrary webpages or untrusted content scripts invoke privileged
@@ -265,9 +356,11 @@ The companion work is complete only when all of the following are true:
 
 ## Approval Boundary
 
-This plan is ready for review. Approving it starts Phase 0 feasibility work.
-The project should return with that phase's evidence and recommendations before
-the companion's production architecture and implementation scope are locked.
+The user approved Phase 0 and selected the Python executable with a local setup
+page in the default browser on 2026-09-28. Live office-host checks are deferred
+at the user's request. The approved implementation slice is the loopback-only
+desktop shell; this does not approve office-control transport, phone network
+exposure, cryptographic changes, new dependencies, or frozen installers.
 
 ## References
 

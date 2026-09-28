@@ -1,0 +1,105 @@
+/* SPDX-FileCopyrightText: 2026 Bora Yarkın */
+/* SPDX-License-Identifier: GPL-3.0-only */
+
+:root {
+  color-scheme: light dark;
+  font: 14px/1.45 system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  color: CanvasText;
+  background: Canvas;
+}
+
+main {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+h1,
+h2,
+p,
+ul,
+dl {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.2rem;
+}
+
+h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: 0.25rem 0.75rem;
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+#status {
+  min-height: 1.45em;
+  font-weight: 600;
+}
+
+#notes {
+  max-height: 12rem;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+button,
+input {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.6rem;
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+form,
+.go-to-row {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.go-to-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}

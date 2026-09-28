@@ -90,6 +90,21 @@ is a plan, not an implemented capability or a guarantee of support for every
 suite. The staged proposal, API feasibility gates, and compatibility criteria
 are in [Cross-suite Companion](cross-suite-companion-plan.md).
 
+Phase 0 is approved and in progress. Its ONLYOFFICE API probe lives under
+`extensions/onlyoffice/`; it is a development feasibility tool, not supported
+product functionality. The phone UI and current protocol have not yet been
+connected to it.
+
+The source-level phone UI, host-state, command, and route contract is inventoried
+in the Phase 0 section of [Cross-Suite Companion](cross-suite-companion-plan.md).
+Live checks against installed office hosts are deferred; documented or
+source-inspected APIs are not treated as verified compatibility.
+
+The selected desktop shell is a Python executable that opens a local setup page
+in the default browser. It is being developed as a separate `companion/`
+package. The initial setup server is restricted to loopback and does not yet
+connect to office hosts or expose phone control.
+
 The current LibreOffice source, extension package, and local workflow are not
 part of the initial companion implementation scope. Any later change needed to
 extract more code into `shared/` must preserve the extension's independent use

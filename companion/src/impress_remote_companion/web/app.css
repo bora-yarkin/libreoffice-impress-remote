@@ -1,0 +1,37 @@
+/* SPDX-FileCopyrightText: 2026 Bora Yarkın */
+/* SPDX-License-Identifier: GPL-3.0-only */
+
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  background: Canvas;
+  color: CanvasText;
+  margin: 0;
+}
+
+main {
+  margin: 10vh auto;
+  max-width: 32rem;
+  padding: 1.5rem;
+}
+
+button {
+  background: ButtonFace;
+  border: 1px solid ButtonBorder;
+  color: ButtonText;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.65rem 1rem;
+}
+
+button:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: default;
+}

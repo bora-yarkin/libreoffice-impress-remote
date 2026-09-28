@@ -51,3 +51,15 @@ path = [
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Bora Yarkın"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "companion/src/impress_remote_companion/web/localizations/*.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Bora Yarkın"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "extensions/onlyoffice/config.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Bora Yarkın"
+SPDX-License-Identifier = "GPL-3.0-only"

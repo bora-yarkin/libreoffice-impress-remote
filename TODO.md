@@ -17,4 +17,4 @@ Open work only. Implemented work belongs in `CHANGELOG.md`.
 - Expand localization beyond English and Turkish after source strings settle.
 - Improve frontend trust for local HTTP and relay-hosted UI delivery with local HTTPS, signed assets, pinned assets, or an equivalent trusted shell approach.
 - Keep project documentation concise, current, and honest about volunteer maintenance limits.
-- Develop the proposed cross-suite companion app after approval; follow the feasibility gates and staged plan in [Cross-suite Companion](docs/cross-suite-companion-plan.md).
+- Build the approved Python companion shell with a loopback-only browser setup page. The source-level phone UI contract is inventoried; live office-host checks are deferred and connector/phone transport remains gated. Follow the staged plan in [Cross-suite Companion](docs/cross-suite-companion-plan.md).

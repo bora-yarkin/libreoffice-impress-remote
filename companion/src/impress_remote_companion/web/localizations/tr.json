@@ -1,0 +1,10 @@
+{
+  "title": "Impress Remote Companion",
+  "opening": "Açılıyor…",
+  "disconnected": "Bağlı bir sunum yok.",
+  "connectError": "Yardımcı uygulamaya bağlanılamıyor.",
+  "closing": "Yardımcı uygulama kapatılıyor…",
+  "closed": "Yardımcı uygulama kapatıldı.",
+  "closeError": "Yardımcı uygulama kapatılamadı. Yeniden deneyin.",
+  "quit": "Yardımcı uygulamayı kapat"
+}

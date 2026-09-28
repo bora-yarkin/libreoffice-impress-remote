@@ -1,0 +1,10 @@
+{
+  "title": "Impress Remote Companion",
+  "opening": "Opening…",
+  "disconnected": "No presentation is connected.",
+  "connectError": "Unable to connect to the companion.",
+  "closing": "Closing companion…",
+  "closed": "Companion closed.",
+  "closeError": "Unable to close the companion. Try again.",
+  "quit": "Quit companion"
+}
