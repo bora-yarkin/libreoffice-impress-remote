@@ -212,9 +212,19 @@ class ImpressController:
             else None
         )
         self._sync_runtime_tracking(key, resolved.running)
-        current_slide = self._slide_for_index(document, resolved.current_index)
+        current_slide = self._slide_for_presentation_index(
+            document,
+            resolved.current_index,
+            resolved.controller,
+            resolved.running,
+        )
         next_slide = (
-            self._slide_for_index(document, resolved.next_index)
+            self._slide_for_presentation_index(
+                document,
+                resolved.next_index,
+                resolved.controller,
+                resolved.running,
+            )
             if resolved.next_index is not None
             else None
         )
@@ -345,7 +355,12 @@ class ImpressController:
         """Return PNG bytes for the currently selected slide."""
         document = self._require_impress_document()
         state = self.state()
-        slide = self._slide_for_index(document, state.current_slide)
+        slide = self._slide_for_presentation_index(
+            document,
+            state.current_slide,
+            self._slideshow_controller(document),
+            state.running,
+        )
         return self._cached_slide_png_bytes(slide, state.current_render_token)
 
     def next_slide_png_bytes(self) -> bytes:
@@ -354,7 +369,12 @@ class ImpressController:
         state = self.state()
         if state.next_slide is None:
             raise RuntimeError(translate("error.noNextSlideExport"))
-        slide = self._slide_for_index(document, state.next_slide)
+        slide = self._slide_for_presentation_index(
+            document,
+            state.next_slide,
+            self._slideshow_controller(document),
+            state.running,
+        )
         return self._cached_slide_png_bytes(slide, state.next_render_token)
 
     def _cached_slide_png_bytes(self, slide, render_token: str) -> bytes:
@@ -417,11 +437,50 @@ class ImpressController:
             return None
         return draw_pages.getByIndex(index)
 
+    def _presentation_slide_count(self, controller, fallback: int) -> int:
+        getter = getattr(controller, "getSlideCount", None)
+        if not callable(getter):
+            return fallback
+        try:
+            count = getter()
+        except Exception:
+            return 0
+        if isinstance(count, bool) or not isinstance(count, int):
+            return 0
+        return max(count, 0)
+
+    def _slide_for_presentation_index(
+        self,
+        document,
+        index: int | None,
+        controller,
+        running: bool,
+    ):
+        if index is None or index < 0:
+            return None
+        if running and controller is not None:
+            getter = getattr(controller, "getSlideByIndex", None)
+            count_getter = getattr(controller, "getSlideCount", None)
+            if callable(getter) and callable(count_getter):
+                count = self._presentation_slide_count(controller, 0)
+                if index >= count:
+                    return None
+                try:
+                    return getter(index)
+                except Exception:
+                    return None
+        return self._slide_for_index(document, index)
+
     def _resolve_presentation(self, document) -> _ResolvedPresentation:
-        slide_count = self._slide_count(document)
+        document_slide_count = self._slide_count(document)
         presentation = self._presentation(document)
         controller = self._slideshow_controller(document)
         running = self._presentation_running(presentation, controller)
+        slide_count = (
+            self._presentation_slide_count(controller, document_slide_count)
+            if running
+            else document_slide_count
+        )
         active = self._presentation_active(controller, running)
         paused = running and self._controller_bool(controller, "isPaused")
         endless = running and self._controller_bool(controller, "isEndless")
@@ -459,7 +518,13 @@ class ImpressController:
                     return index
 
             current_slide = self._slide_from_controller(controller)
-            resolved = self._slide_index(document, current_slide)
+            has_presentation_order = callable(
+                getattr(controller, "getSlideCount", None)
+            ) and callable(getattr(controller, "getSlideByIndex", None))
+            if has_presentation_order:
+                resolved = self._presentation_slide_index(controller, current_slide)
+            else:
+                resolved = self._slide_index(document, current_slide)
             if resolved is not None:
                 return resolved
 
@@ -630,8 +695,36 @@ class ImpressController:
         if document is None or target_slide is None or not hasattr(document, "getDrawPages"):
             return None
         draw_pages = document.getDrawPages()
-        for index in range(draw_pages.getCount()):
-            candidate = draw_pages.getByIndex(index)
+        return self._find_slide_index(
+            draw_pages.getCount(),
+            draw_pages.getByIndex,
+            target_slide,
+        )
+
+    def _presentation_slide_index(self, controller, target_slide) -> int | None:
+        if (
+            controller is None
+            or target_slide is None
+            or not hasattr(controller, "getSlideCount")
+            or not hasattr(controller, "getSlideByIndex")
+        ):
+            return None
+        try:
+            slide_count = int(controller.getSlideCount())
+        except Exception:
+            return None
+        return self._find_slide_index(
+            slide_count,
+            controller.getSlideByIndex,
+            target_slide,
+        )
+
+    def _find_slide_index(self, slide_count: int, get_slide, target_slide) -> int | None:
+        for index in range(max(slide_count, 0)):
+            try:
+                candidate = get_slide(index)
+            except Exception:
+                return None
             if candidate is target_slide:
                 return index
             try:

@@ -10,6 +10,7 @@ This is the single technical reference for LibreOffice Impress Remote. It keeps 
 - [Project Shape](#project-shape)
 - [Routes And Responsibilities](#routes-and-responsibilities)
 - [Architecture](#architecture)
+- [Cross-Suite Companion Direction](#cross-suite-companion-direction)
 - [Protocol And Pairing](#protocol-and-pairing)
 - [Security Model](#security-model)
 - [Relay Server](#relay-server)
@@ -78,6 +79,21 @@ used by the extension and the `unohelper` classes needed by static analysis. It
 is not a replacement for LibreOffice's runtime UNO modules and is not included
 in the OXT. Keep this surface limited to interfaces imported by the extension
 so editor completions and type diagnostics remain easy to maintain.
+
+## Cross-Suite Companion Direction
+
+The LibreOffice extension remains a standalone product path: starting a remote
+in Impress must not require the companion app. The proposed companion is a
+separate path for other presentation hosts, with suite-specific connectors and
+the existing shared phone UI/localization assets where they fit. This direction
+is a plan, not an implemented capability or a guarantee of support for every
+suite. The staged proposal, API feasibility gates, and compatibility criteria
+are in [Cross-suite Companion](cross-suite-companion-plan.md).
+
+The current LibreOffice source, extension package, and local workflow are not
+part of the initial companion implementation scope. Any later change needed to
+extract more code into `shared/` must preserve the extension's independent use
+and go through its own compatibility review and approval.
 
 The local listener prefers port `9734`. Users can change that preferred port in Remote Settings. If the preferred port is occupied, the extension asks the operating system for a random free port for that remote session and reports the active port in its connection details. Desktop firewalls must allow inbound LibreOffice traffic on the active port; Direct IPv6 also requires the network firewall to allow that port.
 
