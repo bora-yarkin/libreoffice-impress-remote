@@ -12,6 +12,9 @@ description = "Cross-platform companion shell for LibreOffice Impress Remote"
 requires-python = ">=3.11"
 dependencies = []
 
+[dependency-groups]
+build = ["pyinstaller>=6.22.3,<7"]
+
 [project.scripts]
 impress-remote-companion = "impress_remote_companion.app:main"
 

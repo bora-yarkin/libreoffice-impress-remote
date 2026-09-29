@@ -9,6 +9,11 @@ Early `0.x` entries are recorded as development milestones instead of pretending
 
 ## [Unreleased]
 
+### Added
+
+- Added a locked PyInstaller build group and one-folder packaging workflow for Linux x64 on Ubuntu 22.04, Windows x64, and Intel and Apple Silicon macOS. The platform workflow launch-checks the packaged setup page and shutdown authorization. The existing LibreOffice OXT remains independent.
+- Added a `--no-browser` companion option for launching the local setup page without opening a browser automatically.
+
 ## [1.0.8] - 2026-09-26
 
 ### Fixed

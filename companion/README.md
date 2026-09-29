@@ -24,6 +24,31 @@ On Windows PowerShell, use `companion\.venv\Scripts\python.exe` and
 `companion\.venv\Scripts\impress-remote-companion.exe` for the corresponding
 commands.
 
+## Build a standalone bundle
+
+The PyInstaller build tool is isolated in the companion's `build` dependency
+group; it is not installed as a runtime dependency. From the repository root,
+run these commands on the target operating system and CPU architecture:
+
+```sh
+uv run --locked --package impress-remote-companion --group build python tools/build_companion.py
+uv run --locked --package impress-remote-companion --group build python tools/verify_companion_bundle.py
+```
+
+On macOS or Linux, `make package-companion` is a shortcut for the build step.
+The one-folder bundle is written to
+`dist/companion/impress-remote-companion/`. It includes Python and the
+companion's packaged page assets, so the target computer does not need Python.
+Build on each target operating system and CPU architecture. GitHub Actions is
+configured to build and launch-check bundles for Linux x64 on Ubuntu 22.04,
+Windows x64, and both Intel and Apple Silicon macOS runners. The Ubuntu baseline
+improves compatibility with newer systems that provide compatible glibc
+versions; it does not guarantee support for every Linux distribution.
+
+The bundle is an unpacked executable directory, not an installer or signed
+release. To launch it without opening a browser automatically, run the
+executable with `--no-browser`; it prints the setup page address to stderr.
+
 The browser page listens only on IPv4 loopback at an OS-assigned port. It does
 not accept phone or office traffic. The per-run shutdown token is delivered to
 the same-origin page and is never placed in the URL or logs. If the browser
@@ -37,7 +62,5 @@ must have an empty body, the exact setup-page origin, and the per-run token in
 `X-Companion-Token`. Other paths are not served, and no cross-origin access is
 enabled.
 
-This source package is not yet frozen into standalone OS installers. The
-packaging tool and platform builds remain a separate decision in the
-[cross-suite plan](../docs/cross-suite-companion-plan.md). ONLYOFFICE and
-Euro-Office host behavior remains unverified while live checks are deferred.
+ONLYOFFICE and Euro-Office host behavior remains unverified while live checks
+are deferred. Bundle creation does not establish office-suite compatibility.

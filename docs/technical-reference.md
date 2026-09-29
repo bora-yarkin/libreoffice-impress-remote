@@ -101,9 +101,12 @@ Live checks against installed office hosts are deferred; documented or
 source-inspected APIs are not treated as verified compatibility.
 
 The selected desktop shell is a Python executable that opens a local setup page
-in the default browser. It is being developed as a separate `companion/`
-package. The initial setup server is restricted to loopback and does not yet
-connect to office hosts or expose phone control.
+in the default browser. It is developed as a separate `companion/` package and
+has a PyInstaller one-folder build path. The initial setup server is restricted
+to loopback and does not yet connect to office hosts or expose phone control.
+CI is configured to build and launch-check the target OS/CPU bundles; host
+integration remains untested. The Linux x64 bundle targets Ubuntu 22.04; other
+distribution compatibility is not guaranteed.
 
 The current LibreOffice source, extension package, and local workflow are not
 part of the initial companion implementation scope. Any later change needed to
@@ -277,6 +280,7 @@ Useful commands:
 - `make lint`: run lint checks.
 - `make test`: run the test suite.
 - `make oxt`: build `dist/libreoffice-impress-remote-<version>.oxt`.
+- `make package-companion`: build the current OS/CPU one-folder companion bundle.
 - `make relay-dev`: run the Python relay from the source tree.
 - `make relay-compat RELAY_URL=...`: validate a relay HTTP contract.
 

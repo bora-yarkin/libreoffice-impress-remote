@@ -470,7 +470,7 @@ def test_product_ci_runs_release_readiness_checks() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     for expected in (
-        "python -m ruff check extension/python relay tests tools",
+        "python -m ruff check companion/src extension/python relay tests tools",
         "python -m pytest tests",
         "python -m tools.release oxt",
     ):
@@ -478,6 +478,23 @@ def test_product_ci_runs_release_readiness_checks() -> None:
 
     for removed in ("dist/impress-remote-relay-python-*.zip",):
         assert removed not in workflow
+
+
+def test_companion_ci_builds_and_launches_platform_bundles() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    for expected in (
+        "name: Companion Bundle (${{ matrix.target }})",
+        "target: linux-x64-ubuntu-22.04",
+        "target: windows-x64",
+        "target: macos-x64",
+        "target: macos-arm64",
+        "uv sync --locked --package impress-remote-companion --group build",
+        "python tools/build_companion.py",
+        "python tools/verify_companion_bundle.py",
+        "path: dist/companion/",
+    ):
+        assert expected in workflow
 
 
 def test_release_workflow_publishes_versioned_oxt_after_gates() -> None:

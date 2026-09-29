@@ -3,7 +3,7 @@
 # Keep targets aligned with the developer commands documented in
 # docs/technical-reference.md.
 
-.PHONY: help oxt install-oxt test lint security clean refresh relay-dev localization-import relay-compat
+.PHONY: help oxt install-oxt package-companion test lint security clean refresh relay-dev localization-import relay-compat
 
 UV ?= uv
 VENV_DIR ?= .venv
@@ -21,11 +21,11 @@ VERSION := $(shell cat VERSION 2>/dev/null)
 OXT_FILE := dist/libreoffice-impress-remote-$(VERSION).oxt
 
 help:
-	@echo "Targets: venv oxt install-oxt test lint security relay-dev localization-import relay-compat clean refresh"
+	@echo "Targets: venv oxt install-oxt package-companion test lint security relay-dev localization-import relay-compat clean refresh"
 
 venv: $(SETUP_STAMP)
 
-$(SETUP_STAMP): pyproject.toml relay/pyproject.toml uv.lock
+$(SETUP_STAMP): pyproject.toml relay/pyproject.toml companion/pyproject.toml uv.lock
 	UV_CACHE_DIR=$(UV_CACHE_DIR) UV_PROJECT_ENVIRONMENT=$(VENV_DIR) $(UV) sync --locked --all-packages --all-extras
 	@touch $(SETUP_STAMP)
 	@echo "Environment ready at $(VENV_DIR)"
@@ -37,6 +37,9 @@ install-oxt: oxt
 	@if [ -z "$(LO_UNOPKG)" ]; then echo "LibreOffice unopkg not found. Set LO_UNOPKG=/path/to/unopkg."; exit 1; fi
 	@echo "Installing $(OXT_FILE) with $(LO_UNOPKG)"
 	"$(LO_UNOPKG)" add -f "$(OXT_FILE)"
+
+package-companion: $(SETUP_STAMP)
+	UV_CACHE_DIR=$(UV_CACHE_DIR) UV_PROJECT_ENVIRONMENT=$(VENV_DIR) $(UV) run --locked --package impress-remote-companion --group build python tools/build_companion.py
 
 test: $(SETUP_STAMP)
 	PYTHONPATH=.:extension/python $(VENV_PYTEST) tests

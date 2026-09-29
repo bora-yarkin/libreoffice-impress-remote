@@ -3,7 +3,7 @@
 
 # Cross-Suite Companion
 
-**Status:** The Python companion shell with a local browser setup page is approved and in progress (2026-09-28). Live office-host testing is deferred; connector and phone transport remain gated on security and compatibility decisions.
+**Status:** The Python companion shell and PyInstaller one-folder bundles are approved and in progress (2026-09-29). Live office-host testing is deferred; connector and phone transport remain gated on security and compatibility decisions.
 
 ## Goal
 
@@ -165,9 +165,25 @@ Evidence: [ONLYOFFICE plugin methods](https://api.onlyoffice.com/docs/plugins/in
 | Presenter notes | Documented `GetNotesPage` and `GetBodyShapeText` APIs | Read and displayed for the reported slide index; live host behavior is not yet verified. |
 | Whole-slide preview | The inspected plugin API documents image data for a selected drawing, not a rendered slide | No supported full-slide method established; unresolved feasibility gap. |
 | Animation/effect steps | The inspected methods document slideshow navigation but do not specify effect-step semantics | Requires live test; unresolved. |
-| Companion communication | No transport or trust design has been selected | Not implemented pending the Phase 1 security and interface decision. |
+| Plugin-to-companion messaging | ONLYOFFICE documents message passing between a plugin and its own modal/panel windows, but no generic native-companion bridge. Chrome native messaging requires a Chrome extension with the `nativeMessaging` permission and a separately registered host. | No transport selected. A local HTTP/WebSocket bridge depends on the embedded webview origin and network policy and must be proven in the exact host build. |
 | Euro-Office compatibility | Shared lineage is not sufficient evidence of API compatibility | Unverified; inspect and test its exact editions and versions independently. |
 | Shared phone UI and existing network modes | `shared/webui/app.js` expects local/direct HTTP routes, direct event streams and slide assets, or the relay WebSocket contract. The encrypted codec remains under `extension/python/`. | A companion server could serve the UI unchanged only if it implements the needed route contracts. Protocol reuse remains open; Direct IPv6, Relay, and LocalTunnel are not claimed reusable. |
+
+Browser access to local addresses is also a moving compatibility boundary.
+Chrome put PNA preflight enforcement on hold and moved to Local Network Access
+permission prompts. Chrome 142 release notes describe permission-gated requests
+to local and loopback addresses from secure contexts; Chrome 145 split the
+permission into `local-network` and `loopback-network`; Chrome 154 documents a
+WebSocket option for declaring local/loopback targets and requires the site's
+local-network permission. These browser milestones do not establish what
+embedded webviews in office editors implement. The WICG specification remains a
+draft marked not ready for implementation, so it is not a substitute for
+testing the browser actually shipped with each target host. Do not treat a
+plugin's HTTP or WebSocket request to a companion as a verified integration
+until its origin, permission behavior, and reachability are checked in the
+target edition and version.
+
+Evidence: [ONLYOFFICE plugin window messaging](https://api.onlyoffice.com/docs/plugins/customization/windows-and-panels/), [Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging), [Chrome PNA rollout status](https://developer.chrome.com/blog/pna-on-hold), [Chrome 142 release notes](https://developer.chrome.com/release-notes/142), [Chrome 145 release notes](https://developer.chrome.com/release-notes/145), [Chrome 154 release notes](https://developer.chrome.com/release-notes/154), and the [Local Network Access proposal](https://wicg.github.io/local-network-access/).
 
 ### Shared phone UI contract inventory
 
@@ -209,17 +225,19 @@ source pinning/distribution and offline behavior remain part of the security and
 packaging review. The probe does not contact a companion process, transmit notes,
 or modify the LibreOffice extension or OXT.
 
-This is an interim record, not the Phase 0 go/no-go report. The Python shell
-shape is selected, but the frozen executable packaging tool, phone transport,
-shared-code extraction seam, Euro-Office behavior, and real-host behavior
-remain undecided or unverified.
+This remains an interim feasibility record rather than a complete Phase 0
+go/no-go report. The Python executable/browser setup and PyInstaller one-folder
+packaging are selected. Phone transport, a safe shared-code seam, Euro-Office
+behavior, and real-host compatibility remain unresolved or unverified.
 
 ## Ordered Development Plan
 
-The user approved Phase 0 on 2026-09-28 and has asked to defer live-host testing
-while development writing continues. This does not establish unverified host
-compatibility or resolve the connector transport, desktop interaction,
-packaging, dependency, or security decisions listed in Phase 1.
+The user approved Phase 0 on 2026-09-28 and asked to defer live-host testing
+while development writing continues. The user selected the Python executable
+with a browser setup page and later approved PyInstaller one-folder bundles.
+These choices do not establish host compatibility or resolve connector
+transport, phone-facing authorization, shared-code reuse, or cryptographic
+reuse.
 
 ### Phase 0 — Feasibility and go/no-go
 
@@ -244,25 +262,76 @@ smallest alternative and get approval before crossing that boundary.
 
 ### Phase 1 — Contracts and runtime design
 
-1. Define a small, versioned connector contract based on Phase 0 evidence.
-2. Decide how the connector reaches the companion (for example, a local
-   authenticated socket or browser native messaging) based on the actual hosts.
-3. Threat-model pairing, LAN exposure, browser origins, plugin messages,
-   authentication tokens, local storage, logging, and shutdown behavior.
+1. Use the confirmed transport-neutral Connector Contract v1 below, based on
+   the existing phone UI state fields and command names.
+2. Decide each connector's bridge to the companion from its documented runtime
+   context and live host evidence. Chrome native messaging applies only when a
+   browser extension is part of that connector; it is not a generic office
+   plugin bridge. A local HTTP/WebSocket path remains gated on the embedded
+   origin, permission behavior, and reachability being checked in the exact
+   target host build.
+3. Use the threat model below for the current setup page and planned phone/host
+   flows. Keep transport-specific reachability open until live host testing.
 4. Define the local setup page's lifecycle, shutdown, diagnostics, and secure
    loopback-only access. Pairing and connector selection remain for a later
    approved slice.
-5. Select and review a Python packaging tool before building frozen
-   executables. Keep runtime dependencies empty until a confirmed capability
-   requires one.
-6. Package and verify separately for each OS. A shared codebase still needs
-   platform-specific build artifacts; it does not imply one binary runs
-   unchanged on all three operating systems.
+5. Use PyInstaller as a build-only dependency in the companion's `build`
+   dependency group. Keep runtime dependencies empty until a confirmed
+   capability requires one.
+6. Build one-folder bundles separately for Linux x64 on Ubuntu 22.04, Windows
+   x64, and Intel and Apple Silicon macOS. Launch each bundle and verify its
+   packaged page assets, loopback API, invalid-token rejection, and clean
+   shutdown. Ubuntu 22.04 is the Linux glibc baseline; this does not guarantee
+   compatibility with every Linux distribution.
 
-**Gate:** The Python shell and local setup page are approved for implementation.
-Office connector messages, phone-facing network access, pairing, cryptographic
-protocol reuse, additional dependencies, and frozen OS packages remain gated
-until their interfaces and security design are approved.
+#### Connector Contract v1
+
+On 2026-09-29, the user chose to version the existing phone UI state fields and
+command names for the first connector contract. V1 defines semantic data only;
+it does not select a message envelope, connection method, phone authorization,
+or cryptographic protocol. Those remain separate decisions behind the live-host
+and security gates.
+
+The connector maps host state into the exact fields listed in the
+**Presentation state** row of the phone UI contract inventory above. Their
+types and key constraints are:
+
+| Fields | Type and meaning |
+| --- | --- |
+| `running`, `presentationActive`, `presentationPaused`, `canGoPrevious`, `canGoNext`, `atEndOfDeck` | Booleans describing the current host and presentation state. Navigation booleans must reflect commands the host can currently perform. |
+| `documentKind`, `statusMessage`, `currentTitle`, `notes`, `nextTitle`, `nextPreview`, `currentSlideImageRevision`, `nextSlideImageRevision`, `currentSlideImageUrl`, `nextSlideImageUrl` | Strings. Use empty strings when optional display data or image resources are unavailable. Image URLs must identify resources served by the companion; a connector must not supply arbitrary remote image URLs. |
+| `currentSlide`, `slideCount`, `remainingSlides`, `elapsedSeconds` | Non-negative integers. Slide indexes are zero-based. `currentSlide` is `0` when the host has no current slide, as in the existing empty-state payload. |
+| `nextSlide` | A zero-based non-negative integer or `null` when no next slide is available. |
+
+Connector-provided titles, notes, and status text are plain text; the phone UI
+must render them as text rather than HTML. Presenter notes remain sensitive
+content and must not appear in logs.
+
+Phone commands are the existing `previous_slide`, `next_slide`,
+`goto_first_slide`, `goto_last_slide`, and `goto_slide` names. Only `goto_slide`
+accepts `index`; it is a zero-based integer in the current slide range. A
+connector must reject malformed, out-of-range, or unsupported commands before
+calling the host API. It must not silently report success for a command the
+host did not perform. Effect-step behavior, host start/stop controls, and other
+capabilities that the phone UI does not currently express remain host-specific
+and are recorded in the capability matrix rather than added to V1.
+
+V1 preserves these field names and meanings. Consumers may ignore additional
+state fields, but producers must not change or remove a V1 field or command
+meaning without a contract version change. This contract does not modify the
+LibreOffice OXT or its existing command parser.
+
+When a bridge is implemented, conformance tests must cover empty and active
+snapshots, field types, supported commands, malformed indexes, and indexes
+outside the current slide range. Passing those tests establishes contract
+conformance only; a connector still requires live tests against its exact host
+edition and version before it can be listed as supported.
+
+**Gate:** The Python shell, local setup page, and PyInstaller one-folder bundles
+for the listed platform targets are approved. Office connector messages,
+phone-facing network access, pairing, and cryptographic protocol reuse remain
+gated until their interfaces and security design are approved. Installers,
+signing, updates, and publishing remain later release work.
 
 ### Phase 2 — Companion foundation
 
@@ -315,6 +384,58 @@ suites” support without a published, tested host matrix.
 4. Add a host to the supported list only while there is a maintainer and a
    repeatable compatibility check for it.
 
+## Threat Model
+
+This model separates the current setup page from future phone and suite
+connections. The companion currently serves only its desktop setup page on
+IPv4 loopback; phone traffic and office-control messages are not implemented.
+The ONLYOFFICE probe is a development plugin and does not connect to the
+companion.
+
+### Protected assets
+
+- Presentation commands and the authority to control an active show.
+- Slide titles, previews, and presenter notes. Notes may contain private
+  material.
+- Pairing/session secrets and the integrity of the connector state and command
+  contract.
+- Availability and clean shutdown of the companion, plus integrity of active
+  presentation state.
+
+### Actors and trust boundaries
+
+| Boundary | Current behavior and control | Remaining risk or open question |
+| --- | --- | --- |
+| Setup page in the default browser → companion | The companion binds `127.0.0.1` on an OS-assigned port, checks the exact `Host`, sends no CORS permission, and requires exact `Origin` plus a random per-run token for shutdown. It adds a restrictive CSP and suppresses request logging. (`companion/src/impress_remote_companion/control_server.py:15-28,31-47,57-64,90-125`) | This limits browser-origin access. It does not isolate the endpoint from another local process. |
+| Local process → companion | A local client that can connect to loopback can read `/api/session`; that response contains the shutdown token. (`companion/src/impress_remote_companion/control_server.py:66-88`) | This permits local shutdown only; the shell does not provide cross-account process isolation. The desktop use assumption is that local process access is trusted. |
+| Phone browser → companion | No phone listener exists in the current shell. | A future listener creates a LAN trust boundary. Pairing and session authorization must be enforced by the companion before commands are accepted. The host browser's local-network permission and reachability behavior are unverified. |
+| Suite plugin → companion | No bridge exists. The ONLYOFFICE probe calls documented editor APIs and explicitly reports that it does not connect to a phone or companion. (`extensions/onlyoffice/index.html:10-16`; `extensions/onlyoffice/plugin.js:61-75,77-150`) | Treat future plugin messages as untrusted input. Validate the V1 state and command contract before use; test the actual embedded browser origin and bridge behavior in the selected host build. |
+| Plugin SDK delivery → editor plugin | The development probe loads executable SDK code from the official HTTPS SDK URL at runtime. (`extensions/onlyoffice/index.html:10`) | SDK availability, integrity pinning, and offline distribution are not resolved for a released connector. The probe is not part of the companion bundle. |
+| Shared phone UI → displayed state | The current UI inserts titles and notes with `textContent`. (`shared/webui/app.js:700-711`) | Preserve text-only rendering for connector data. Presenter notes and tokens must not enter logs; image references must resolve to companion-owned resources. |
+
+### Attacker stories and required controls
+
+- A malicious webpage attempts to reach the setup server. Keep the loopback
+  bind, exact `Host` check, absent CORS access, exact `Origin` check, and
+  shutdown token. Recheck browser local-network permissions in the actual host
+  build before selecting an office-plugin bridge.
+- An unauthenticated phone or LAN peer sends a presentation command. This path
+  is not implemented; any future phone-facing listener must be opt-in and
+  reject commands until pairing/session authorization succeeds.
+- A malformed or compromised plugin sends a bad snapshot, command, index, or
+  image URL. Validate fields and slide bounds, allow only the V1 commands,
+  reject arbitrary remote image URLs, and never treat connector text as HTML.
+- A local process that can connect to loopback reads the session token and
+  stops the companion. This grants shutdown only; local process isolation is
+  outside the shell's guarantee. If shared-account use is required, add an
+  OS-enforced authentication boundary before exposing the endpoint in that
+  environment.
+
+The connector bridge, phone authorization protocol, local-network exposure,
+replay controls, and SDK distribution remain unresolved. These are gates for
+implementation and host support, not assumptions that the current shell has
+phone or office-control security.
+
 ## Security and Privacy Requirements
 
 - The desktop setup server must bind only to IPv4 loopback on an OS-assigned
@@ -325,6 +446,9 @@ suites” support without a published, tested host matrix.
   endpoint.
 - Pairing must authorize the phone before it can issue presentation commands.
 - Validate every connector message and every command at the companion boundary.
+- Render connector-supplied titles, notes, and status text as text, never HTML.
+  Serve slide images through companion-owned routes; do not fetch arbitrary
+  connector-supplied image URLs.
 - Do not let arbitrary webpages or untrusted content scripts invoke privileged
   controls.
 - Bind listeners to the narrowest interfaces needed and defend against
@@ -358,9 +482,14 @@ The companion work is complete only when all of the following are true:
 
 The user approved Phase 0 and selected the Python executable with a local setup
 page in the default browser on 2026-09-28. Live office-host checks are deferred
-at the user's request. The approved implementation slice is the loopback-only
-desktop shell; this does not approve office-control transport, phone network
-exposure, cryptographic changes, new dependencies, or frozen installers.
+at the user's request. On 2026-09-29, the user approved PyInstaller as a
+build-only dependency for one-folder bundles and selected Ubuntu 22.04 as the
+Linux x64 build baseline. This baseline does not guarantee compatibility with
+every Linux distribution. The user also approved Connector Contract v1 as the
+existing phone UI state fields and command names, with transport and phone
+authorization left undecided. The companion remains loopback only; this does
+not approve office-control transport, phone network exposure, cryptographic
+changes, installers, signing, or release publication.
 
 ## References
 
@@ -372,4 +501,11 @@ exposure, cryptographic changes, new dependencies, or frozen installers.
 - [Google Slides speaker notes](https://developers.google.com/workspace/slides/api/guides/notes)
 - [Google Slides page thumbnails](https://developers.google.com/workspace/slides/api/reference/rest/v1/presentations.pages/getThumbnail)
 - [Chrome extension native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
-- [PyInstaller: building for multiple operating systems](https://pyinstaller.org/en/latest/usage.html#supporting-multiple-operating-systems)
+- [Chrome Private Network Access rollout status](https://developer.chrome.com/blog/pna-on-hold)
+- [Chrome 142 release notes: Local Network Access permissions](https://developer.chrome.com/release-notes/142)
+- [Chrome 145 release notes: split Local Network Access permissions](https://developer.chrome.com/release-notes/145)
+- [Chrome 154 release notes: WebSocket local address space](https://developer.chrome.com/release-notes/154)
+- [Local Network Access proposal status](https://wicg.github.io/local-network-access/)
+- [PyInstaller one-folder and one-file modes](https://pyinstaller.org/en/stable/operating-mode.html)
+- [PyInstaller GNU/Linux forward compatibility](https://www.pyinstaller.org/en/stable/usage.html#making-gnu-linux-apps-forward-compatible)
+- [PyInstaller license and distribution exception](https://pyinstaller.org/en/stable/license.html)
