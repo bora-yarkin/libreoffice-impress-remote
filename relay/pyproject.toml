@@ -7,16 +7,16 @@
 name = "impress-remote-relay"
 dynamic = ["version"]
 requires-python = ">=3.11"
-dependencies = ["aiohttp>=3.14.3"]
+dependencies = ["aiohttp>=3.14.5"]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.0", "ruff>=0.16.9"]
+dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.0", "ruff>=0.17.2"]
 
 [project.scripts]
 impress-remote-relay = "relay.__main__:main"
 
 [build-system]
-requires = ["setuptools>=84.0.0"]
+requires = ["setuptools>=84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
